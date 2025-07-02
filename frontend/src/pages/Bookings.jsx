@@ -21,7 +21,8 @@ const Bookings = () => {
  const fetchBookings = async () => {
   try {
     setLoading(true)
-    const response = await axios.get(`${baseURL}/api/bookings`, {
+
+    const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings`, {
       params: {
         page: currentPage,
         limit: 10,
@@ -29,15 +30,17 @@ const Bookings = () => {
         search: searchTerm,
       },
     })
+
     setBookings(response.data.bookings)
     setTotalPages(response.data.totalPages)
   } catch (error) {
     toast.error("Error fetching bookings")
-    console.error("Error:", error)
+    console.error("Error fetching bookings:", error)
   } finally {
     setLoading(false)
   }
 }
+
 
 
   const getStatusColor = (status) => {

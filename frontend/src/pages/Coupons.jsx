@@ -28,16 +28,19 @@ const Coupons = () => {
   }, [])
 
   const fetchCoupons = async () => {
-    try {
-      const response = await axios.get("/api/coupons")
-      setCoupons(response.data)
-    } catch (error) {
-      toast.error("Error fetching coupons")
-      console.error("Error:", error)
-    } finally {
-      setLoading(false)
-    }
+  const apiBaseUrl = import.meta.env.VITE_API_URL
+
+  try {
+    const response = await axios.get(`${apiBaseUrl}/api/coupons`)
+    setCoupons(response.data)
+  } catch (error) {
+    toast.error("Error fetching coupons")
+    console.error("Error:", error)
+  } finally {
+    setLoading(false)
   }
+}
+const apiBaseUrl = import.meta.env.VITE_API_URL
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -50,13 +53,13 @@ const Coupons = () => {
         usageLimit: formData.usageLimit ? Number.parseInt(formData.usageLimit) : null,
       }
 
-      if (editingCoupon) {
-        await axios.put(`/api/coupons/${editingCoupon._id}`, submitData)
-        toast.success("Coupon updated successfully")
-      } else {
-        await axios.post("/api/coupons", submitData)
-        toast.success("Coupon created successfully")
-      }
+    if (editingCoupon) {
+    await axios.put(`${apiBaseUrl}/api/coupons/${editingCoupon._id}`, submitData)
+    toast.success("Coupon updated successfully")
+  } else {
+    await axios.post(`${apiBaseUrl}/api/coupons`, submitData)
+    toast.success("Coupon created successfully")
+  }
       setShowModal(false)
       setEditingCoupon(null)
       resetForm()

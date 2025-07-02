@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import axios from "axios"
 import toast from "react-hot-toast"
 import { Plus, Search, Edit, Trash2, ToggleLeft, ToggleRight } from "lucide-react"
+const apiBaseUrl = import.meta.env.VITE_API_URL
 
 const Pincodes = () => {
   const [pincodes, setPincodes] = useState([])
@@ -62,27 +63,31 @@ const Pincodes = () => {
     setShowModal(true)
   }
 
-  const handleDelete = async (id) => {
-    if (window.confirm("Are you sure you want to delete this pincode?")) {
-      try {
-        await axios.delete(`/api/pincodes/${id}`)
-        toast.success("Pincode deleted successfully")
-        fetchPincodes()
-      } catch (error) {
-        toast.error("Error deleting pincode")
-      }
+const handleDelete = async (id) => {
+  if (window.confirm("Are you sure you want to delete this coupon?")) {
+    try {
+      await axios.delete(`${apiBaseUrl}/api/coupons/${id}`)
+      toast.success("Coupon deleted successfully")
+      fetchCoupons()
+    } catch (error) {
+      toast.error("Error deleting coupon")
+      console.error("Delete error:", error)
     }
   }
+}
+
 
   const handleToggleStatus = async (id) => {
-    try {
-      await axios.patch(`/api/pincodes/${id}/toggle`)
-      toast.success("Pincode status updated")
-      fetchPincodes()
-    } catch (error) {
-      toast.error("Error updating pincode status")
-    }
+  try {
+    await axios.patch(`${apiBaseUrl}/api/coupons/${id}/toggle`)
+    toast.success("Coupon status updated")
+    fetchCoupons()
+  } catch (error) {
+    toast.error("Error updating coupon status")
+    console.error("Toggle error:", error)
   }
+}
+
 
   const filteredPincodes = pincodes.filter(
     (pincode) =>

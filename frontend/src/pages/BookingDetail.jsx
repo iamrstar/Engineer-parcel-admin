@@ -13,6 +13,8 @@ import {
   CreditCard
 } from "lucide-react"
 
+
+
 const BookingDetail = () => {
   const { id } = useParams()
   const navigate = useNavigate()
