@@ -18,22 +18,24 @@ export const AuthProvider = ({ children }) => {
   const [admin, setAdmin] = useState(null)
   const [loading, setLoading] = useState(true)
 
+  const API_BASE_URL = import.meta.env.VITE_API_URL
+
   useEffect(() => {
     const token = localStorage.getItem("adminToken")
     if (token) {
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`
       setIsAuthenticated(true)
-      // You could verify token here
     }
     setLoading(false)
   }, [])
 
   const login = async (username, password) => {
     try {
-const response = await axios.post(`${import.meta.env.VITE_API_URL}/api/auth/login`, {
-  username,
-  password,
-})
+      const response = await axios.post(`${API_BASE_URL}/api/auth/login`, {
+        username,
+        password,
+      })
+
       const { token, admin } = response.data
 
       localStorage.setItem("adminToken", token)

@@ -12,7 +12,7 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: process.env.VITE_API_URL || "https://engineer-parcel-admin.onrender.com",
+        target: "http://localhost:5000", // 👈 for local dev only
         changeOrigin: true,
         secure: false,
       },
