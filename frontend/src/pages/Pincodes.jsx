@@ -22,17 +22,20 @@ const Pincodes = () => {
     fetchPincodes()
   }, [])
 
-  const fetchPincodes = async () => {
-    try {
-      const response = await axios.get("/api/pincodes")
-      setPincodes(response.data)
-    } catch (error) {
-      toast.error("Error fetching pincodes")
-      console.error("Error:", error)
-    } finally {
-      setLoading(false)
-    }
+ const fetchPincodes = async () => {
+  try {
+    setLoading(true)
+
+    const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/pincodes`)
+    setPincodes(response.data)
+  } catch (error) {
+    toast.error("Error fetching pincodes")
+    console.error("Error fetching pincodes:", error)
+  } finally {
+    setLoading(false)
   }
+}
+
 
   const handleSubmit = async (e) => {
     e.preventDefault()
