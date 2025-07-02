@@ -8,7 +8,19 @@ require("dotenv").config()
 const app = express()
 
 // Middleware
-app.use(cors())
+const allowedOrigins = [
+  "http://localhost:5173", // for local dev
+  "https://engineer-parcel-admin.netlify.app/", 
+  "https://engineer-parcel-admin.vercel.app/"    
+]
+
+app.use(cors({
+  origin: allowedOrigins,
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "DELETE"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}))
+
 app.use(express.json())
 
 // MongoDB Connection
