@@ -4,18 +4,26 @@ import { useState, useEffect } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import axios from "axios"
 import toast from "react-hot-toast"
-import { ArrowLeft, Save, Package, User, MapPin, CreditCard } from "lucide-react"
+import {
+  ArrowLeft,
+  Save,
+  Package,
+  User,
+  MapPin,
+  CreditCard
+} from "lucide-react"
 
 const BookingDetail = () => {
   const { id } = useParams()
   const navigate = useNavigate()
+
   const [booking, setBooking] = useState(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [editMode, setEditMode] = useState(false)
 
   useEffect(() => {
-    fetchBooking()
+    if (id) fetchBooking()
   }, [id])
 
   const fetchBooking = async () => {
@@ -49,7 +57,7 @@ const BookingDetail = () => {
       setBooking((prev) => ({
         ...prev,
         [nested]: {
-          ...prev[nested],
+          ...prev?.[nested],
           [field]: value,
         },
       }))
@@ -78,15 +86,18 @@ const BookingDetail = () => {
   }
 
   return (
-    <div>
+    <div className="p-4">
       <div className="mb-8 flex items-center justify-between">
         <div className="flex items-center">
-          <button onClick={() => navigate("/bookings")} className="mr-4 p-2 text-gray-600 hover:text-gray-900">
+          <button
+            onClick={() => navigate("/bookings")}
+            className="mr-4 p-2 text-gray-600 hover:text-gray-900"
+          >
             <ArrowLeft className="h-5 w-5" />
           </button>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Booking Details</h1>
-            <p className="text-gray-600">Booking ID: {booking.bookingId}</p>
+            <p className="text-gray-600">Booking ID: {booking.bookingId || "N/A"}</p>
           </div>
         </div>
         <div className="flex space-x-3">
