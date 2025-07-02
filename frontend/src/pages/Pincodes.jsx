@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import axios from "axios"
 import toast from "react-hot-toast"
 import { Plus, Search, Edit, Trash2, ToggleLeft, ToggleRight } from "lucide-react"
-const apiBaseUrl = import.meta.env.VITE_API_URL
+
 
 const Pincodes = () => {
   const [pincodes, setPincodes] = useState([])
