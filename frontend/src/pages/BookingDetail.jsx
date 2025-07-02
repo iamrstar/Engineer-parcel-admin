@@ -26,31 +26,31 @@ const BookingDetail = () => {
     if (id) fetchBooking()
   }, [id])
 
-  const fetchBooking = async () => {
-    try {
-      const response = await axios.get(`/api/bookings/${id}`)
-      setBooking(response.data)
-    } catch (error) {
-      toast.error("Error fetching booking details")
-      console.error("Error:", error)
-    } finally {
-      setLoading(false)
-    }
+ const fetchBooking = async () => {
+  try {
+    const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/${id}`)
+    setBooking(response.data)
+  } catch (error) {
+    toast.error("Error fetching booking details")
+    console.error("Error:", error)
+  } finally {
+    setLoading(false)
   }
+}
 
   const handleSave = async () => {
-    try {
-      setSaving(true)
-      await axios.put(`/api/bookings/${id}`, booking)
-      toast.success("Booking updated successfully")
-      setEditMode(false)
-    } catch (error) {
-      toast.error("Error updating booking")
-      console.error("Error:", error)
-    } finally {
-      setSaving(false)
-    }
+  try {
+    setSaving(true)
+    await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/${id}`, booking)
+    toast.success("Booking updated successfully")
+    setEditMode(false)
+  } catch (error) {
+    toast.error("Error updating booking")
+    console.error("Error:", error)
+  } finally {
+    setSaving(false)
   }
+}
 
   const handleInputChange = (field, value, nested = null) => {
     if (nested) {

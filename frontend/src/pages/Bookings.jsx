@@ -18,26 +18,27 @@ const Bookings = () => {
     fetchBookings()
   }, [currentPage, statusFilter, searchTerm])
 
-  const fetchBookings = async () => {
-    try {
-      setLoading(true)
-      const response = await axios.get("/api/bookings", {
-        params: {
-          page: currentPage,
-          limit: 10,
-          status: statusFilter,
-          search: searchTerm,
-        },
-      })
-      setBookings(response.data.bookings)
-      setTotalPages(response.data.totalPages)
-    } catch (error) {
-      toast.error("Error fetching bookings")
-      console.error("Error:", error)
-    } finally {
-      setLoading(false)
-    }
+ const fetchBookings = async () => {
+  try {
+    setLoading(true)
+    const response = await axios.get(`${baseURL}/api/bookings`, {
+      params: {
+        page: currentPage,
+        limit: 10,
+        status: statusFilter,
+        search: searchTerm,
+      },
+    })
+    setBookings(response.data.bookings)
+    setTotalPages(response.data.totalPages)
+  } catch (error) {
+    toast.error("Error fetching bookings")
+    console.error("Error:", error)
+  } finally {
+    setLoading(false)
   }
+}
+
 
   const getStatusColor = (status) => {
     const colors = {

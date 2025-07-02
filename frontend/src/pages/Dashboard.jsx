@@ -19,15 +19,15 @@ const Dashboard = () => {
   }, [])
 
   const fetchStats = async () => {
-    try {
-      const response = await axios.get("/api/bookings/stats/dashboard")
-      setStats(response.data)
-    } catch (error) {
-      console.error("Error fetching stats:", error)
-    } finally {
-      setLoading(false)
-    }
+  try {
+    const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/stats/dashboard`)
+    setStats(response.data)
+  } catch (error) {
+    console.error("Error fetching stats:", error)
+  } finally {
+    setLoading(false)
   }
+}
 
   const statCards = [
     {
