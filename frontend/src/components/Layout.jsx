@@ -13,12 +13,13 @@ const Layout = ({ children }) => {
 
   const navigation = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
-    { name: "Bookings", href: "/bookings", icon: FileText },
+    { name: "Booking", href: "/bookings", icon: FileText },
     { name: "Pincodes", href: "/pincodes", icon: MapPin },
     { name: "Coupons", href: "/coupons", icon: Ticket },
+    { name: "Create Order", href: "/manual-booking", icon: Ticket },
   ]
 
-  const handleLogout = () => {
+   const handleLogout = () => {
     logout()
     navigate("/login")
   }
