@@ -8,6 +8,7 @@ import BookingDetail from "./pages/BookingDetail"
 import Pincodes from "./pages/Pincodes"
 import Coupons from "./pages/Coupons"
 import Layout from "./components/Layout"
+import ManualBooking from "./pages/manual-booking"
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth()
@@ -40,6 +41,17 @@ function App() {
               </ProtectedRoute>
             }
           />
+        <Route
+  path="/manual-booking"
+  element={
+    <ProtectedRoute>
+      <Layout>
+        <ManualBooking />
+      </Layout>
+    </ProtectedRoute>
+  }
+/>
+         
           <Route
             path="/bookings/:id"
             element={
