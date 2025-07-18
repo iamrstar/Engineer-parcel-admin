@@ -165,7 +165,7 @@ export default function ManualBooking() {
                 ))}
               </div>
             ))}
-            <input name="bookingId" value={formData.bookingId} onChange={handleChange} placeholder="Booking ID (optional)" className="w-full border p-2 rounded" />
+            <input name="bookingId" value={formData.bookingId} onChange={handleChange} placeholder="Booking ID ( Please Start With AD and 6 digits)" className="w-full border p-2 rounded" />
             <select name="deliveryStatus" value={formData.deliveryStatus} onChange={handleChange} className="w-full border p-2 rounded">
               <option value="Pending">Pending</option>
               <option value="Dispatched">Dispatched</option>
