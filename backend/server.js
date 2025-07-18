@@ -51,7 +51,7 @@ const authRoutes = require("./routes/auth")
 const bookingRoutes = require("./routes/bookings")
 const pincodeRoutes = require("./routes/pincodes")
 const couponRoutes = require("./routes/coupons")
-const manualBookingRoute = require("./routes/manualBooking");
+const manualBookingRoute = require('./routes/manualBooking.js');
 
 app.use("/api/auth", authRoutes)
 app.use("/api/bookings", bookingRoutes)
