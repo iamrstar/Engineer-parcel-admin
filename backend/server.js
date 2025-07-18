@@ -51,11 +51,13 @@ const authRoutes = require("./routes/auth")
 const bookingRoutes = require("./routes/bookings")
 const pincodeRoutes = require("./routes/pincodes")
 const couponRoutes = require("./routes/coupons")
+const manualBookingRoute = require("./routes/manualBooking");
 
 app.use("/api/auth", authRoutes)
 app.use("/api/bookings", bookingRoutes)
 app.use("/api/pincodes", pincodeRoutes)
 app.use("/api/coupons", couponRoutes)
+app.use("/api/manual-bookings", manualBookingRoute);
 
 // ✅ Start Server
 const PORT = process.env.PORT || 5000
