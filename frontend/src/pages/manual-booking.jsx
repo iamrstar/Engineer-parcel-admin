@@ -100,7 +100,7 @@ export default function ManualBooking() {
     };
 
     try {
-      const res = await fetch("http://localhost:5000/api/manual-bookings", {
+      const res = await fetch("https://engineer-parcel-admin.onrender.com/api/manual-bookings", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
