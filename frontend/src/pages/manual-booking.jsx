@@ -14,13 +14,17 @@ export default function ManualBooking() {
     senderName: "",
     senderPhone: "",
     senderAddress: "",
-
+    senderCity: "",
+    senderState: "",
+    senderLandmark: "",
     receiverName: "",
     receiverPhone: "",
     receiverAddress: "",
-   
-    trackingId: "",
-    deliveryStatus: "Pending",
+    receiverCity: "",
+    receiverState: "",
+    receiverLandmark: "",
+    bookingId: "",
+    deliveryStatus: "Pending"
   });
 
   const handleChange = (e) => {
@@ -32,125 +36,143 @@ export default function ManualBooking() {
   const handleBack = () => setStep((prev) => prev - 1);
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
+    e.preventDefault();
 
-  try { 
-    const res = await fetch('http://localhost:5000/api/manual-bookings', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },  
-      body: JSON.stringify({
-        ...formData,
-        bookingSource: 'Manual', // Explicitly tagging it as Manual
-      }),
-    });
+    const payload = {
+      serviceType: formData.serviceType.toLowerCase(),
+      pickupPincode: formData.pickupPincode,
+      deliveryPincode: formData.dropPincode,
+      pickupDate: new Date().toISOString().split("T")[0],
+      pickupSlot: "10AM-12PM",
+      deliveryDate: new Date(Date.now() + 4 * 86400000).toISOString().split("T")[0],
+      estimatedDelivery: new Date(Date.now() + 4 * 86400000).toISOString().split("T")[0],
+      currentLocation: "Admin Panel",
+      parcelImage: "https://via.placeholder.com/150",
+      couponCode: "",
+      couponDiscount: 0,
+      insuranceRequired: true,
+      paymentStatus: "pending",
+      paymentMethod: "COD",
+      notes: "Manual booking created by admin",
+      status: formData.deliveryStatus.toLowerCase(),
+      bookingSource: "admin",
+      ...(formData.bookingId && { bookingId: formData.bookingId }),
 
-    if (!res.ok) {
-      const errorData = await res.json();
-      alert(`Booking failed: ${errorData.message || "Unknown error"}`);
-      return;
+      senderDetails: {
+        name: formData.senderName,
+        phone: formData.senderPhone,
+        address: formData.senderAddress,
+        pincode: formData.pickupPincode,
+        city: formData.senderCity,
+        state: formData.senderState,
+        landmark: formData.senderLandmark
+      },
+
+      receiverDetails: {
+        name: formData.receiverName,
+        phone: formData.receiverPhone,
+        address: formData.receiverAddress,
+        pincode: formData.dropPincode,
+        city: formData.receiverCity,
+        state: formData.receiverState,
+        landmark: formData.receiverLandmark
+      },
+
+      packageDetails: {
+        length: 10,
+        width: 10,
+        height: 10,
+        weight: formData.actualWeight,
+        actualWeight: formData.actualWeight,
+        volumetricWeight: formData.actualWeight,
+        contents: formData.goodsDescription,
+        fragile: false,
+        value: parseInt(formData.goodsValue),
+        weightUnit: formData.weightUnit
+      },
+
+      pricing: {
+        basePrice: 100,
+        additionalCharges: 50,
+        tax: 18,
+        totalAmount: 168
+      }
+    };
+
+    try {
+      const res = await fetch("http://localhost:5000/api/manual-bookings", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        alert(`Booking failed: ${errorData.message || "Unknown error"}`);
+        return;
+      }
+
+      const data = await res.json();
+      console.log("Booking successful:", data);
+      setStep(3);
+    } catch (error) {
+      console.error("API Error:", error);
+      alert("Something went wrong while submitting the booking.");
     }
-
-    const data = await res.json();
-    console.log("Booking successful:", data);
-
-    // Proceed to summary
-    setStep(3);
-  } catch (error) {
-    console.error('API Error:', error);
-    alert("Something went wrong while submitting the booking.");
-  }
-};
-
+  };
 
   return (
     <div className="max-w-3xl mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-4"> Booking (Admin only)</h1>
+      <h1 className="text-2xl font-bold mb-4">Booking (Admin only)</h1>
       <form onSubmit={handleSubmit}>
         {step === 1 && (
           <div className="space-y-4">
-            <div>
-              <label className="block font-semibold">Pickup Pincode</label>
-              <input type="text" name="pickupPincode" value={formData.pickupPincode} onChange={handleChange} required className="w-full border rounded p-2" />
-            </div>
-            <div>
-              <label className="block font-semibold">Drop Pincode</label>
-              <input type="text" name="dropPincode" value={formData.dropPincode} onChange={handleChange} required className="w-full border rounded p-2" />
-            </div>
-            <div>
-              <label className="block font-semibold">Service Type</label>
-              <select name="serviceType" value={formData.serviceType} onChange={handleChange}  required className="w-full border rounded p-2">
-                <option value="Surface">Surface</option>
-                <option value="Air">Air</option>
-                <option value="Express">Express</option>
-                <option value="Premium">Premium</option>
-              </select>
-            </div>
-            <div>
-              <label className="block font-semibold">Weight</label>
-              <input type="text" name="actualWeight" value={formData.actualWeight} onChange={handleChange} required className="w-full border rounded p-2" />
-            </div>
-            <div>
-              <label className="block font-semibold">Unit</label>
-              <select name="weightUnit" value={formData.weightUnit} onChange={handleChange} required className="w-full border rounded p-2">
-                <option value="kg">kg</option>
-                <option value="g">g</option>
-              </select>
-            </div>
-            <div>
-              <label className="block font-semibold">Goods Description</label>
-              <input type="text" name="goodsDescription" value={formData.goodsDescription} onChange={handleChange} className="w-full border rounded p-2" />
-            </div>
+            <input name="pickupPincode" value={formData.pickupPincode} onChange={handleChange} placeholder="Pickup Pincode" className="w-full border p-2 rounded" required />
+            <input name="dropPincode" value={formData.dropPincode} onChange={handleChange} placeholder="Drop Pincode" className="w-full border p-2 rounded" required />
+            <select name="serviceType" value={formData.serviceType} onChange={handleChange} className="w-full border p-2 rounded" required>
+              <option value="Surface">Surface</option>
+              <option value="Air">Air</option>
+              <option value="Express">Express</option>
+              <option value="Premium">Premium</option>
+            </select>
+            <input name="actualWeight" value={formData.actualWeight} onChange={handleChange} placeholder="Weight" className="w-full border p-2 rounded" required />
+            <select name="weightUnit" value={formData.weightUnit} onChange={handleChange} className="w-full border p-2 rounded" required>
+              <option value="kg">kg</option>
+              <option value="g">g</option>
+            </select>
+            <input name="goodsDescription" value={formData.goodsDescription} onChange={handleChange} placeholder="Goods Description" className="w-full border p-2 rounded" required />
             <button type="button" onClick={handleNext} className="bg-blue-600 text-white px-4 py-2 rounded">Next</button>
           </div>
         )}
 
         {step === 2 && (
-          <div className="space-y-4">
-            <div>
-              <label className="block font-semibold">Sender Name</label>
-              <input type="text" name="senderName" value={formData.senderName} onChange={handleChange}required className="w-full border rounded p-2" />
-            </div>
-            <div>
-              <label className="block font-semibold">Sender Phone</label>
-              <input type="text" name="senderPhone" value={formData.senderPhone} onChange={handleChange} required className="w-full border rounded p-2" />
-            </div>
-            <div>
-              <label className="block font-semibold">Sender Address</label>
-              <input type="text" name="senderAddress" value={formData.senderAddress} onChange={handleChange} required className="w-full border rounded p-2" />
-            </div>
-           
-            <div>
-              <label className="block font-semibold">Receiver Name</label>
-              <input type="text" name="receiverName" value={formData.receiverName} onChange={handleChange} required className="w-full border rounded p-2" />
-            </div>
-            <div>
-              <label className="block font-semibold">Receiver Phone</label>
-              <input type="text" name="receiverPhone" value={formData.receiverPhone} onChange={handleChange} required className="w-full border rounded p-2" />
-            </div>
-            <div>
-              <label className="block font-semibold">Receiver Address</label>
-              <input type="text" name="receiverAddress" value={formData.receiverAddress} onChange={handleChange} required className="w-full border rounded p-2" />
-            </div>
-
-            <div>
-              <label className="block font-semibold">Tracking ID</label>
-              <input type="text" name="trackingId" value={formData.trackingId} onChange={handleChange}  placeholder="Start With AD or MAN and 6 Digits (ex: AD123456)" className="w-full border rounded p-2" />
-            </div>
-            <div>
-              <label className="block font-semibold">Delivery Status</label>
-              <select name="deliveryStatus" value={formData.deliveryStatus} onChange={handleChange} required className="w-full border rounded p-2">
-                <option value="Pending">Pending</option>
-                <option value="Dispatched">Dispatched</option>
-                <option value="Delivered">Delivered</option>
-                <option value="Cancelled">Cancelled</option>
-              </select>
-            </div>
-            <div>
-              <label className="block font-medium">Goods Value (₹)</label>
-              <input type="number" name="goodsValue" value={formData.goodsValue} onChange={handleChange} required className="w-full border p-2 rounded" />
-            </div>
+          <div className="space-y-3">
+            {['sender', 'receiver'].map((type) => (
+              <div key={type} className="border p-3 rounded">
+                <h2 className="font-semibold mb-2 capitalize">{type} details</h2>
+                {["Name", "Phone", "Address", "City", "State", "Landmark"].map((field) => (
+                  <input
+                    key={field}
+                    name={`${type}${field}`}
+                    value={formData[`${type}${field}`]}
+                    onChange={handleChange}
+                    placeholder={`${type.charAt(0).toUpperCase() + type.slice(1)} ${field}`}
+                    className="w-full border p-2 rounded mb-2"
+                    required
+                  />
+                ))}
+              </div>
+            ))}
+            <input name="bookingId" value={formData.bookingId} onChange={handleChange} placeholder="Booking ID (optional)" className="w-full border p-2 rounded" />
+            <select name="deliveryStatus" value={formData.deliveryStatus} onChange={handleChange} className="w-full border p-2 rounded">
+              <option value="Pending">Pending</option>
+              <option value="Dispatched">Dispatched</option>
+              <option value="Delivered">Delivered</option>
+              <option value="Cancelled">Cancelled</option>
+            </select>
+            <input name="goodsValue" value={formData.goodsValue} onChange={handleChange} placeholder="Goods Value (₹)" className="w-full border p-2 rounded" required />
             <div className="flex justify-between">
               <button type="button" onClick={handleBack} className="bg-gray-400 text-white px-4 py-2 rounded">Back</button>
               <button type="submit" className="bg-orange-600 text-white px-4 py-2 rounded">Submit</button>
@@ -161,9 +183,8 @@ export default function ManualBooking() {
         {step === 3 && (
           <div className="space-y-4 p-4 border rounded shadow">
             <h2 className="text-xl font-bold mb-2 text-green-700">Booking Submitted Successfully!</h2>
-            <p className="text-gray-600">Here’s a summary of your manual booking:</p>
             <ul className="text-sm space-y-1">
-              <li><strong>Tracking ID:</strong> {formData.trackingId}</li>
+              <li><strong>Booking ID:</strong> {formData.bookingId || "Auto-generated"}</li>
               <li><strong>Service:</strong> {formData.serviceType}</li>
               <li><strong>From:</strong> {formData.pickupPincode} — To: {formData.dropPincode}</li>
               <li><strong>Weight:</strong> {formData.actualWeight} {formData.weightUnit}</li>
@@ -171,31 +192,32 @@ export default function ManualBooking() {
               <li><strong>Receiver:</strong> {formData.receiverName}, {formData.receiverPhone}</li>
               <li><strong>Status:</strong> {formData.deliveryStatus}</li>
             </ul>
-            <button
-              type="button"
-            onClick={() => {
-  setFormData({
-    pickupPincode: "",
-    dropPincode: "",
-    serviceType: "Surface",
-    actualWeight: "",
-    weightUnit: "kg",
-    goodsDescription: "",
-    goodsValue: "",
-    senderName: "",
-    senderPhone: "",
-    senderAddress: "",
-    receiverName: "",
-    receiverPhone: "",
-    receiverAddress: "",
-    trackingId: "",
-    deliveryStatus: "Pending",
-  });
-  setStep(1);
-}}
-
-              className="mt-4 bg-orange-500 text-white px-4 py-2 rounded"
-            >
+            <button type="button" onClick={() => {
+              setFormData({
+                pickupPincode: "",
+                dropPincode: "",
+                serviceType: "Surface",
+                actualWeight: "",
+                weightUnit: "kg",
+                goodsDescription: "",
+                goodsValue: "",
+                senderName: "",
+                senderPhone: "",
+                senderAddress: "",
+                senderCity: "",
+                senderState: "",
+                senderLandmark: "",
+                receiverName: "",
+                receiverPhone: "",
+                receiverAddress: "",
+                receiverCity: "",
+                receiverState: "",
+                receiverLandmark: "",
+                bookingId: "",
+                deliveryStatus: "Pending"
+              });
+              setStep(1);
+            }} className="mt-4 bg-orange-500 text-white px-4 py-2 rounded">
               New Booking
             </button>
           </div>
