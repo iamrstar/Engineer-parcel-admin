@@ -109,10 +109,11 @@ export default function ManualBooking() {
       });
 
       if (!res.ok) {
-        const errorData = await res.json();
-        alert(`Booking failed: ${errorData.message || "Unknown error"}`);
-        return;
-      }
+  const errorData = await res.json();
+  alert(`Booking failed: ${errorData.error || errorData.message || "Unknown error"}`);
+  return;
+}
+
 
       const data = await res.json();
       console.log("Booking successful:", data);
