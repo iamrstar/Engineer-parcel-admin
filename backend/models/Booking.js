@@ -35,6 +35,13 @@ const bookingSchema = new mongoose.Schema(
       state: String,
       landmark: String,
     },
+  
+bookingSource: {
+  type: String,
+  enum: ["user", "admin"],
+  default: "admin",
+} 
+,
     packageDetails: {
       weight: { type: Number, required: true },
       weightUnit: { type: String, enum: ["g", "kg"], default: "g" },
@@ -76,6 +83,9 @@ const bookingSchema = new mongoose.Schema(
       tax: Number,
       totalAmount: Number,
     },
+    estimatedDelivery: { type: Date },
+currentLocation: { type: String },
+
     paymentStatus: {
       type: String,
       enum: ["pending", "paid", "failed", "refunded"],
@@ -92,12 +102,31 @@ const bookingSchema = new mongoose.Schema(
 )
 
 // Generate booking ID
-bookingSchema.pre("validate", async function (next) {
-  if (!this.bookingId) {
-    const count = await mongoose.model("Booking").countDocuments()
-    this.bookingId = `EP${Date.now()}${String(count + 1).padStart(4, "0")}`
+bookingSchema.pre("save", async function (next) {
+  // Don't override if bookingId is already set
+  if (this.isNew && (!this.bookingId || this.bookingId.trim() === "")) {
+    let isUnique = false
+    let newId = ""
+
+    while (!isUnique) {
+      const randomId = `AD${Math.floor(100000 + Math.random() * 900000)}`
+      const existing = await mongoose.model("Booking").findOne({ bookingId: randomId })
+      if (!existing) {
+        newId = randomId
+        isUnique = true
+      }
+    }
+
+    this.bookingId = newId
   }
+console.log("Before save, bookingId is:", this.bookingId)
+
   next()
 })
+
+
+
+
+
 
 module.exports = mongoose.model("Booking", bookingSchema)
