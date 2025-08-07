@@ -11,7 +11,8 @@ const app = express()
 const allowedOrigins = [
   "http://localhost:5173", // local dev
   "https://engineer-parcel-admin.netlify.app",
-  "https://engineer-parcel-admin.vercel.app"
+  "https://engineer-parcel-admin.vercel.app",
+    "https://ep.engineersparcel.in"              
 ]
 
 app.use(
