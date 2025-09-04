@@ -496,8 +496,278 @@ const BookingDetail = () => {
           )}
         </div>
       )}
+
+
+
+      {/* Tracking History Section */}
+
+
+
+{/* Tracking History Section */}
+<div className="mt-6 bg-white rounded-lg shadow p-6">
+  <h3 className="text-lg font-medium text-gray-900 mb-4">Tracking History</h3>
+
+  {Array.isArray(booking?.trackingHistory) && booking.trackingHistory.length > 0 ? (
+    <div className="space-y-4">
+      {booking.trackingHistory.map((track, index) => (
+        <div key={index} className="border-b pb-2">
+          {track.editing ? (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
+                <input
+                  type="text"
+                  value={track.status}
+                  onChange={(e) =>
+                    setBooking((prev) => {
+                      const newHistory = [...prev.trackingHistory]
+                      newHistory[index].status = e.target.value
+                      return { ...prev, trackingHistory: newHistory }
+                    })
+                  }
+                  className="w-full px-2 py-1 border rounded"
+                />
+                <input
+                  type="text"
+                  value={track.location}
+                  onChange={(e) =>
+                    setBooking((prev) => {
+                      const newHistory = [...prev.trackingHistory]
+                      newHistory[index].location = e.target.value
+                      return { ...prev, trackingHistory: newHistory }
+                    })
+                  }
+                  className="w-full px-2 py-1 border rounded"
+                />
+              </div>
+              <textarea
+                value={track.description}
+                onChange={(e) =>
+                  setBooking((prev) => {
+                    const newHistory = [...prev.trackingHistory]
+                    newHistory[index].description = e.target.value
+                    return { ...prev, trackingHistory: newHistory }
+                  })
+                }
+                rows={2}
+                className="w-full px-2 py-1 border rounded mb-2"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={async () => {
+                    try {
+                      setSaving(true)
+                      const response = await axios.put(
+                        `${import.meta.env.VITE_API_URL}/api/bookings/${id}/tracking`,
+                        track
+                      )
+                      toast.success("Tracking updated successfully")
+                      // remove editing flag
+                      setBooking((prev) => {
+                        const newHistory = [...prev.trackingHistory]
+                        newHistory[index].editing = false
+                        return { ...prev, trackingHistory: newHistory }
+                      })
+                    } catch (err) {
+                      console.error(err)
+                      toast.error("Failed to update tracking")
+                    } finally {
+                      setSaving(false)
+                    }
+                  }}
+                  className="px-3 py-1 bg-primary-500 text-white rounded hover:bg-primary-600"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={() => {
+                    setBooking((prev) => {
+                      const newHistory = [...prev.trackingHistory]
+                      newHistory[index].editing = false
+                      return { ...prev, trackingHistory: newHistory }
+                    })
+                  }}
+                  className="px-3 py-1 border rounded hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-gray-700">
+                <span className="font-semibold">Status:</span> {track?.status || "—"}
+              </p>
+              <p className="text-sm text-gray-700">
+                <span className="font-semibold">Location:</span> {track?.location || "—"}
+              </p>
+              <p className="text-sm text-gray-700">
+                <span className="font-semibold">Description:</span> {track?.description || "—"}
+              </p>
+              <p className="text-xs text-gray-500">
+                {track?.timestamp ? new Date(track.timestamp).toLocaleString() : "—"}
+              </p>
+              {editMode && (
+                <button
+                  onClick={() =>
+                    setBooking((prev) => {
+                      const newHistory = [...prev.trackingHistory]
+                      newHistory[index].editing = true
+                      return { ...prev, trackingHistory: newHistory }
+                    })
+                  }
+                  className="mt-1 px-2 py-1 text-sm text-blue-600 hover:underline"
+                >
+                  Edit
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      ))}
     </div>
+  ) : (
+    <p className="text-gray-500">No tracking updates yet.</p>
+  )}
+
+  {/* Add new tracking update form (keep as-is) */}
+  {editMode && (
+    <div className="mt-4 space-y-3 border-t pt-4">
+      {editMode && (
+    <div className="mt-4 space-y-3 border-t pt-4">
+      <h4 className="font-semibold text-gray-800">Add Tracking Update</h4>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <input
+          type="text"
+          placeholder="Status (e.g. Shipped, In Transit, Delivered)"
+          value={booking?.newStatus || ""}
+          onChange={(e) =>
+            setBooking((prev) => ({ ...prev, newStatus: e.target.value }))
+          }
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+        />
+        <input
+          type="text"
+          placeholder="Location (e.g. Delhi Hub, In Transit)"
+          value={booking?.newLocation || ""}
+          onChange={(e) =>
+            setBooking((prev) => ({ ...prev, newLocation: e.target.value }))
+          }
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <input
+          type="datetime-local"
+          value={
+            booking?.newTimestamp ||
+            new Date().toISOString().slice(0, 16) // fallback: now
+          }
+          onChange={(e) =>
+            setBooking((prev) => ({ ...prev, newTimestamp: e.target.value }))
+          }
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+        />
+        <textarea
+          placeholder="Description (optional)"
+          value={booking?.newDescription || ""}
+          onChange={(e) =>
+            setBooking((prev) => ({ ...prev, newDescription: e.target.value }))
+          }
+          rows={1}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg md:col-span-1"
+        />
+      </div>
+
+      <div className="flex gap-2">
+      <button
+  onClick={async () => {
+    try {
+      const {
+        newStatus,
+        newLocation,
+        newDescription,
+        newTimestamp,
+      } = booking || {};
+
+      if (!newStatus || !newLocation) {
+        return toast.error("Status and Location are required");
+      }
+
+      const trackingUpdate = {
+        status: newStatus,
+        location: newLocation,
+        description: newDescription || "N/A",
+        timestamp: newTimestamp ? new Date(newTimestamp) : new Date(),
+      };
+
+      // ✅ Use /tracking endpoint
+      const response = await axios.put(
+        `${import.meta.env.VITE_API_URL}/api/bookings/${id}/tracking`,
+        trackingUpdate
+      );
+
+      toast.success("Tracking update added");
+
+      const updated = response?.data;
+
+      const latestEntry = Array.isArray(updated?.trackingHistory)
+        ? updated.trackingHistory[updated.trackingHistory.length - 1]
+        : trackingUpdate;
+
+      setBooking((prev) => ({
+        ...prev,
+        status: newStatus,
+        trackingHistory: [...(prev?.trackingHistory || []), latestEntry],
+        newStatus: "",
+        newLocation: "",
+        newDescription: "",
+        newTimestamp: "",
+      }));
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to add tracking update");
+    }
+  }}
+  disabled={saving}
+  className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 disabled:opacity-60"
+>
+  {saving ? "Adding..." : "Add Update"}
+</button>
+
+
+        <button
+          type="button"
+          onClick={() =>
+            setBooking((prev) => ({
+              ...prev,
+              newStatus: "",
+              newLocation: "",
+              newDescription: "",
+              newTimestamp: "",
+            }))
+          }
+          
+          className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+        >
+          Clear
+        </button>
+      </div>
+    </div>
+  )}
+</div>
+   
+  )}
+</div>
+
+
+
+
+    </div>
+    
   )
+  
 }
 
 export default BookingDetail
