@@ -6,7 +6,7 @@ export default function ManualBooking() {
   const [formData, setFormData] = useState({
     pickupPincode: "",
     dropPincode: "",
-    serviceType: "Surface",
+    serviceType: "surface",
     actualWeight: "",
     weightUnit: "kg",
     goodsDescription: "",
@@ -24,7 +24,8 @@ export default function ManualBooking() {
     receiverState: "",
     receiverLandmark: "",
     bookingId: "",
-    deliveryStatus: "Pending"
+    deliveryStatus: "Pending",
+    ETD: "",
   });
 
   const handleChange = (e) => {
@@ -79,17 +80,21 @@ export default function ManualBooking() {
       },
 
       packageDetails: {
-        length: 10,
-        width: 10,
-        height: 10,
-        weight: formData.actualWeight,
-        actualWeight: formData.actualWeight,
-        volumetricWeight: formData.actualWeight,
-        contents: formData.goodsDescription,
-        fragile: false,
-        value: parseInt(formData.goodsValue),
-        weightUnit: formData.weightUnit
-      },
+    weight: parseFloat(formData.actualWeight),   // ✅ use actualWeight field
+    weightUnit: formData.weightUnit,
+    volumetricWeight: parseFloat(formData.actualWeight), // ya calculate karo
+    dimensions: {
+      length: parseInt(formData.length),
+      width: parseInt(formData.width),
+      height: parseInt(formData.height),
+    },
+    boxQuantity: parseInt(formData.boxQuantity),
+    description: formData.goodsDescription, // ✅ matches schema
+    value: parseInt(formData.goodsValue),
+    fragile: false,
+  },
+  
+
 
       pricing: {
         basePrice: 100,
@@ -100,7 +105,7 @@ export default function ManualBooking() {
     };
 
     try {
-      const res = await fetch("https://engineer-parcel-admin.onrender.com/api/manual-bookings", {
+      const res = await fetch("http://localhost:8000/api/manual-bookings", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -129,24 +134,119 @@ export default function ManualBooking() {
       <h1 className="text-2xl font-bold mb-4">Booking (Admin only)</h1>
       <form onSubmit={handleSubmit}>
         {step === 1 && (
-          <div className="space-y-4">
-            <input name="pickupPincode" value={formData.pickupPincode} onChange={handleChange} placeholder="Pickup Pincode" className="w-full border p-2 rounded" required />
-            <input name="dropPincode" value={formData.dropPincode} onChange={handleChange} placeholder="Drop Pincode" className="w-full border p-2 rounded" required />
-            <select name="serviceType" value={formData.serviceType} onChange={handleChange} className="w-full border p-2 rounded" required>
-              <option value="Surface">Surface</option>
-              <option value="Air">Air</option>
-              <option value="Express">Express</option>
-              <option value="Premium">Premium</option>
-            </select>
-            <input name="actualWeight" value={formData.actualWeight} onChange={handleChange} placeholder="Weight" className="w-full border p-2 rounded" required />
-            <select name="weightUnit" value={formData.weightUnit} onChange={handleChange} className="w-full border p-2 rounded" required>
-              <option value="kg">kg</option>
-              <option value="g">g</option>
-            </select>
-            <input name="goodsDescription" value={formData.goodsDescription} onChange={handleChange} placeholder="Goods Description" className="w-full border p-2 rounded" required />
-            <button type="button" onClick={handleNext} className="bg-blue-600 text-white px-4 py-2 rounded">Next</button>
-          </div>
-        )}
+  <div className="space-y-4">
+    <input
+      name="pickupPincode"
+      value={formData.pickupPincode}
+      onChange={handleChange}
+      placeholder="Pickup Pincode"
+      className="w-full border p-2 rounded"
+      required
+    />
+    <input
+      name="dropPincode"
+      value={formData.dropPincode}
+      onChange={handleChange}
+      placeholder="Drop Pincode"
+      className="w-full border p-2 rounded"
+      required
+    />
+
+    {/* Service Type */}
+    <select
+      name="serviceType"
+      value={formData.serviceType}
+      onChange={handleChange}
+      className="w-full border p-2 rounded"
+      required
+    >
+      <option value="Surface">Surface</option>
+      <option value="Air">Air</option>
+      <option value="Express">Express</option>
+      <option value="Premium">Premium</option>
+    </select>
+
+    {/* Dimensions */}
+    <div className="grid grid-cols-3 gap-2">
+      <input
+        type="number"
+        name="length"
+        value={formData.length || ""}
+        onChange={handleChange}
+        placeholder="Length (cm)"
+        className="border p-2 rounded"
+        required
+      />
+      <input
+        type="number"
+        name="width"
+        value={formData.width || ""}
+        onChange={handleChange}
+        placeholder="Width (cm)"
+        className="border p-2 rounded"
+        required
+      />
+      <input
+        type="number"
+        name="height"
+        value={formData.height || ""}
+        onChange={handleChange}
+        placeholder="Height (cm)"
+        className="border p-2 rounded"
+        required
+      />
+    </div>
+
+    {/* Box Quantity */}
+    <input
+      type="number"
+      name="boxQuantity"
+      value={formData.boxQuantity || ""}
+      onChange={handleChange}
+      placeholder="Box Quantity"
+      className="w-full border p-2 rounded"
+      required
+    />
+
+    {/* Weight */}
+    <input
+      name="actualWeight"
+      value={formData.actualWeight}
+      onChange={handleChange}
+      placeholder="Weight"
+      className="w-full border p-2 rounded"
+      required
+    />
+    <select
+      name="weightUnit"
+      value={formData.weightUnit}
+      onChange={handleChange}
+      className="w-full border p-2 rounded"
+      required
+    >
+      <option value="kg">kg</option>
+      <option value="g">g</option>
+    </select>
+
+    <input
+      name="goodsDescription"
+      value={formData.goodsDescription}
+      onChange={handleChange}
+      placeholder="Goods Description"
+      className="w-full border p-2 rounded"
+      required
+    />
+
+    <button
+      type="button"
+      onClick={handleNext}
+      className="bg-blue-600 text-white px-4 py-2 rounded"
+    >
+      Next
+    </button>
+  </div>
+)}
+
 
         {step === 2 && (
           <div className="space-y-3">
