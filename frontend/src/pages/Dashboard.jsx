@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react"
 import axios from "axios"
 import { Package, Clock, CheckCircle, Truck, DollarSign } from "lucide-react"
+import { Link } from "react-router-dom"
+
 
 const Dashboard = () => {
   const [stats, setStats] = useState({
@@ -19,15 +21,15 @@ const Dashboard = () => {
   }, [])
 
   const fetchStats = async () => {
-  try {
-    const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/stats/dashboard`)
-    setStats(response.data)
-  } catch (error) {
-    console.error("Error fetching stats:", error)
-  } finally {
-    setLoading(false)
+    try {
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/stats/dashboard`)
+      setStats(response.data)
+    } catch (error) {
+      console.error("Error fetching stats:", error)
+    } finally {
+      setLoading(false)
+    }
   }
-}
 
   const statCards = [
     {
@@ -97,33 +99,35 @@ const Dashboard = () => {
         <div className="bg-white rounded-lg shadow p-6">
           <h3 className="text-lg font-medium text-gray-900 mb-4">Quick Actions</h3>
           <div className="space-y-3">
-            <a
-              href="/bookings"
+            <Link
+              to="/bookings"
               className="block p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
             >
               <div className="flex items-center">
                 <Package className="h-5 w-5 text-primary-500 mr-3" />
                 <span className="font-medium">Manage Bookings</span>
               </div>
-            </a>
-            <a
-              href="/pincodes"
+            </Link>
+
+            <Link
+              to="/pincodes"
               className="block p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
             >
               <div className="flex items-center">
                 <Package className="h-5 w-5 text-primary-500 mr-3" />
                 <span className="font-medium">Manage Pincodes</span>
               </div>
-            </a>
-            <a
-              href="/coupons"
+            </Link>
+
+            <Link
+              to="/coupons"
               className="block p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
             >
               <div className="flex items-center">
                 <Package className="h-5 w-5 text-primary-500 mr-3" />
                 <span className="font-medium">Manage Coupons</span>
               </div>
-            </a>
+            </Link>
           </div>
         </div>
 
@@ -149,6 +153,7 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+
     </div>
   )
 }
