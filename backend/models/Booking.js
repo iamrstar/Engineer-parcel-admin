@@ -118,3 +118,4 @@ bookingSchema.pre("validate", async function (next) {
 })
 
 module.exports = mongoose.model("Booking", bookingSchema)
+ 
