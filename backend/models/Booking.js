@@ -35,25 +35,20 @@ const bookingSchema = new mongoose.Schema(
       state: String,
       landmark: String,
     },
-  
-bookingSource: {
-  type: String,
-  enum: ["user", "admin"],
-  default: "admin",
-} 
-,
     packageDetails: {
       weight: { type: Number, required: true },
       weightUnit: { type: String, enum: ["g", "kg"], default: "g" },
-      volumetricWeight: Number,
+      volumetricWeight: { type: Number },
+      chargeableWeight: { type: Number },
       dimensions: {
-        length: Number,
-        width: Number,
-        height: Number,
+        length: { type: Number, required: false },
+        width: { type: Number, required: false },
+        height: { type: Number, required: false },
       },
-      description: String,
-      value: Number,
-      fragile: Boolean,
+      boxQuantity: { type: Number, default: 1 },
+      description: { type: String, required: false },
+      value: { type: Number, required: false },
+      fragile: { type: Boolean, default: false },
     },
     pickupPincode: String,
     deliveryPincode: String,
@@ -65,14 +60,27 @@ bookingSource: {
       enum: ["pending", "confirmed", "picked", "in-transit", "out-for-delivery", "delivered", "cancelled"],
       default: "pending",
     },
+
+    // for admin booking
+    trackingId: {
+      type: String,
+      unique: true,
+      sparse: true, // Allow null unless manually added
+    },
+    adminCreated: {
+      type: Boolean,
+      default: false,
+    },
+
     trackingHistory: [
       {
-        status: String,
-        location: String,
+        status: { type: String, default: "No Status" },
+        location: { type: String, default: "No Location" },
+        description: { type: String, default: "N/A" },
         timestamp: { type: Date, default: Date.now },
-        description: String,
-      },
+      }, 
     ],
+
     parcelImage: String,
     couponCode: String,
     couponDiscount: { type: Number, default: 0 },
@@ -83,9 +91,6 @@ bookingSource: {
       tax: Number,
       totalAmount: Number,
     },
-    estimatedDelivery: { type: Date },
-currentLocation: { type: String },
-
     paymentStatus: {
       type: String,
       enum: ["pending", "paid", "failed", "refunded"],
@@ -93,40 +98,23 @@ currentLocation: { type: String },
     },
     paymentMethod: {
       type: String,
-      enum: ["COD", "Online"],
-      default: "COD",
+      enum: ["COD", "online"], // ✅ Allow both
+      required: true,
+      default: "COD"
     },
+
     notes: String,
   },
   { timestamps: true },
 )
 
 // Generate booking ID
-bookingSchema.pre("save", async function (next) {
-  // Don't override if bookingId is already set
-  if (this.isNew && (!this.bookingId || this.bookingId.trim() === "")) {
-    let isUnique = false
-    let newId = ""
-
-    while (!isUnique) {
-      const randomId = `AD${Math.floor(100000 + Math.random() * 900000)}`
-      const existing = await mongoose.model("Booking").findOne({ bookingId: randomId })
-      if (!existing) {
-        newId = randomId
-        isUnique = true
-      }
-    }
-
-    this.bookingId = newId
+bookingSchema.pre("validate", async function (next) {
+  if (!this.bookingId) {
+    const count = await mongoose.model("Booking").countDocuments()
+    this.bookingId = `EP${Date.now()}${String(count + 1).padStart(4, "0")}`
   }
-console.log("Before save, bookingId is:", this.bookingId)
-
   next()
 })
-
-
-
-
-
 
 module.exports = mongoose.model("Booking", bookingSchema)
