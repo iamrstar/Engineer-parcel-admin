@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const Booking = require("../models/Booking");
 
+// Create Manual Booking
 router.post("/", async (req, res) => {
   try {
     const {
@@ -9,7 +10,7 @@ router.post("/", async (req, res) => {
       serviceType,
       senderDetails,
       receiverDetails,
-      packageDetails,
+      packageDetails, // full object aa raha frontend se
       pickupPincode,
       deliveryPincode,
       pickupDate,
@@ -29,28 +30,30 @@ router.post("/", async (req, res) => {
       bookingSource = "Manual",
     } = req.body;
 
-    // Basic validation
+    // Required fields check
     if (!serviceType || !senderDetails || !receiverDetails || !packageDetails) {
       return res.status(400).json({ error: "Missing required booking fields." });
     }
 
-    // Check for duplicate bookingId if it was provided manually
-    if (bookingId) {
-      const existingBooking = await Booking.findOne({ bookingId });
-      if (existingBooking) {
-        return res.status(400).json({
-          error: "This booking ID is already assigned to another order.",
-        });
-      }
-    }
-
-    // Create new booking
+    // Manual Booking create karo
     const newBooking = new Booking({
-      bookingId, // Will be auto-generated in pre-save if not provided
+      bookingId,
       serviceType,
       senderDetails,
       receiverDetails,
-      packageDetails,
+      packageDetails: {
+        weight: packageDetails.weight,
+        weightUnit: packageDetails.weightUnit,
+        volumetricWeight: packageDetails.volumetricWeight,
+        dimensions: {
+          length: packageDetails.dimensions?.length,
+          width: packageDetails.dimensions?.width,
+          height: packageDetails.dimensions?.height,
+        },
+        description: packageDetails.description,
+        value: packageDetails.value,
+        fragile: packageDetails.fragile,
+      },
       pickupPincode,
       deliveryPincode,
       pickupDate,
