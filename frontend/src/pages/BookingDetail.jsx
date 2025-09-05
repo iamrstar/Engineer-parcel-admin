@@ -482,7 +482,7 @@ const BookingDetail = () => {
       {/* Notes */}
       {(booking.notes || editMode) && (
         <div className="mt-6 bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Notes</h3>
+          <h3 className="text-lg font-medium text-gray-900 mb-4">Reference Number</h3>
           {editMode ? (
             <textarea
               value={booking.notes || ""}
@@ -637,15 +637,24 @@ const BookingDetail = () => {
       <h4 className="font-semibold text-gray-800">Add Tracking Update</h4>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <input
-          type="text"
-          placeholder="Status (e.g. Shipped, In Transit, Delivered)"
-          value={booking?.newStatus || ""}
-          onChange={(e) =>
-            setBooking((prev) => ({ ...prev, newStatus: e.target.value }))
-          }
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-        />
+       <select
+  value={booking?.newStatus || ""}
+  onChange={(e) =>
+    setBooking((prev) => ({ ...prev, newStatus: e.target.value }))
+  }
+  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-600 focus:ring-2 focus:ring-orange-600"
+>
+  <option value="" disabled>
+    Select Status
+  </option>
+  <option value="pending">Pending</option>
+  <option value="confirmed">Confirmed</option>
+  <option value="picked">Picked</option>
+  <option value="in-transit">In Transit</option>
+  <option value="out-for-delivery">Out for Delivery</option>
+  <option value="delivered">Delivered</option>
+  <option value="cancelled">Cancelled</option>
+</select>
         <input
           type="text"
           placeholder="Location (e.g. Delhi Hub, In Transit)"
@@ -669,15 +678,46 @@ const BookingDetail = () => {
           }
           className="w-full px-3 py-2 border border-gray-300 rounded-lg"
         />
-        <textarea
-          placeholder="Description (optional)"
-          value={booking?.newDescription || ""}
-          onChange={(e) =>
-            setBooking((prev) => ({ ...prev, newDescription: e.target.value }))
-          }
-          rows={1}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg md:col-span-1"
-        />
+       <div className="space-y-2">
+  <label className="text-sm font-medium">Description</label>
+  <select
+    onChange={(e) =>
+      setBooking((prev) => ({
+        ...prev,
+        newDescription: e.target.value
+      }))
+    }
+    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-600 focus:ring-2 focus:ring-orange-600"
+    defaultValue=""
+  >
+    <option value="" disabled>
+      Select a template
+    </option>
+    <option value="Item left to  ' ' facility">
+      Item left to  ____  facility
+    </option>
+    <option value="Connected to next facility">
+      Connected to next facility
+    </option>
+    <option value="Item arrived at your nearest location">
+     Item arrived at your nearest location
+    </option>
+    <option value="Item delivered">
+      Item delivered
+    </option>
+  </select>
+
+  <textarea
+    placeholder="Description (optional)"
+    value={booking?.newDescription || ""}
+    onChange={(e) =>
+      setBooking((prev) => ({ ...prev, newDescription: e.target.value }))
+    }
+    rows={2}
+    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-600 focus:ring-2 focus:ring-orange-600"
+  />
+</div>
+
       </div>
 
       <div className="flex gap-2">
