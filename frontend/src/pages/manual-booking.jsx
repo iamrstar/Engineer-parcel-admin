@@ -105,7 +105,7 @@ export default function ManualBooking() {
     };
 
     try {
-      const res = await fetch("http://localhost:8000/api/manual-bookings", {
+      const res = await fetch("https://admin-api.engineersparcel.in/api/manual-bookings", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
