@@ -116,6 +116,35 @@ router.put("/:id", authMiddleware, async (req, res) => {
   }
 });
 
+// Update ETD for a booking
+router.put("/:id/etd", async (req, res) => {
+  try {
+    const { etd } = req.body
+    if (!etd) {
+      return res.status(400).json({ message: "ETD is required" })
+    }
+
+    const booking = await Booking.findByIdAndUpdate(
+      req.params.id,
+      { estimatedDelivery: etd },
+      { new: true }
+    )
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" })
+    }
+
+    res.json({
+      message: "Estimated Delivery updated successfully",
+      booking,
+    })
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ message: "Server error" })
+  }
+})
+
+
 /** ------------------------
  * 🚚 Add tracking update
  * ------------------------ */
