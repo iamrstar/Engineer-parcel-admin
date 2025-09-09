@@ -389,7 +389,7 @@ const BookingDetail = () => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                 >
                   <option value="pending">Pending</option>
-                  <option value="confirmed">Confirmed</option>
+                  <option value="confirmed">Booked</option>
                   <option value="picked">Picked</option>
                   <option value="in-transit">In Transit</option>
                   <option value="out-for-delivery">Out for Delivery</option>
@@ -666,7 +666,7 @@ const BookingDetail = () => {
     Select Status
   </option>
   <option value="pending">Pending</option>
-  <option value="confirmed">Confirmed</option>
+  <option value="confirmed">Booked</option>
   <option value="picked">Picked</option>
   <option value="in-transit">In Transit</option>
   <option value="out-for-delivery">Out for Delivery</option>
