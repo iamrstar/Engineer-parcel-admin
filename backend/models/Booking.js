@@ -61,6 +61,11 @@ const bookingSchema = new mongoose.Schema(
       default: "pending",
     },
 
+    estimatedDelivery: {
+  type: String, // Can be "3-5 days", "7-10 days", or a date string
+  default: null,
+},
+
     // for admin booking
     trackingId: {
       type: String,
@@ -71,7 +76,7 @@ const bookingSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-
+    
     trackingHistory: [
       {
         status: { type: String, default: "No Status" },
@@ -118,4 +123,3 @@ bookingSchema.pre("validate", async function (next) {
 })
 
 module.exports = mongoose.model("Booking", bookingSchema)
- 
