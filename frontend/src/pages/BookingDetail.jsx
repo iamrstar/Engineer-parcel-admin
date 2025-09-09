@@ -497,6 +497,24 @@ const BookingDetail = () => {
         </div>
       )}
 
+{(booking.estimatedDelivery || editMode) && (
+  <div className="mt-6 bg-white rounded-lg shadow p-6">
+    <h3 className="text-lg font-medium text-gray-900 mb-4">Estimated Delivery (ETD)</h3>
+    {editMode ? (
+      <input
+        type="text"
+        value={booking.estimatedDelivery || ""}
+        onChange={(e) => handleInputChange("estimatedDelivery", e.target.value)}
+        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+        placeholder="e.g. 3-5 days or 10 Sept 2025"
+      />
+    ) : (
+      <p className="text-gray-900">
+        {booking.estimatedDelivery || "No ETD assigned"}
+      </p>
+    )}
+  </div>
+)}
 
 
       {/* Tracking History Section */}
