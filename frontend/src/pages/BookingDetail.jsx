@@ -499,14 +499,42 @@ const BookingDetail = () => {
 
 {(booking.estimatedDelivery || editMode) && (
   <div className="mt-6 bg-white rounded-lg shadow p-6">
-    <h3 className="text-lg font-medium text-gray-900 mb-4">Estimated Delivery (ETD)</h3>
+    <h3 className="text-lg font-medium text-gray-900 mb-4">
+      Estimated Delivery (ETD)
+    </h3>
     {editMode ? (
       <input
-        type="text"
-        value={booking.estimatedDelivery || ""}
-        onChange={(e) => handleInputChange("estimatedDelivery", e.target.value)}
+        type="date"
+        value={
+          // Convert dd-Month-yyyy back to yyyy-mm-dd for calendar display
+          (() => {
+            if (/^\d{2}-[A-Za-z]+-\d{4}$/.test(booking.estimatedDelivery)) {
+              // Example: 13-September-2025 → Date object
+              const [day, monthName, year] = booking.estimatedDelivery.split("-");
+              const months = [
+                "January","February","March","April","May","June",
+                "July","August","September","October","November","December"
+              ];
+              const monthIndex = months.indexOf(monthName);
+              if (monthIndex !== -1) {
+                return `${year}-${String(monthIndex + 1).padStart(2, "0")}-${day}`;
+              }
+            }
+            return /^\d{4}-\d{2}-\d{2}$/.test(booking.estimatedDelivery)
+              ? booking.estimatedDelivery
+              : "";
+          })()
+        }
+        onChange={(e) => {
+          const selectedDate = new Date(e.target.value);
+          if (!isNaN(selectedDate)) {
+            const options = { day: "2-digit", month: "long", year: "numeric" };
+            const formattedDate = selectedDate.toLocaleDateString("en-GB", options);
+            const finalDate = formattedDate.replace(/ /g, "-"); // 13-September-2025
+            handleInputChange("estimatedDelivery", finalDate);
+          }
+        }}
         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-        placeholder="e.g. 3-5 days or 10 Sept 2025"
       />
     ) : (
       <p className="text-gray-900">
@@ -515,6 +543,10 @@ const BookingDetail = () => {
     )}
   </div>
 )}
+
+
+
+
 
 
       {/* Tracking History Section */}
