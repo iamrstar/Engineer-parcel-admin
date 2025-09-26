@@ -4,7 +4,7 @@ const bookingSchema = new mongoose.Schema(
   {
     bookingId: {
       type: String,
-      unique: true,
+      unique: true, 
     },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
