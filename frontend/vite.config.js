@@ -12,7 +12,7 @@ export default defineConfig({
   server: {
     proxy: {
       "/api": {
-        target: "http://localhost:5000",  // 👈 for local dev only
+        target: "https://admin-api.engineersparcel.in",  // 👈 for local dev only
         changeOrigin: true,
         secure: false,
       },
