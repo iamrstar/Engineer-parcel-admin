@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import axios from "axios"
 import toast from "react-hot-toast"
 import { Plus, Search, Edit, Trash2, ToggleLeft, ToggleRight, Calendar } from "lucide-react"
-
+ 
 export default function CouponsPage() {
   const API_BASE = import.meta.env.VITE_API_URL;
   const [coupons, setCoupons] = useState([])
