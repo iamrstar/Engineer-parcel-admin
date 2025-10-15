@@ -12,7 +12,9 @@ const allowedOrigins = [
   "http://localhost:5173", // local dev
   "https://engineer-parcel-admin.netlify.app",
   "https://engineer-parcel-admin.vercel.app",
-   "https://ep.engineersparcel.in" 
+   "https://ep.engineersparcel.in",
+   "https://admin-api.engineersparcel.in"
+
 ]
 
 app.use(
