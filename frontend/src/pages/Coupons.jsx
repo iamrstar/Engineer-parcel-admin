@@ -4,9 +4,8 @@ import { useState, useEffect } from "react"
 import axios from "axios"
 import toast from "react-hot-toast"
 import { Plus, Search, Edit, Trash2, ToggleLeft, ToggleRight, Calendar } from "lucide-react"
-  
-export default function CouponsPage() {
-  const API_BASE = import.meta.env.VITE_API_URL;
+
+const Coupons = () => {
   const [coupons, setCoupons] = useState([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -24,20 +23,15 @@ export default function CouponsPage() {
     usageLimit: "",
   })
 
- 
-
-  // Set up the Authorization header (token handling)
-  const token = localStorage.getItem("token")
-  if (token) {
-    axios.defaults.headers.common["Authorization"] = `Bearer ${token}`
-  }
-
-  
+  useEffect(() => {
+    fetchCoupons()
+  }, [])
 
   const fetchCoupons = async () => {
+  
+
   try {
-    const response = await axios.get(`${API_BASE}/api/coupons`)
-    console.log("Coupons fetched:", response.data)  // Log coupons to check
+    const response = await axios.get(`${apiBaseUrl}/api/coupons`)
     setCoupons(response.data)
   } catch (error) {
     toast.error("Error fetching coupons")
@@ -46,10 +40,7 @@ export default function CouponsPage() {
     setLoading(false)
   }
 }
-
-  useEffect(() => {
-    fetchCoupons()
-  }, [])
+const apiBaseUrl = import.meta.env.VITE_API_URL
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -62,13 +53,13 @@ export default function CouponsPage() {
         usageLimit: formData.usageLimit ? Number.parseInt(formData.usageLimit) : null,
       }
 
-      if (editingCoupon) {
-        await axios.put(`${API_BASE}/api/coupons/${editingCoupon._id}`, submitData)
-        toast.success("Coupon updated successfully")
-      } else {
-        await axios.post(`${API_BASE}/api/coupons`, submitData)
-        toast.success("Coupon created successfully")
-      }
+    if (editingCoupon) {
+    await axios.put(`${apiBaseUrl}/api/coupons/${editingCoupon._id}`, submitData)
+    toast.success("Coupon updated successfully")
+  } else {
+    await axios.post(`${apiBaseUrl}/api/coupons`, submitData)
+    toast.success("Coupon created successfully")
+  }
       setShowModal(false)
       setEditingCoupon(null)
       resetForm()
@@ -108,35 +99,32 @@ export default function CouponsPage() {
     setShowModal(true)
   }
 
- const handleDelete = async (id) => {
-  if (window.confirm("Are you sure you want to delete this coupon?")) {
-    try {
-      await axios.delete(`${API_BASE}/api/coupons/${id}`)
-      toast.success("Coupon deleted successfully")
-      fetchCoupons() // Refresh coupons after deletion
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Error deleting coupon")
+  const handleDelete = async (id) => {
+    if (window.confirm("Are you sure you want to delete this coupon?")) {
+      try {
+        await axios.delete(`/api/coupons/${id}`)
+        toast.success("Coupon deleted successfully")
+        fetchCoupons()
+      } catch (error) {
+        toast.error("Error deleting coupon")
+      }
     }
   }
-}
 
-
-
-const handleToggleStatus = async (id) => {
-  try {
-    await axios.patch(`${API_BASE}/api/coupons/${id}/toggle`)
-    toast.success("Coupon status updated")
-    fetchCoupons() // Refresh coupons after toggling status
-  } catch (error) {
-    toast.error(error.response?.data?.message || "Error updating coupon status")
+  const handleToggleStatus = async (id) => {
+    try {
+      await axios.patch(`/api/coupons/${id}/toggle`)
+      toast.success("Coupon status updated")
+      fetchCoupons()
+    } catch (error) {
+      toast.error("Error updating coupon status")
+    }
   }
-}
-
 
   const filteredCoupons = coupons.filter(
     (coupon) =>
       coupon.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      coupon.description.toLowerCase().includes(searchTerm.toLowerCase())
+      coupon.description.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
   const formatDate = (dateString) => {
@@ -192,13 +180,27 @@ const handleToggleStatus = async (id) => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Discount</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Valid Until</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Usage</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Code
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Description
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Discount
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Valid Until
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Usage
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -264,7 +266,122 @@ const handleToggleStatus = async (id) => {
                 {editingCoupon ? "Edit Coupon" : "Create New Coupon"}
               </h3>
               <form onSubmit={handleSubmit} className="space-y-4">
-                {/* Form inputs */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Coupon Code</label>
+                    <input
+                      type="text"
+                      value={formData.code}
+                      onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      placeholder="SAVE20"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Discount Type</label>
+                    <select
+                      value={formData.discountType}
+                      onChange={(e) => setFormData({ ...formData, discountType: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    >
+                      <option value="percentage">Percentage</option>
+                      <option value="fixed">Fixed Amount</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                  <textarea
+                    value={formData.description}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    rows={2}
+                    placeholder="Describe the coupon offer"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Discount Value</label>
+                    <input
+                      type="number"
+                      value={formData.discountValue}
+                      onChange={(e) => setFormData({ ...formData, discountValue: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      placeholder={formData.discountType === "percentage" ? "20" : "100"}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Min Order Value</label>
+                    <input
+                      type="number"
+                      value={formData.minOrderValue}
+                      onChange={(e) => setFormData({ ...formData, minOrderValue: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      placeholder="500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Max Discount Amount</label>
+                    <input
+                      type="number"
+                      value={formData.maxDiscountAmount}
+                      onChange={(e) => setFormData({ ...formData, maxDiscountAmount: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      placeholder="200"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Valid From</label>
+                    <input
+                      type="date"
+                      value={formData.validFrom}
+                      onChange={(e) => setFormData({ ...formData, validFrom: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Valid Until</label>
+                    <input
+                      type="date"
+                      value={formData.validUntil}
+                      onChange={(e) => setFormData({ ...formData, validUntil: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Usage Limit</label>
+                    <input
+                      type="number"
+                      value={formData.usageLimit}
+                      onChange={(e) => setFormData({ ...formData, usageLimit: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      placeholder="100"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setShowModal(false)}
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600">
+                    {editingCoupon ? "Update" : "Create"} Coupon
+                  </button>
+                </div>
               </form>
             </div>
           </div>
@@ -273,3 +390,5 @@ const handleToggleStatus = async (id) => {
     </div>
   )
 }
+
+export default Coupons
