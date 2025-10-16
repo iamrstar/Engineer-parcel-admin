@@ -119,15 +119,25 @@ const Coupons = () => {
   }
 
   const handleToggleStatus = async (id) => {
-    try {
-      await axios.patch(`${apiBaseUrl}/api/coupons/${id}/toggle`)
-      toast.success("Coupon status updated")
-      fetchCoupons()
-    } catch (error) {
-      console.error("Toggle error:", error)
-      toast.error("Error updating coupon status")
-    }
+  try {
+    const couponToToggle = coupons.find((c) => c._id === id)
+    if (!couponToToggle) return toast.error("Coupon not found")
+
+    const updatedStatus = !couponToToggle.isActive
+
+    await axios.put(`${apiBaseUrl}/api/coupons/${id}`, {
+      ...couponToToggle,
+      isActive: updatedStatus,
+    })
+
+    toast.success(`Coupon ${updatedStatus ? "activated" : "deactivated"} successfully`)
+    fetchCoupons()
+  } catch (error) {
+    console.error("Toggle error:", error)
+    toast.error(error.response?.data?.message || "Error updating coupon status")
   }
+}
+
 
   const filteredCoupons = coupons.filter(
     (coupon) =>
