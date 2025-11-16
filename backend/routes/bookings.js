@@ -2,80 +2,159 @@ const express = require("express");
 const Booking = require("../models/Booking");
 const authMiddleware = require("../middleware/auth");
 const adminAuth = require("../middleware/adminAuth");
-const {
-  sendBookingConfirmation,
-  sendShipmentUpdate,
-} = require("../services/emailTemplates");
 
 const router = express.Router();
 
-/* ----------------------------------
-   📦 Create Booking (Admin Panel)
----------------------------------- */
-router.post("/", async (req, res) => {
-  console.log("📦 Admin booking payload received:", req.body);
-
+/** ------------------------
+ * 📊 Dashboard & Test Routes
+ * ------------------------ */
+router.get("/stats/dashboard", authMiddleware, async (req, res) => {
   try {
-    // ✅ Create booking
-    const booking = new Booking(req.body);
-    await booking.save();
+    const totalBookings = await Booking.countDocuments();
+    const pendingBookings = await Booking.countDocuments({ status: "pending" });
+    const deliveredBookings = await Booking.countDocuments({ status: "delivered" });
+    const inTransitBookings = await Booking.countDocuments({ status: "in-transit" });
 
-    console.log("✅ Booking created successfully:", booking.bookingId);
+    const totalRevenue = await Booking.aggregate([
+      { $match: { paymentStatus: "paid" } },
+      { $group: { _id: null, total: { $sum: "$pricing.totalAmount" } } },
+    ]);
 
-    // ✅ Try sending confirmation emails
-    try {
-      const sender = {
-        name: booking.senderDetails?.name,
-        email: booking.senderDetails?.email,
-      };
-      const receiver = {
-        name: booking.receiverDetails?.name,
-        email: booking.receiverDetails?.email,
-      };
-
-      if (sender.email) await sendBookingConfirmation(booking, sender);
-      if (receiver.email) await sendBookingConfirmation(booking, receiver);
-    } catch (emailErr) {
-      console.error("❌ Email send error:", emailErr.message);
-    }
-
-    // ✅ Send response
-    return res.status(201).json({
-      success: true,
-      message: "Booking created successfully & confirmation email sent.",
-      booking,
+    res.json({
+      totalBookings,
+      pendingBookings,
+      deliveredBookings,
+      inTransitBookings,
+      totalRevenue: totalRevenue[0]?.total || 0,
     });
   } catch (error) {
-    console.error("❌ Booking creation error:", error);
-
-    // ✅ Handle duplicate bookingId error (MongoDB)
-    if (error.code === 11000 && error.keyValue?.bookingId) {
-      console.warn(`⚠️ Duplicate Booking ID detected: ${error.keyValue.bookingId}`);
-      return res.status(400).json({
-        success: false,
-        message: `Booking ID "${error.keyValue.bookingId}" already exists.`,
-      });
-    }
-
-    // ✅ Catch validation or unknown errors
-    return res.status(500).json({
-      success: false,
-      message: error.message || "An unexpected error occurred while creating the booking.",
-      error: error.stack,
-    });
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
   }
 });
 
-/* ----------------------------------
-   🚚 Update Tracking (Admin)
----------------------------------- */
+router.get("/test-log", (req, res) => {
+  console.log("✅ /api/bookings/test-log route hit");
+  res.send("Test log working");
+});
+
+/** ------------------------
+ * 📦 Get all bookings
+ * ------------------------ */
+router.get("/", authMiddleware, async (req, res) => {
+  try {
+    const { page = 1, limit = 10, status, search } = req.query;
+    const query = {};
+
+    if (status && status !== "all") {
+      query.status = status;
+    }
+
+    if (search) {
+      query.$or = [
+        { bookingId: { $regex: search, $options: "i" } },
+        { "senderDetails.name": { $regex: search, $options: "i" } },
+        { "receiverDetails.name": { $regex: search, $options: "i" } },
+        { "senderDetails.phone": { $regex: search, $options: "i" } },
+        { "receiverDetails.phone": { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const bookings = await Booking.find(query)
+      .sort({ createdAt: -1 })
+      .limit(limit * 1)
+      .skip((page - 1) * limit);
+
+    const total = await Booking.countDocuments(query);
+
+    res.json({
+      bookings,
+      totalPages: Math.ceil(total / limit),
+      currentPage: page,
+      total,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/** ------------------------
+ * 📦 Get booking by ID
+ * ------------------------ */
+router.get("/:id", authMiddleware, async (req, res) => {
+  try {
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+    res.json(booking);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/** ------------------------
+ * ✏️ Update booking
+ * ------------------------ */
+router.put("/:id", authMiddleware, async (req, res) => {
+  try {
+    const booking = await Booking.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+      runValidators: true,
+    });
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    res.json(booking);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Update ETD for a booking
+router.put("/:id/etd", async (req, res) => {
+  try {
+    const { etd } = req.body;
+    if (!etd) {
+      return res.status(400).json({ message: "ETD is required" });
+    }
+
+    const booking = await Booking.findByIdAndUpdate(
+      req.params.id,
+      { estimatedDelivery: etd },
+      { new: true }
+    );
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    res.json({
+      message: "Estimated Delivery updated successfully",
+      booking,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/** ------------------------
+ * 🚚 Add tracking update
+ * ------------------------ */
 router.put("/:id/tracking", authMiddleware, async (req, res) => {
   try {
     const { status, location, description, timestamp } = req.body;
-    const booking = await Booking.findById(req.params.id);
 
-    if (!booking)
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
+    }
 
     const newEntry = {
       status: status || "No Status",
@@ -84,73 +163,38 @@ router.put("/:id/tracking", authMiddleware, async (req, res) => {
       timestamp: timestamp ? new Date(timestamp) : new Date(),
     };
 
-    if (!Array.isArray(booking.trackingHistory))
+    if (!Array.isArray(booking.trackingHistory)) {
       booking.trackingHistory = [];
+    }
 
     booking.trackingHistory.push(newEntry);
     booking.status = status || booking.status;
+
     const updated = await booking.save();
 
-    // ✅ Send shipment update emails
-    const trackingInfo = {
-      trackingId: booking.bookingId || booking._id,
-      status,
-      estimatedDelivery: booking.estimatedDelivery || "N/A",
-    };
-
-    try {
-      if (booking.senderDetails?.email) {
-        await sendShipmentUpdate(booking.senderDetails, trackingInfo);
-        console.log("📨 Shipment update email sent to sender.");
-      }
-
-      if (booking.receiverDetails?.email) {
-        await sendShipmentUpdate(booking.receiverDetails, trackingInfo);
-        console.log("📨 Shipment update email sent to receiver.");
-      }
-    } catch (emailErr) {
-      console.error("❌ Shipment email error:", emailErr.message);
-    }
-
-    res.json({ success: true, booking: updated });
+    res.json(updated);
   } catch (error) {
-    console.error("❌ Tracking update error:", error);
-    res.status(500).json({ message: "Error updating tracking" });
+    console.error(error);
+    res.status(500).json({ message: "Error updating tracking history" });
   }
 });
 
+/** ------------------------
+ * 🗑️ DELETE booking by ID (Admin only)
+ * ------------------------ */
 router.delete("/:id", adminAuth, async (req, res) => {
   try {
-    const bookingId = req.params.id;
-
-    // Find and delete the booking by ID
-    const booking = await Booking.findByIdAndDelete(bookingId);
+    const booking = await Booking.findByIdAndDelete(req.params.id);
 
     if (!booking) {
-      return res.status(404).json({
-        success: false,
-        message: "Booking not found.",
-      });
+      return res.status(404).json({ message: "Booking not found" });
     }
 
-    console.log(`✅ Booking with ID ${bookingId} deleted successfully.`);
-
-    // Send success response
-    res.json({
-      success: true,
-      message: `Booking with ID ${bookingId} has been deleted.`,
-    });
+    res.json({ message: "Booking deleted successfully" });
   } catch (error) {
-    console.error("❌ Error deleting booking:", error);
-    res.status(500).json({
-      success: false,
-      message: "An error occurred while deleting the booking.",
-    });
+    console.error("Delete booking error:", error);
+    res.status(500).json({ message: "Server error deleting booking" });
   }
 });
-
-
-
-
 
 module.exports = router;
