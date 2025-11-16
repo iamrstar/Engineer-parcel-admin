@@ -43,8 +43,8 @@ app.get("/api/health", (req, res) => {
 // ✅ MongoDB Connection
 mongoose
   .connect(
-    process.env.MONGODB_URI ||
-      "mongodb+srv://rajchatterji20:jaR5QNAU3n587zDb@cluster0.uzthk7v.mongodb.net/engineersparcel?retryWrites=true&w=majority&appName=Cluster0"
+    process.env.MONGODB_URI 
+     
   )
   .then(() => console.log("MongoDB connected"))
   .catch((err) => console.error("MongoDB connection error:", err))
