@@ -4,7 +4,7 @@ const bookingSchema = new mongoose.Schema(
   {
     bookingId: {
       type: String,
-      unique: true, 
+      unique: true,
     },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
@@ -57,8 +57,8 @@ const bookingSchema = new mongoose.Schema(
     deliveryDate: Date,
     status: {
       type: String,
-      enum: ["pending", "confirmed", "picked", "in-transit", "out-for-delivery", "delivered", "cancelled"],
-      default: "pending",
+      enum: ["pending", "confirmed", "picked", "in-transit", "out-for-delivery", "reached", "delivered", "cancelled"],
+      default: "confirmed",
     },
 
     estimatedDelivery: {
