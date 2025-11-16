@@ -110,11 +110,16 @@ export default function ManualBooking() {
     };
 
     try {
-      const res = await fetch("http://localhost:8000/api/manual-bookings", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+const res = await axios.post(
+  `${import.meta.env.VITE_API_URL}/api/manual-bookings`,
+  payload,
+  {
+    headers: {
+      "Content-Type": "application/json",
+    },
+  }
+);
+
 
       if (!res.ok) {
         const errorData = await res.json();
