@@ -67,8 +67,8 @@ const handleDelete = async () => {
 
   try {
     // Call the DELETE API to delete the booking
-    // const response = await axios.delete(`${import.meta.env.VITE_API_URL}/api/bookings/${id}`);
-    const response = await axios.delete(`http://localhost:8000/api/bookings/${id}`);
+    const response = await axios.delete(`${import.meta.env.VITE_API_URL}/api/bookings/${id}`);
+    // const response = await axios.delete(`http://localhost:8000/api/bookings/${id}`);
     
     if (response.data.success) {
       toast.success("Booking deleted successfully");
