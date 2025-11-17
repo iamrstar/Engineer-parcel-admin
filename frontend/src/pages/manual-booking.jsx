@@ -1,6 +1,8 @@
 "use client";
 import { useState } from "react";
 import toast from "react-hot-toast";
+import axios from "axios";
+
 
 export default function ManualBooking() {
   const [step, setStep] = useState(1);
@@ -39,110 +41,103 @@ export default function ManualBooking() {
   const handleNext = () => setStep((prev) => prev + 1);
   const handleBack = () => setStep((prev) => prev - 1);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+ const handleSubmit = async (e) => {
+  e.preventDefault();
 
-    
+  const payload = {
+    serviceType: formData.serviceType.toLowerCase(),
+    pickupPincode: formData.pickupPincode,
+    deliveryPincode: formData.dropPincode,
+    pickupDate: new Date().toISOString().split("T")[0],
+    pickupSlot: "10AM-12PM",
+    deliveryDate: new Date(Date.now() + 4 * 86400000).toISOString().split("T")[0],
+    estimatedDelivery: new Date(Date.now() + 4 * 86400000).toISOString().split("T")[0],
+    currentLocation: "Admin Panel",
+    parcelImage: "https://via.placeholder.com/150",
+    couponCode: "",
+    couponDiscount: 0,
+    insuranceRequired: true,
+    paymentStatus: "pending",
+    paymentMethod: "COD",
+    notes: "Manual booking created by admin",
+    status: formData.deliveryStatus.toLowerCase(),
+    bookingSource: "admin",
 
-    const payload = {
-      serviceType: formData.serviceType.toLowerCase(),
-      pickupPincode: formData.pickupPincode,
-      deliveryPincode: formData.dropPincode,
-      pickupDate: new Date().toISOString().split("T")[0],
-      pickupSlot: "10AM-12PM",
-      deliveryDate: new Date(Date.now() + 4 * 86400000).toISOString().split("T")[0],
-      estimatedDelivery: new Date(Date.now() + 4 * 86400000).toISOString().split("T")[0],
-      currentLocation: "Admin Panel",
-      parcelImage: "https://via.placeholder.com/150",
-      couponCode: "",
-      couponDiscount: 0,
-      insuranceRequired: true,
-      paymentStatus: "pending",
-      paymentMethod: "COD",
-      notes: "Manual booking created by admin",
-      status: formData.deliveryStatus.toLowerCase(),
-      bookingSource: "admin",
-      ...(formData.bookingId && { bookingId: formData.bookingId }),
+    ...(formData.bookingId && { bookingId: formData.bookingId }),
 
-      senderDetails: {
-        name: formData.senderName,
-        phone: formData.senderPhone,
-        email: formData.senderEmail,
-        address: formData.senderAddress,
-        pincode: formData.pickupPincode,
-        city: formData.senderCity,
-        state: formData.senderState,
-        landmark: formData.senderLandmark,
-      },
-
-      receiverDetails: {
-        name: formData.receiverName,
-        phone: formData.receiverPhone,
-        email: formData.receiverEmail,
-        address: formData.receiverAddress,
-        pincode: formData.dropPincode,
-        city: formData.receiverCity,
-        state: formData.receiverState,
-        landmark: formData.receiverLandmark,
-      },
-
-      packageDetails: {
-        weight: parseFloat(formData.actualWeight),
-        weightUnit: formData.weightUnit,
-        volumetricWeight: parseFloat(formData.actualWeight),
-        dimensions: {
-          length: parseInt(formData.length),
-          width: parseInt(formData.width),
-          height: parseInt(formData.height),
-        },
-        boxQuantity: parseInt(formData.boxQuantity),
-        description: formData.goodsDescription,
-        value: parseInt(formData.goodsValue),
-        fragile: false,
-      },
-
-      pricing: {
-        basePrice: 100,
-        additionalCharges: 50,
-        tax: 18,
-        totalAmount: 168,
-      },
-    };
-
-    try {
-const res = await axios.post(
-  `${import.meta.env.VITE_API_URL}/api/manual-bookings`,
-  payload,
-  {
-    headers: {
-      "Content-Type": "application/json",
+    senderDetails: {
+      name: formData.senderName,
+      phone: formData.senderPhone,
+      email: formData.senderEmail,
+      address: formData.senderAddress,
+      pincode: formData.pickupPincode,
+      city: formData.senderCity,
+      state: formData.senderState,
+      landmark: formData.senderLandmark,
     },
-  }
-);
 
+    receiverDetails: {
+      name: formData.receiverName,
+      phone: formData.receiverPhone,
+      email: formData.receiverEmail,
+      address: formData.receiverAddress,
+      pincode: formData.dropPincode,
+      city: formData.receiverCity,
+      state: formData.receiverState,
+      landmark: formData.receiverLandmark,
+    },
 
-      if (!res.ok) {
-        const errorData = await res.json();
+    packageDetails: {
+      weight: parseFloat(formData.actualWeight),
+      weightUnit: formData.weightUnit,
+      volumetricWeight: parseFloat(formData.actualWeight),
+      dimensions: {
+        length: parseInt(formData.length),
+        width: parseInt(formData.width),
+        height: parseInt(formData.height),
+      },
+      boxQuantity: parseInt(formData.boxQuantity),
+      description: formData.goodsDescription,
+      value: parseInt(formData.goodsValue),
+      fragile: false,
+    },
 
-        // ✅ Detect duplicate booking ID error
-        if (errorData.message && errorData.message.includes("duplicate key")) {
-          toast.error(`Booking ID "${formData.bookingId}" already exists!`);
-          return;
-        }
-
-        toast.error(`Booking failed: ${errorData.message || "Booking ID already exists! or something went wrong."}`);
-        return;
-      }
-
-      const data = await res.json();
-      console.log("✅ Booking successful:", data);
-      toast.success("Booking created successfully!");
-      setStep(3);
-    } catch (error) {
-      console.error("❌ API Error:", error);
-      toast.error("Something went wrong while submitting the booking.");
-    }
+    pricing: {
+      basePrice: 100,
+      additionalCharges: 50,
+      tax: 18,
+      totalAmount: 168,
+    },
   };
+
+  try {
+    const res = await axios.post(
+      `${import.meta.env.VITE_API_URL}/api/manual-bookings`,
+      payload,
+      {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    // SUCCESS
+    console.log("✅ Booking successful:", res.data);
+    toast.success("Booking created successfully!");
+    setStep(3);
+
+  } catch (error) {
+    console.error("❌ API Error:", error);
+
+    // Duplicate booking ID
+    if (error.response?.data?.message?.includes("duplicate key")) {
+      toast.error(`Booking ID "${formData.bookingId}" already exists!`);
+      return;
+    }
+
+    toast.error(error.response?.data?.message || "Something went wrong!");
+  }
+};
 
   return (
     <div className="max-w-3xl mx-auto p-6">
