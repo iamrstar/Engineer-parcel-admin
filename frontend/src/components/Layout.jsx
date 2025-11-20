@@ -9,7 +9,7 @@ const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { logout } = useAuth()
   const location = useLocation()
-  const navigate = useNavigate()
+  const navigate = useNavigate() 
 
   const navigation = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
