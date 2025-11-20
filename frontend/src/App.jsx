@@ -1,4 +1,4 @@
-"use client"
+"use client"  
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom"
 import { AuthProvider, useAuth } from "./contexts/AuthContext"
 import Login from "./pages/Login"
