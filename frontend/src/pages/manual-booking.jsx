@@ -59,7 +59,7 @@ export default function ManualBooking() {
     insuranceRequired: true,
     paymentStatus: "pending",
     paymentMethod: "COD",
-    notes: "Manual booking created by admin",
+      notes: formData.notes || "Manual booking created by admin",
     status: formData.deliveryStatus.toLowerCase(),
     bookingSource: "admin",
 
@@ -162,7 +162,14 @@ export default function ManualBooking() {
               <input type="number" name="width" value={formData.width || ""} onChange={handleChange} placeholder="Width (cm)" className="border p-2 rounded" required />
               <input type="number" name="height" value={formData.height || ""} onChange={handleChange} placeholder="Height (cm)" className="border p-2 rounded" required />
             </div>
-
+<input
+              type="string"
+              name="notes"
+              value={formData.notes || ""}
+              onChange={(e) => handleChange("notes", e.target.value)}
+              placeholder="Reference Number or notes "
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+            />
             <input type="number" name="boxQuantity" value={formData.boxQuantity || ""} onChange={handleChange} placeholder="Box Quantity" className="w-full border p-2 rounded" required />
             <input name="actualWeight" value={formData.actualWeight} onChange={handleChange} placeholder="Weight" className="w-full border p-2 rounded" required />
             <select name="weightUnit" value={formData.weightUnit} onChange={handleChange} className="w-full border p-2 rounded" required>
