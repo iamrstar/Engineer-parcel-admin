@@ -163,11 +163,11 @@ export default function ManualBooking() {
               <input type="number" name="height" value={formData.height || ""} onChange={handleChange} placeholder="Height (cm)" className="border p-2 rounded" required />
             </div>
 <input
-              type="string"
+             
               name="notes"
-              value={formData.notes || ""}
+              value={formData.notes }
               onChange={(e) => handleChange("notes", e.target.value)}
-              placeholder="Reference Number or notes "
+              placeholder="Reference Number "
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
             />
             <input type="number" name="boxQuantity" value={formData.boxQuantity || ""} onChange={handleChange} placeholder="Box Quantity" className="w-full border p-2 rounded" required />
