@@ -1,8 +1,6 @@
 "use client";
 import { useState } from "react";
 import toast from "react-hot-toast";
-import axios from "axios";
-
 
 export default function ManualBooking() {
   const [step, setStep] = useState(1);
@@ -28,9 +26,14 @@ export default function ManualBooking() {
     receiverCity: "",
     receiverState: "",
     receiverLandmark: "",
-    bookingId: "EP",
-    deliveryStatus: "Confirmed",
+    bookingId: "EP", // Admin must fill this
+    deliveryStatus: "confirmed",
     ETD: "",
+    length: "",
+    width: "",
+    height: "",
+    boxQuantity: "",
+    notes: "",
   });
 
   const handleChange = (e) => {
@@ -41,17 +44,48 @@ export default function ManualBooking() {
   const handleNext = () => setStep((prev) => prev + 1);
   const handleBack = () => setStep((prev) => prev - 1);
 
- const handleSubmit = async (e) => {
+  const handleSubmit = async (e) => {
   e.preventDefault();
 
+  // Validate numeric fields
+  const numericFields = [
+    "actualWeight",
+    "length",
+    "width",
+    "height",
+    "boxQuantity",
+    "goodsValue",
+  ];
+
+  for (const field of numericFields) {
+    if (isNaN(formData[field]) || formData[field] === "") {
+      toast.error(`Please enter valid value for ${field}`);
+      return;
+    }
+  }
+
+  if (!formData.bookingId) {
+    toast.error("Booking ID is required and must be filled by admin!");
+    return;
+  }
+
+  // 🔥 1️⃣ UPPERCASE BOOKING ID
+  const BOOKING_ID = formData.bookingId.toUpperCase();
+
+  // 🔥 2️⃣ Clean payload (NO SELF-REFERENCE ERROR)
   const payload = {
-    serviceType: formData.serviceType.toLowerCase(),
+    bookingId: BOOKING_ID,
+    serviceType: formData.serviceType,
     pickupPincode: formData.pickupPincode,
     deliveryPincode: formData.dropPincode,
     pickupDate: new Date().toISOString().split("T")[0],
     pickupSlot: "10AM-12PM",
-    deliveryDate: new Date(Date.now() + 4 * 86400000).toISOString().split("T")[0],
-    estimatedDelivery: new Date(Date.now() + 4 * 86400000).toISOString().split("T")[0],
+    deliveryDate: new Date(Date.now() + 4 * 86400000)
+      .toISOString()
+      .split("T")[0],
+    estimatedDelivery: new Date(Date.now() + 4 * 86400000)
+      .toISOString()
+      .split("T")[0],
     currentLocation: "Admin Panel",
     parcelImage: "https://via.placeholder.com/150",
     couponCode: "",
@@ -59,11 +93,8 @@ export default function ManualBooking() {
     insuranceRequired: true,
     paymentStatus: "pending",
     paymentMethod: "COD",
-      notes: formData.notes || "Manual booking created by admin",
-    status: formData.deliveryStatus.toLowerCase(),
-    bookingSource: "admin",
-
-    ...(formData.bookingId && { bookingId: formData.bookingId }),
+    notes: formData.notes || "Manual booking created by admin",
+    status: formData.deliveryStatus,
 
     senderDetails: {
       name: formData.senderName,
@@ -111,33 +142,97 @@ export default function ManualBooking() {
   };
 
   try {
-    const res = await axios.post(
-      `${import.meta.env.VITE_API_URL}/api/manual-bookings`,
-      payload,
-      {
-        headers: {
-          "Content-Type": "application/json",
-        },
+    // 3️⃣ Save booking
+const res = await fetch(`${import.meta.env.VITE_API_URL}/api/manual-bookings`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json();
+      if (errorData.message?.includes("duplicate key")) {
+        toast.error(`Booking ID "${BOOKING_ID}" already exists!`);
+      } else {
+        toast.error(errorData.message || "Booking failed.");
       }
-    );
-
-    // SUCCESS
-    console.log("✅ Booking successful:", res.data);
-    toast.success("Booking created successfully!");
-    setStep(3);
-
-  } catch (error) {
-    console.error("❌ API Error:", error);
-
-    // Duplicate booking ID
-    if (error.response?.data?.message?.includes("duplicate key")) {
-      toast.error(`Booking ID "${formData.bookingId}" already exists!`);
       return;
     }
 
-    toast.error(error.response?.data?.message || "Something went wrong!");
+    const data = await res.json();
+    console.log("✅ Booking created:", data);
+
+    toast.success("Booking created successfully!");
+    setStep(3); // move to step 4 AFTER booking is saved
+
+    // 4️⃣ Send emails asynchronously (AFTER step change)
+    const emails = [];
+    if (formData.senderEmail) emails.push(formData.senderEmail);
+    if (
+      formData.receiverEmail &&
+      formData.receiverEmail !== formData.senderEmail
+    )
+      emails.push(formData.receiverEmail);
+
+    emails.forEach(async (email) => {
+      try {
+       await fetch(`${import.meta.env.VITE_API_URL}/api/manual-bookings/send-booking-email`, {
+
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email,
+              bookingId: BOOKING_ID,
+            }),
+          }
+        );
+        console.log(`📩 Email sent to ${email}`);
+      } catch (err) {
+        console.error(`❌ Email failed: ${email}`, err);
+      }
+    });
+  } catch (err) {
+    console.error("❌ Submit error:", err);
+    toast.error("Something went wrong while submitting booking.");
   }
 };
+
+
+
+  const resetForm = () => {
+    setFormData({
+      pickupPincode: "",
+      dropPincode: "",
+      serviceType: "surface",
+      actualWeight: "",
+      weightUnit: "kg",
+      goodsDescription: "",
+      goodsValue: "",
+      senderName: "",
+      senderPhone: "",
+      senderEmail: "",
+      senderAddress: "",
+      senderCity: "",
+      senderState: "",
+      senderLandmark: "",
+      receiverName: "",
+      receiverPhone: "",
+      receiverEmail: "",
+      receiverAddress: "",
+      receiverCity: "",
+      receiverState: "",
+      receiverLandmark: "",
+      bookingId: "",
+      deliveryStatus: "confirmed",
+      ETD: "",
+      length: "",
+      width: "",
+      height: "",
+      boxQuantity: "",
+      notes: "",
+    });
+    setStep(1);
+  };
 
   return (
     <div className="max-w-3xl mx-auto p-6">
@@ -147,39 +242,110 @@ export default function ManualBooking() {
         {/* STEP 1 */}
         {step === 1 && (
           <div className="space-y-4">
-            <input name="pickupPincode" value={formData.pickupPincode} onChange={handleChange} placeholder="Pickup Pincode" className="w-full border p-2 rounded" required />
-            <input name="dropPincode" value={formData.dropPincode} onChange={handleChange} placeholder="Drop Pincode" className="w-full border p-2 rounded" required />
-
-            <select name="serviceType" value={formData.serviceType} onChange={handleChange} className="w-full border p-2 rounded" required>
-              <option value="Surface">Surface</option>
+            <input
+              name="pickupPincode"
+              value={formData.pickupPincode}
+              onChange={handleChange}
+              placeholder="Pickup Pincode"
+              className="w-full border p-2 rounded"
+              required
+            />
+            <input
+              name="dropPincode"
+              value={formData.dropPincode}
+              onChange={handleChange}
+              placeholder="Drop Pincode"
+              className="w-full border p-2 rounded"
+              required
+            />
+            <select
+              name="serviceType"
+              value={formData.serviceType}
+              onChange={handleChange}
+              className="w-full border p-2 rounded"
+              required
+            >
+              <option value="surface">Surface</option>
               <option value="Air">Air</option>
               <option value="Express">Express</option>
               <option value="Premium">Premium</option>
             </select>
-
             <div className="grid grid-cols-3 gap-2">
-              <input type="number" name="length" value={formData.length || ""} onChange={handleChange} placeholder="Length (cm)" className="border p-2 rounded" required />
-              <input type="number" name="width" value={formData.width || ""} onChange={handleChange} placeholder="Width (cm)" className="border p-2 rounded" required />
-              <input type="number" name="height" value={formData.height || ""} onChange={handleChange} placeholder="Height (cm)" className="border p-2 rounded" required />
+              <input
+                type="number"
+                name="length"
+                value={formData.length || ""}
+                onChange={handleChange}
+                placeholder="Length (cm)"
+                className="border p-2 rounded"
+                required
+              />
+              <input
+                type="number"
+                name="width"
+                value={formData.width || ""}
+                onChange={handleChange}
+                placeholder="Width (cm)"
+                className="border p-2 rounded"
+                required
+              />
+              <input
+                type="number"
+                name="height"
+                value={formData.height || ""}
+                onChange={handleChange}
+                placeholder="Height (cm)"
+                className="border p-2 rounded"
+                required
+              />
             </div>
-  <input
-  type="text"
-  name="notes"
-  value={formData.notes || ""}
+            <input
+              type="number"
+              name="boxQuantity"
+              value={formData.boxQuantity || ""}
               onChange={handleChange}
-  placeholder="Reference Number or notes"
-  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-/>
-            <input type="number" name="boxQuantity" value={formData.boxQuantity || ""} onChange={handleChange} placeholder="Box Quantity" className="w-full border p-2 rounded" required />
-            <input name="actualWeight" value={formData.actualWeight} onChange={handleChange} placeholder="Weight" className="w-full border p-2 rounded" required />
-            <select name="weightUnit" value={formData.weightUnit} onChange={handleChange} className="w-full border p-2 rounded" required>
+              placeholder="Box Quantity"
+              className="w-full border p-2 rounded"
+              required
+            />
+            <input
+              type="text"
+              name="notes"
+              value={formData.notes || ""}
+              onChange={handleChange}
+              placeholder="Notes or Reference Number"
+              className="w-full border p-2 rounded"
+            />
+            <input
+              name="actualWeight"
+              value={formData.actualWeight}
+              onChange={handleChange}
+              placeholder="Weight"
+              className="w-full border p-2 rounded"
+              required
+            />
+            <select
+              name="weightUnit"
+              value={formData.weightUnit}
+              onChange={handleChange}
+              className="w-full border p-2 rounded"
+            >
               <option value="kg">kg</option>
               <option value="g">g</option>
             </select>
-
-            <input name="goodsDescription" value={formData.goodsDescription} onChange={handleChange} placeholder="Goods Description" className="w-full border p-2 rounded" required />
-
-            <button type="button" onClick={handleNext} className="bg-blue-600 text-white px-4 py-2 rounded">
+            <input
+              name="goodsDescription"
+              value={formData.goodsDescription}
+              onChange={handleChange}
+              placeholder="Goods Description"
+              className="w-full border p-2 rounded"
+              required
+            />
+            <button
+              type="button"
+              onClick={handleNext}
+              className="bg-blue-600 text-white px-4 py-2 rounded"
+            >
               Next
             </button>
           </div>
@@ -191,35 +357,55 @@ export default function ManualBooking() {
             {["sender", "receiver"].map((type) => (
               <div key={type} className="border p-3 rounded">
                 <h2 className="font-semibold mb-2 capitalize">{type} details</h2>
-                {["Name", "Phone", "Email", "Address", "City", "State", "Landmark"].map((field) => (
-                  <input
-                    key={field}
-                    type={field === "Email" ? "email" : "text"}
-                    name={`${type}${field}`}
-                    value={formData[`${type}${field}`]}
-                    onChange={handleChange}
-                    placeholder={`${type.charAt(0).toUpperCase() + type.slice(1)} ${field}`}
-                    className="w-full border p-2 rounded mb-2"
-                    required
-                  />
-                ))}
+                {["Name", "Phone", "Email", "Address", "City", "State", "Landmark"].map(
+                  (field) => (
+                    <input
+                      key={field}
+                      type={field === "Email" ? "email" : "text"}
+                      name={`${type}${field}`}
+                      value={formData[`${type}${field}`]}
+                      onChange={handleChange}
+                      placeholder={`${type.charAt(0).toUpperCase() + type.slice(1)} ${field}`}
+                      className="w-full border p-2 rounded mb-2"
+                      required
+                    />
+                  )
+                )}
               </div>
             ))}
-<input
-  name="bookingId"
-  value={formData.bookingId}
-  onChange={handleChange}
-  placeholder = "Booking ID (Start with AD + 6 digits)"
-  className="w-full border p-2 rounded uppercase"
-/>
-            <select name="deliveryStatus" value={formData.deliveryStatus} onChange={handleChange} className="w-full border p-2 rounded">
+            <input
+              name="bookingId"
+              value={formData.bookingId}
+              onChange={(e) =>
+    setFormData({
+      ...formData,
+      bookingId: e.target.value.toUpperCase(), // 🔥 auto uppercase while typing
+    })
+  }
+              placeholder="Booking ID (must be unique)"
+              className="w-full border p-2 rounded uppercase"
+              required
+            />
+            <select
+              name="deliveryStatus"
+              value={formData.deliveryStatus}
+              onChange={handleChange}
+              className="w-full border p-2 rounded"
+            >
               <option value="confirmed">Confirmed</option>
-              <option value="Pending">Pending</option>
+              <option value="pending">Pending</option>
               <option value="in-transit">Dispatched</option>
-              <option value="Delivered">Delivered</option>
-              <option value="Cancelled">Cancelled</option>
+              <option value="delivered">Delivered</option>
+              <option value="cancelled">Cancelled</option>
             </select>
-            <input name="goodsValue" value={formData.goodsValue} onChange={handleChange} placeholder="Goods Value (₹)" className="w-full border p-2 rounded" required />
+            <input
+              name="goodsValue"
+              value={formData.goodsValue}
+              onChange={handleChange}
+              placeholder="Goods Value (₹)"
+              className="w-full border p-2 rounded"
+              required
+            />
             <div className="flex justify-between">
               <button type="button" onClick={handleBack} className="bg-gray-400 text-white px-4 py-2 rounded">
                 Back
@@ -236,7 +422,7 @@ export default function ManualBooking() {
           <div className="space-y-4 p-4 border rounded shadow">
             <h2 className="text-xl font-bold mb-2 text-green-700">✅ Booking Submitted Successfully!</h2>
             <ul className="text-sm space-y-1">
-              <li><strong>Booking ID:</strong> {formData.bookingId || "Auto-generated"}</li>
+              <li><strong>Booking ID:</strong> {formData.bookingId}</li>
               <li><strong>Service:</strong> {formData.serviceType}</li>
               <li><strong>From:</strong> {formData.pickupPincode} — To: {formData.dropPincode}</li>
               <li><strong>Weight:</strong> {formData.actualWeight} {formData.weightUnit}</li>
@@ -244,38 +430,7 @@ export default function ManualBooking() {
               <li><strong>Receiver:</strong> {formData.receiverName}, {formData.receiverPhone}, {formData.receiverEmail}</li>
               <li><strong>Status:</strong> {formData.deliveryStatus}</li>
             </ul>
-            <button
-              type="button"
-              onClick={() => {
-                setFormData({
-                  pickupPincode: "",
-                  dropPincode: "",
-                  serviceType: "Surface",
-                  actualWeight: "",
-                  weightUnit: "kg",
-                  goodsDescription: "",
-                  goodsValue: "",
-                  senderName: "",
-                  senderPhone: "",
-                  senderEmail: "",
-                  senderAddress: "",
-                  senderCity: "",
-                  senderState: "",
-                  senderLandmark: "",
-                  receiverName: "",
-                  receiverPhone: "",
-                  receiverEmail: "",
-                  receiverAddress: "",
-                  receiverCity: "",
-                  receiverState: "",
-                  receiverLandmark: "",
-                  bookingId: "",
-                  deliveryStatus: "Confirmed",
-                });
-                setStep(1);
-              }}
-              className="mt-4 bg-orange-500 text-white px-4 py-2 rounded"
-            >
+            <button type="button" onClick={resetForm} className="mt-4 bg-orange-500 text-white px-4 py-2 rounded">
               New Booking
             </button>
           </div>
