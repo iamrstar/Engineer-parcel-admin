@@ -767,175 +767,145 @@ const handleDelete = async () => {
 
   {/* Add new tracking update form (keep as-is) */}
   {editMode && (
-    <div className="mt-4 space-y-3 border-t pt-4">
-      {editMode && (
-    <div className="mt-4 space-y-3 border-t pt-4">
-      <h4 className="font-semibold text-gray-800">Add Tracking Update</h4>
+  <div className="mt-4 space-y-3 border-t pt-4">
+    <h4 className="font-semibold text-gray-800">Add Tracking Update</h4>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-       <select
-  value={booking?.newStatus || ""}
-  onChange={(e) =>
-    setBooking((prev) => ({ ...prev, newStatus: e.target.value }))
-  }
-  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-600 focus:ring-2 focus:ring-orange-600"
->
-  <option value="" disabled>
-    Select Status
-  </option>
-  <option value="pending">Pending</option>
-  <option value="confirmed">Booked</option>
-  <option value="picked">Picked</option>
-  <option value="in-transit">In Transit</option>
-  <option value="reached">Reached at destination</option>
-  <option value="out-for-delivery">Out for Delivery</option>
-  <option value="delivered">Delivered</option>
-  <option value="cancelled">Cancelled</option>
-</select>
-        <input
-          type="text"
-          placeholder="Location (e.g. Delhi Hub, In Transit)"
-          value={booking?.newLocation || ""}
+    {/* Status & Location */}
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <select
+        value={booking?.newStatus || ""}
+        onChange={(e) =>
+          setBooking((prev) => ({ ...prev, newStatus: e.target.value }))
+        }
+        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-600 focus:ring-2 focus:ring-orange-600"
+      >
+        <option value="" disabled>Select Status</option>
+        <option value="pending">Pending</option>
+        <option value="confirmed">Booked</option>
+        <option value="picked">Picked</option>
+        <option value="in-transit">In Transit</option>
+        <option value="reached">Reached at destination</option>
+        <option value="out-for-delivery">Out for Delivery</option>
+        <option value="delivered">Delivered</option>
+        <option value="cancelled">Cancelled</option>
+      </select>
+
+      <input
+        type="text"
+        placeholder="Location (e.g. Delhi Hub, In Transit)"
+        value={booking?.newLocation || ""}
+        onChange={(e) =>
+          setBooking((prev) => ({ ...prev, newLocation: e.target.value }))
+        }
+        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+      />
+    </div>
+
+    {/* Timestamp & Description */}
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <input
+        type="datetime-local"
+        value={booking?.newTimestamp || new Date().toISOString().slice(0, 16)}
+        onChange={(e) =>
+          setBooking((prev) => ({ ...prev, newTimestamp: e.target.value }))
+        }
+        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+      />
+
+      <div className="space-y-2">
+        <label className="text-sm font-medium">Description</label>
+        <select
           onChange={(e) =>
-            setBooking((prev) => ({ ...prev, newLocation: e.target.value }))
+            setBooking((prev) => ({ ...prev, newDescription: e.target.value }))
           }
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-600 focus:ring-2 focus:ring-orange-600"
+          defaultValue=""
+        >
+          <option value="" disabled>Select a template</option>
+          <option value="Item left to  ' ' facility">Item left to ____ facility</option>
+          <option value="Connected to next facility">Connected to next facility</option>
+          <option value="Item arrived at your nearest location">Item arrived at your nearest location</option>
+          <option value="Item delivered">Item delivered</option>
+        </select>
+
+        <textarea
+          placeholder="Description (optional)"
+          value={booking?.newDescription || ""}
+          onChange={(e) =>
+            setBooking((prev) => ({ ...prev, newDescription: e.target.value }))
+          }
+          rows={2}
+          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-600 focus:ring-2 focus:ring-orange-600"
         />
       </div>
+    </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        <input
-          type="datetime-local"
-          value={
-            booking?.newTimestamp ||
-            new Date().toISOString().slice(0, 16) // fallback: now
-          }
-          onChange={(e) =>
-            setBooking((prev) => ({ ...prev, newTimestamp: e.target.value }))
-          }
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-        />
-       <div className="space-y-2">
-  <label className="text-sm font-medium">Description</label>
-  <select
-    onChange={(e) =>
-      setBooking((prev) => ({
-        ...prev,
-        newDescription: e.target.value
-      }))
-    }
-    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-600 focus:ring-2 focus:ring-orange-600"
-    defaultValue=""
-  >
-    <option value="" disabled>
-      Select a template
-    </option>
-    <option value="Item left to  ' ' facility">
-      Item left to  ____  facility
-    </option>
-    <option value="Connected to next facility">
-      Connected to next facility
-    </option>
-    <option value="Item arrived at your nearest location">
-     Item arrived at your nearest location
-    </option>
-    <option value="Item delivered">
-      Item delivered
-    </option>
-  </select>
-
-  <textarea
-    placeholder="Description (optional)"
-    value={booking?.newDescription || ""}
-    onChange={(e) =>
-      setBooking((prev) => ({ ...prev, newDescription: e.target.value }))
-    }
-    rows={2}
-    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-600 focus:ring-2 focus:ring-orange-600"
-  />
-</div>
-
-      </div>
-
-      <div className="flex gap-2">
+    {/* Buttons */}
+    <div className="flex gap-2">
       <button
-  onClick={async () => {
-    try {
-      const {
-        newStatus,
-        newLocation,
-        newDescription,
-        newTimestamp,
-      } = booking || {};
+        onClick={async () => {
+          try {
+            const { newStatus, newLocation, newDescription, newTimestamp } = booking || {};
 
-      if (!newStatus || !newLocation) {
-        return toast.error("Status and Location are required");
-      }
+            if (!newStatus || !newLocation) return toast.error("Status and Location are required");
 
-      const trackingUpdate = {
-        status: newStatus,
-        location: newLocation,
-        description: newDescription || "N/A",
-        timestamp: newTimestamp ? new Date(newTimestamp) : new Date(),
-      };
+            const trackingUpdate = {
+              status: newStatus,
+              location: newLocation,
+              description: newDescription || "N/A",
+              timestamp: newTimestamp ? new Date(newTimestamp) : new Date(),
+            };
 
-      // ✅ Use /tracking endpoint
-      const response = await axios.put(
-        `${import.meta.env.VITE_API_URL}/api/bookings/${id}/tracking`,
-        trackingUpdate
-      );
+            const response = await axios.put(
+              `${import.meta.env.VITE_API_URL}/api/bookings/${id}/tracking`,
+              trackingUpdate
+            );
 
-      toast.success("Tracking update added");
+            toast.success("Tracking update added");
 
-      const updated = response?.data;
+            const updated = response?.data;
+            const latestEntry = Array.isArray(updated?.trackingHistory)
+              ? updated.trackingHistory[updated.trackingHistory.length - 1]
+              : trackingUpdate;
 
-      const latestEntry = Array.isArray(updated?.trackingHistory)
-        ? updated.trackingHistory[updated.trackingHistory.length - 1]
-        : trackingUpdate;
-
-      setBooking((prev) => ({
-        ...prev,
-        status: newStatus,
-        trackingHistory: [...(prev?.trackingHistory || []), latestEntry],
-        newStatus: "",
-        newLocation: "",
-        newDescription: "",
-        newTimestamp: "",
-      }));
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to add tracking update");
-    }
-  }}
-  disabled={saving}
-  className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 disabled:opacity-60"
->
-  {saving ? "Adding..." : "Add Update"}
-</button>
-
-
-        <button
-          type="button"
-          onClick={() =>
             setBooking((prev) => ({
               ...prev,
+              status: newStatus,
+              trackingHistory: [...(prev?.trackingHistory || []), latestEntry],
               newStatus: "",
               newLocation: "",
               newDescription: "",
               newTimestamp: "",
-            }))
+            }));
+          } catch (err) {
+            console.error(err);
+            toast.error("Failed to add tracking update");
           }
-          
-          className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-        >
-          Clear
-        </button>
-      </div>
+        }}
+        disabled={saving}
+        className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 disabled:opacity-60"
+      >
+        {saving ? "Adding..." : "Add Update"}
+      </button>
+
+      <button
+        type="button"
+        onClick={() =>
+          setBooking((prev) => ({
+            ...prev,
+            newStatus: "",
+            newLocation: "",
+            newDescription: "",
+            newTimestamp: "",
+          }))
+        }
+        className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+      >
+        Clear
+      </button>
     </div>
-  )}
-</div>
-   
-  )}
+  </div>
+)}
 </div>
 
 
