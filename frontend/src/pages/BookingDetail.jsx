@@ -31,6 +31,7 @@ const BookingDetail = () => {
  const fetchBooking = async () => {
   try {
     const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/${id}`)
+    // const response = await axios.get(`http://localhost:8000/api/bookings/${id}`)
     setBooking(response.data)
   } catch (error) {
     toast.error("Error fetching booking details")
@@ -44,6 +45,7 @@ const BookingDetail = () => {
   try {
     setSaving(true)
     await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/${id}`, booking)
+    // await axios.put(`http://localhost:8000/api/bookings/${id}`, booking)
     toast.success("Booking updated successfully")
     setEditMode(false)
   } catch (error) {
@@ -456,7 +458,7 @@ const handleDelete = async () => {
         </div>
 
         {/* Pricing Details */}
-       <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow p-6">
   <div className="flex items-center mb-4">
     <CreditCard className="h-5 w-5 text-primary-500 mr-2" />
     <h3 className="text-lg font-medium text-gray-900">Pricing & Payment</h3>
@@ -566,6 +568,8 @@ const handleDelete = async () => {
     </div>
   </div>
 </div>
+
+      </div>
 
       {/* Notes */}
       {(booking.notes || editMode) && (
@@ -906,6 +910,7 @@ const handleDelete = async () => {
     </div>
   </div>
 )}
+
 </div>
 
 
