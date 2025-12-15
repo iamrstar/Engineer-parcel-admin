@@ -1,19 +1,21 @@
-require("dotenv").config(); // Load .env
+require("dotenv").config();
 const express = require("express");
-const fs = require("fs");
-const path = require("path");
-const PDFDocument = require("pdfkit");
+
+// ❌ Invoice-related imports disabled for now
+// const fs = require("fs");
+// const path = require("path");
+// const PDFDocument = require("pdfkit");
 
 const Booking = require("../models/Booking");
 const sendEmail = require("../utils/sendEmail");
 const bookingConfirmationTemplate = require("../templates/bookingConfirmation");
-const authMiddleware = require("../middleware/auth"); // optional
+// const authMiddleware = require("../middleware/auth"); // optional
 
 const router = express.Router();
 
-/** ------------------------
- * 📦 Create Manual Booking (with full fields + invoice + email)
- * ------------------------ */
+/**
+ * 📦 Create Manual Booking (NO INVOICE – EMAIL ONLY)
+ */
 router.post("/", async (req, res) => {
   try {
     const {
@@ -41,12 +43,14 @@ router.post("/", async (req, res) => {
       bookingSource = "Manual",
     } = req.body;
 
-    // Validate required fields
+    // ✅ Basic validation
     if (!serviceType || !senderDetails || !receiverDetails || !packageDetails) {
-      return res.status(400).json({ error: "Missing required booking fields." });
+      return res.status(400).json({
+        message: "Missing required booking fields.",
+      });
     }
 
-    // Create manual booking object
+    // ✅ Create booking
     const newBooking = new Booking({
       bookingId,
       serviceType,
@@ -87,132 +91,17 @@ router.post("/", async (req, res) => {
     });
 
     await newBooking.save();
-    console.log("📌 Manual Booking saved:", newBooking.bookingId);
+    console.log("✅ Manual Booking saved:", newBooking.bookingId);
 
-    // ------------------- Generate Professional Invoice -------------------
-   const invoicesDir = path.join(__dirname, "../invoices");
-   if (!fs.existsSync(invoicesDir)) fs.mkdirSync(invoicesDir, { recursive: true });
-   
-   const invoicePath = path.join(invoicesDir, `Invoice-${newBooking.bookingId}.pdf`);
-   const doc = new PDFDocument({ margin: 40 });
-   
-   doc.pipe(fs.createWriteStream(invoicePath));
-   
-   // -------- Header --------
-   doc
-     .fontSize(26)
-     .fillColor("#FF6600")
-     .text("Engineers Parcel", { align: "center" })
-     .moveDown(0.5);
-   
-   doc
-     .fontSize(12)
-     .fillColor("#333333")
-     .text("Invoice", { align: "center" })
-     .moveDown(1);
-   
-   // Line Separator
-   doc.moveTo(40, doc.y).lineTo(550, doc.y).stroke("#FF6600").moveDown(1);
-   
-   // Booking Details
-   doc
-     .fontSize(14)
-     .fillColor("#000000")
-     .text(`Invoice Date: ${new Date().toLocaleDateString()}`)
-     .text(`Booking ID: ${newBooking.bookingId}`)
-     .moveDown(1);
-   
-   // -------- Sender & Receiver Section --------
-   doc
-     .fontSize(16)
-     .fillColor("#FF6600")
-     .text("Sender Information")
-     .moveDown(0.3);
-   
-   doc
-     .fontSize(12)
-     .fillColor("#000000")
-     .text(`Name: ${newBooking.senderDetails.name}`)
-     .text(`Phone: ${newBooking.senderDetails.phone}`)
-     .text(`Email: ${newBooking.senderDetails.email}`)
-     .text(`Address: ${newBooking.senderDetails.address}, ${newBooking.senderDetails.city}, ${newBooking.senderDetails.state} - ${newBooking.senderDetails.pincode}`)
-     .moveDown(1);
-   
-   doc
-     .fontSize(16)
-     .fillColor("#FF6600")
-     .text("Receiver Information")
-     .moveDown(0.3);
-   
-   doc
-     .fontSize(12)
-     .fillColor("#000000")
-     .text(`Name: ${newBooking.receiverDetails.name}`)
-     .text(`Phone: ${newBooking.receiverDetails.phone}`)
-     .text(`Email: ${newBooking.receiverDetails.email}`)
-     .text(`Address: ${newBooking.receiverDetails.address}, ${newBooking.receiverDetails.city}, ${newBooking.receiverDetails.state} - ${newBooking.receiverDetails.pincode}`)
-     .moveDown(1);
-   
-   // -------- Pricing Table --------
-   doc
-     .fontSize(16)
-     .fillColor("#FF6600")
-     .text("Pricing Summary")
-     .moveDown(0.5);
-   
-   // Table Header
-   doc
-     .rect(40, doc.y, 515, 20)
-     .fill("#FFE6CC")
-     .stroke("#FF6600");
-   
-   doc
-     .fillColor("#000000")
-     .fontSize(12)
-     .text("Description", 50, doc.y + 5)
-     .text("Amount (₹)", 450, doc.y + 5);
-   
-   doc.moveDown(1);
-   
-   // Table Rows
-   const priceY = doc.y;
-   doc
-     .text("Base Price", 50, priceY)
-     .text(`${newBooking.pricing.basePrice}`, 450, priceY);
-   
-   doc.moveDown(0.7);
-   
-   doc
-     .text("GST (18%)", 50, doc.y)
-     .text(`${newBooking.pricing.tax}`, 450, doc.y);
-   
-   doc.moveDown(0.7);
-   
-   // Line before total
-   doc.moveTo(40, doc.y + 10).lineTo(550, doc.y + 10).stroke("#FF6600").moveDown(1);
-   
-   // Total
-   doc
-     .fontSize(14)
-     .fillColor("#000000")
-     .text("Grand Total:", 50, doc.y)
-     .text(`₹${newBooking.pricing.totalAmount}`, 450, doc.y)
-     .moveDown(2);
-   
-   // Footer Note
-   doc
-     .fontSize(10)
-     .fillColor("#555555")
-     .text("Thank you for choosing Engineers Parcel!", { align: "center" })
-     .text("For any query contact: support@engineersparcel.com", { align: "center" });
-   
-   doc.end();
+    /* ❌ INVOICE GENERATION DISABLED FOR NOW
+    ------------------------------------------------
+    - PDF generation
+    - Invoice storage
+    - Invoice attachment in email
+    ------------------------------------------------
+    */
 
-    // Save invoice path
-    newBooking.invoicePath = invoicePath;
-    await newBooking.save();
-
-    // ------------------- Send Emails -------------------
+    // ✅ Send booking confirmation emails (WITHOUT invoice)
     const html = bookingConfirmationTemplate(newBooking);
 
     if (newBooking.senderDetails?.email) {
@@ -220,7 +109,6 @@ router.post("/", async (req, res) => {
         to: newBooking.senderDetails.email,
         subject: `Booking Confirmation - ${newBooking.bookingId}`,
         html,
-        invoicePath,
         bookingId: newBooking.bookingId,
       });
       console.log("📩 Email sent to sender");
@@ -231,21 +119,23 @@ router.post("/", async (req, res) => {
         to: newBooking.receiverDetails.email,
         subject: `Parcel on the way - ${newBooking.bookingId}`,
         html,
-        invoicePath,
         bookingId: newBooking.bookingId,
       });
       console.log("📩 Email sent to receiver");
     }
 
-    // Response
+    // ✅ Final response
     res.status(201).json({
-      message: "Manual booking created, invoice generated & emails sent! 🚀",
+      message: "Manual booking created successfully (Invoice disabled). 🚀",
       booking: newBooking,
     });
 
   } catch (error) {
     console.error("❌ Manual Booking Error:", error);
-    res.status(500).json({ message: "Error creating manual booking or sending email", error });
+    res.status(500).json({
+      message: "Error creating manual booking",
+      error: error.message,
+    });
   }
 });
 
