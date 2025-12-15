@@ -456,68 +456,116 @@ const handleDelete = async () => {
         </div>
 
         {/* Pricing Details */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex items-center mb-4">
-            <CreditCard className="h-5 w-5 text-primary-500 mr-2" />
-            <h3 className="text-lg font-medium text-gray-900">Pricing & Payment</h3>
-          </div>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Base Price</label>
-                <p className="text-gray-900">₹{booking.pricing?.basePrice || 0}</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Additional Charges</label>
-                <p className="text-gray-900">₹{booking.pricing?.additionalCharges || 0}</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tax</label>
-                <p className="text-gray-900">₹{booking.pricing?.tax || 0}</p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Total Amount</label>
-                <p className="text-lg font-semibold text-gray-900">₹{booking.pricing?.totalAmount || 0}</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Status</label>
-                {editMode ? (
-                  <select
-                    value={booking.paymentStatus}
-                    onChange={(e) => handleInputChange("paymentStatus", e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                  >
-                    <option value="pending">Pending</option>
-                    <option value="paid">Paid</option>
-                    <option value="failed">Failed</option>
-                    <option value="refunded">Refunded</option>
-                  </select>
-                ) : (
-                  <span
-                    className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      booking.paymentStatus === "paid"
-                        ? "bg-green-100 text-green-800"
-                        : booking.paymentStatus === "failed"
-                          ? "bg-red-100 text-red-800"
-                          : "bg-yellow-100 text-yellow-800"
-                    }`}
-                  >
-                    {booking.paymentStatus}
-                  </span>
-                )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
-                <p className="text-gray-900">{booking.paymentMethod}</p>
-              </div>
-            </div>
-          </div>
-        </div>
+       <div className="bg-white rounded-lg shadow p-6">
+  <div className="flex items-center mb-4">
+    <CreditCard className="h-5 w-5 text-primary-500 mr-2" />
+    <h3 className="text-lg font-medium text-gray-900">Pricing & Payment</h3>
+  </div>
+  <div className="space-y-4">
+    <div className="grid grid-cols-2 gap-4">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Base Price</label>
+        {editMode ? (
+          <input
+            type="number"
+            value={booking.pricing?.basePrice || 0}
+            onChange={(e) => handleInputChange("basePrice", Number(e.target.value), "pricing")}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+          />
+        ) : (
+          <p className="text-gray-900">₹{booking.pricing?.basePrice || 0}</p>
+        )}
       </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Additional Charges</label>
+        {editMode ? (
+          <input
+            type="number"
+            value={booking.pricing?.additionalCharges || 0}
+            onChange={(e) => handleInputChange("additionalCharges", Number(e.target.value), "pricing")}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+          />
+        ) : (
+          <p className="text-gray-900">₹{booking.pricing?.additionalCharges || 0}</p>
+        )}
+      </div>
+    </div>
+
+    <div className="grid grid-cols-2 gap-4">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Tax</label>
+        {editMode ? (
+          <input
+            type="number"
+            value={booking.pricing?.tax || 0}
+            onChange={(e) => handleInputChange("tax", Number(e.target.value), "pricing")}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+          />
+        ) : (
+          <p className="text-gray-900">₹{booking.pricing?.tax || 0}</p>
+        )}
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Total Amount</label>
+        {editMode ? (
+          <input
+            type="number"
+            value={booking.pricing?.totalAmount || 0}
+            onChange={(e) => handleInputChange("totalAmount", Number(e.target.value), "pricing")}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-lg font-semibold"
+          />
+        ) : (
+          <p className="text-lg font-semibold text-gray-900">₹{booking.pricing?.totalAmount || 0}</p>
+        )}
+      </div>
+    </div>
+
+    <div className="grid grid-cols-2 gap-4">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Payment Status</label>
+        {editMode ? (
+          <select
+            value={booking.paymentStatus}
+            onChange={(e) => handleInputChange("paymentStatus", e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+          >
+            <option value="pending">Pending</option>
+            <option value="paid">Paid</option>
+            <option value="failed">Failed</option>
+            <option value="refunded">Refunded</option>
+          </select>
+        ) : (
+          <span
+            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+              booking.paymentStatus === "paid"
+                ? "bg-green-100 text-green-800"
+                : booking.paymentStatus === "failed"
+                  ? "bg-red-100 text-red-800"
+                  : "bg-yellow-100 text-yellow-800"
+            }`}
+          >
+            {booking.paymentStatus}
+          </span>
+        )}
+      </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
+        {editMode ? (
+          <select
+            value={booking.paymentMethod}
+            onChange={(e) => handleInputChange("paymentMethod", e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+          >
+            <option value="COD">Cash on Delivery</option>
+            <option value="online">Online</option>
+          </select>
+        ) : (
+          <p className="text-gray-900">{booking.paymentMethod}</p>
+        )}
+      </div>
+    </div>
+  </div>
+</div>
 
       {/* Notes */}
       {(booking.notes || editMode) && (
