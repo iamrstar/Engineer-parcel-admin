@@ -10,7 +10,7 @@ router.post("/", async (req, res) => {
 
     const weight = Number(pkg.weight) || 0;
 
-    // ✅ IMPORTANT: detect real goods value
+    // ✅ Detect valid goods value
     const hasGoodsValue =
       pkg.value !== undefined &&
       pkg.value !== null &&
@@ -32,7 +32,7 @@ router.post("/", async (req, res) => {
 
     let pricing = {};
 
-    // ✅ GOODS VALUE WINS
+    // ✅ GOODS VALUE OVERRIDES AUTO PRICING
     if (hasGoodsValue) {
       pricing = {
         basePrice: goodsValue,
@@ -42,15 +42,19 @@ router.post("/", async (req, res) => {
         pricingMode: "MANUAL",
       };
     }
-    // ✅ AUTO CALCULATION BY WEIGHT
+    // ✅ AUTO WEIGHT CALCULATION (ROUNDED UP)
     else {
-      const basePrice = weight * PER_KG_PRICE;
+      const chargeableWeight = Math.ceil(weight); // 🔥 KEY FIX
+
+      const basePrice = chargeableWeight * PER_KG_PRICE;
       const packagingCharge = +(basePrice * PACKAGING_RATE).toFixed(2);
       const subtotal = basePrice + packagingCharge;
       const tax = +(subtotal * GST_RATE).toFixed(2);
       const totalAmount = +(subtotal + tax).toFixed(2);
 
       pricing = {
+        actualWeight: weight,        // record purpose
+        chargeableWeight,            // courier weight
         basePrice: +basePrice.toFixed(2),
         packagingCharge,
         tax,
@@ -62,7 +66,7 @@ router.post("/", async (req, res) => {
     // ---------------- SAVE BOOKING ----------------
     const booking = new Booking({
       ...req.body,
-      pricing,               // ✅ single source of truth
+      pricing, // ✅ single source of truth
       adminCreated: true,
     });
 
