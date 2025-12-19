@@ -69,7 +69,7 @@ module.exports = function bookingConfirmationTemplate(booking) {
           <p>Hi <strong>${booking.senderDetails?.name || "Customer"}</strong>,</p>
           <p>Your booking has been successfully created! 🎉</p>
 
-          <p>Your <span class="highlight">Booking ID: ${booking.bookingId}</span></p>
+          <p>Your <span class="highlight">TRACKING ID: ${booking.bookingId}</span></p>
 
           <p>You can track your shipment anytime using the button below:</p>
 
@@ -82,7 +82,7 @@ module.exports = function bookingConfirmationTemplate(booking) {
           <p><strong>From:</strong> ${booking.senderDetails?.city || ""}, ${booking.senderDetails?.state || ""}</p>
           <p><strong>To:</strong> ${booking.receiverDetails?.city || ""}, ${booking.receiverDetails?.state || ""}</p>
           <p><strong>Service Type:</strong> ${booking.serviceType}</p>
-          <p><strong>Price:</strong> ₹${booking.totalAmount}</p>
+          // <p><strong>Price:</strong> ₹${booking.totalAmount}</p>
           <p><strong>Pickup Date:</strong> ${booking.pickupDate}</p>
 
           <p>Our team will update you about your shipment status regularly.</p>
@@ -91,7 +91,7 @@ module.exports = function bookingConfirmationTemplate(booking) {
         </div>
 
         <div class="footer">
-          <p>For any queries, contact support@engineersparcel.in</p>
+          <p>For any queries, contact support.engineersparcel@gmail.com OR engineersparcel@gmail.com</p>
           <p>© ${new Date().getFullYear()} Engineers Parcel</p>
         </div>
       </div>
@@ -99,3 +99,4 @@ module.exports = function bookingConfirmationTemplate(booking) {
   </html>
   `;
 };
+
