@@ -50,11 +50,9 @@ export default function ManualBooking() {
   // Validate numeric fields
   const numericFields = [
     "actualWeight",
-    "length",
-    "width",
-    "height",
-    "boxQuantity",
-    "goodsValue",
+    
+    
+    
   ];
 
   for (const field of numericFields) {
@@ -68,6 +66,48 @@ export default function ManualBooking() {
     toast.error("Booking ID is required and must be filled by admin!");
     return;
   }
+// ------------------- Pricing Calculation -------------------
+
+let pricing = {};
+const PER_KG_PRICE = 100;
+const GST_RATE = 0.18;
+const PACKAGING_RATE = 0.08;
+
+const weight = parseFloat(formData.actualWeight) || 0;
+const hasGoodsValue =
+  formData.goodsValue !== "" && Number(formData.goodsValue) > 0;
+
+const goodsValue = hasGoodsValue ? Number(formData.goodsValue) : null;
+
+
+
+if (goodsValue > 0) {
+  pricing = {
+    basePrice: goodsValue,
+    packagingCharge: 0,
+    tax: 0,
+    totalAmount: goodsValue,
+    pricingMode: "MANUAL",
+  };
+} else if (weight > 0) {
+  const basePrice = weight * PER_KG_PRICE;
+  const packagingCharge = +(basePrice * PACKAGING_RATE).toFixed(2);
+  const subtotal = basePrice + packagingCharge;
+  const tax = +(subtotal * GST_RATE).toFixed(2);
+  const totalAmount = +(subtotal + tax).toFixed(2);
+
+  pricing = {
+    basePrice: +basePrice.toFixed(2),
+    packagingCharge,
+    tax,
+    totalAmount,
+    pricingMode: "AUTO_WEIGHT",
+  };
+} else {
+  toast.error("Either weight or goods value must be provided");
+  return;
+}
+
 
   // 🔥 1️⃣ UPPERCASE BOOKING ID
   const BOOKING_ID = formData.bookingId.toUpperCase();
@@ -119,27 +159,26 @@ export default function ManualBooking() {
     },
 
     packageDetails: {
-      weight: parseFloat(formData.actualWeight),
-      weightUnit: formData.weightUnit,
-      volumetricWeight: parseFloat(formData.actualWeight),
-      dimensions: {
-        length: parseInt(formData.length),
-        width: parseInt(formData.width),
-        height: parseInt(formData.height),
-      },
-      boxQuantity: parseInt(formData.boxQuantity),
-      description: formData.goodsDescription,
-      value: parseInt(formData.goodsValue),
-      fragile: false,
+    
+    weight: weight,
+    weightUnit: formData.weightUnit,
+    volumetricWeight: weight,
+    dimensions: {
+      length: parseInt(formData.length),
+      width: parseInt(formData.width),
+      height: parseInt(formData.height),
+    },
+    boxQuantity: parseInt(formData.boxQuantity),
+    description: formData.goodsDescription,
+    value: goodsValue || 0,
+    fragile: false,
+ 
+   pricing, 
     },
 
-    pricing: {
-      basePrice: 100,
-      additionalCharges: 50,
-      tax: 18,
-      totalAmount: 168,
-    },
+    
   };
+    console.log("📦 Booking Payload:", payload);
 
   try {
     // 3️⃣ Save booking
@@ -176,8 +215,7 @@ const res = await fetch(`${import.meta.env.VITE_API_URL}/api/manual-bookings`, {
 
     emails.forEach(async (email) => {
       try {
-       await fetch(`${import.meta.env.VITE_API_URL}/api/manual-bookings/send-booking-email`, {
-
+       await fetch(`${import.meta.env.VITE_API_URL}/api/manual-bookings`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -196,6 +234,8 @@ const res = await fetch(`${import.meta.env.VITE_API_URL}/api/manual-bookings`, {
     toast.error("Something went wrong while submitting booking.");
   }
 };
+
+
 
 
 
@@ -278,7 +318,7 @@ const res = await fetch(`${import.meta.env.VITE_API_URL}/api/manual-bookings`, {
                 onChange={handleChange}
                 placeholder="Length (cm)"
                 className="border p-2 rounded"
-                required
+                
               />
               <input
                 type="number"
@@ -287,7 +327,7 @@ const res = await fetch(`${import.meta.env.VITE_API_URL}/api/manual-bookings`, {
                 onChange={handleChange}
                 placeholder="Width (cm)"
                 className="border p-2 rounded"
-                required
+                
               />
               <input
                 type="number"
@@ -296,7 +336,7 @@ const res = await fetch(`${import.meta.env.VITE_API_URL}/api/manual-bookings`, {
                 onChange={handleChange}
                 placeholder="Height (cm)"
                 className="border p-2 rounded"
-                required
+                
               />
             </div>
             <input
@@ -306,7 +346,7 @@ const res = await fetch(`${import.meta.env.VITE_API_URL}/api/manual-bookings`, {
               onChange={handleChange}
               placeholder="Box Quantity"
               className="w-full border p-2 rounded"
-              required
+              
             />
             <input
               type="text"
@@ -353,69 +393,70 @@ const res = await fetch(`${import.meta.env.VITE_API_URL}/api/manual-bookings`, {
 
         {/* STEP 2 */}
         {step === 2 && (
-          <div className="space-y-3">
-            {["sender", "receiver"].map((type) => (
-              <div key={type} className="border p-3 rounded">
-                <h2 className="font-semibold mb-2 capitalize">{type} details</h2>
-                {["Name", "Phone", "Email", "Address", "City", "State", "Landmark"].map(
-                  (field) => (
-                    <input
-                      key={field}
-                      type={field === "Email" ? "email" : "text"}
-                      name={`${type}${field}`}
-                      value={formData[`${type}${field}`]}
-                      onChange={handleChange}
-                      placeholder={`${type.charAt(0).toUpperCase() + type.slice(1)} ${field}`}
-                      className="w-full border p-2 rounded mb-2"
-                      required
-                    />
-                  )
-                )}
-              </div>
-            ))}
+  <div className="space-y-3">
+    {["sender", "receiver"].map((type) => (
+      <div key={type} className="border p-3 rounded">
+        <h2 className="font-semibold mb-2 capitalize">{type} details</h2>
+        {["Name", "Phone", "Email", "Address", "City", "State", "Landmark"].map(
+          (field) => (
             <input
-              name="bookingId"
-              value={formData.bookingId}
-              onChange={(e) =>
-    setFormData({
-      ...formData,
-      bookingId: e.target.value.toUpperCase(), // 🔥 auto uppercase while typing
-    })
-  }
-              placeholder="Booking ID (must be unique)"
-              className="w-full border p-2 rounded uppercase"
-              required
-            />
-            <select
-              name="deliveryStatus"
-              value={formData.deliveryStatus}
+              key={field}
+              type={field === "Email" ? "email" : "text"}
+              name={`${type}${field}`}
+              value={formData[`${type}${field}`]}
               onChange={handleChange}
-              className="w-full border p-2 rounded"
-            >
-              <option value="confirmed">Confirmed</option>
-              <option value="pending">Pending</option>
-              <option value="in-transit">Dispatched</option>
-              <option value="delivered">Delivered</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-            <input
-              name="goodsValue"
-              value={formData.goodsValue}
-              onChange={handleChange}
-              placeholder="Goods Value (₹)"
-              className="w-full border p-2 rounded"
-              required
+              placeholder={`${type.charAt(0).toUpperCase() + type.slice(1)} ${field}`}
+              className="w-full border p-2 rounded mb-2"
+              required={field !== "Email"} // 🔥 Email is now optional
             />
-            <div className="flex justify-between">
-              <button type="button" onClick={handleBack} className="bg-gray-400 text-white px-4 py-2 rounded">
-                Back
-              </button>
-              <button type="submit" className="bg-orange-600 text-white px-4 py-2 rounded">
-                Submit
-              </button>
-            </div>
-          </div>
+          )
         )}
+      </div>
+    ))}
+    <input
+      name="bookingId"
+      value={formData.bookingId}
+      onChange={(e) =>
+        setFormData({
+          ...formData,
+          bookingId: e.target.value.toUpperCase(), // 🔥 auto uppercase while typing
+        })
+      }
+      placeholder="Booking ID (must be unique)"
+      className="w-full border p-2 rounded uppercase"
+      required
+    />
+    <select
+      name="deliveryStatus"
+      value={formData.deliveryStatus}
+      onChange={handleChange}
+      className="w-full border p-2 rounded"
+    >
+      <option value="confirmed">Confirmed</option>
+      <option value="pending">Pending</option>
+      <option value="in-transit">Dispatched</option>
+      <option value="delivered">Delivered</option>
+      <option value="cancelled">Cancelled</option>
+    </select>
+    <input
+      name="goodsValue"
+      value={formData.goodsValue}
+      onChange={handleChange}
+      placeholder="Goods Value (₹)"
+      className="w-full border p-2 rounded"
+      
+    />
+    <div className="flex justify-between">
+      <button type="button" onClick={handleBack} className="bg-gray-400 text-white px-4 py-2 rounded">
+        Back
+      </button>
+      <button type="submit" className="bg-orange-600 text-white px-4 py-2 rounded">
+        Submit
+      </button>
+    </div>
+  </div>
+)}
+
 
         {/* STEP 3 */}
         {step === 3 && (
