@@ -57,24 +57,21 @@ const BookingDetail = () => {
 }
 
 const handleDelete = async () => {
-  // First confirmation: Are you sure?
   const confirmDelete = window.confirm("Are you sure you want to delete this booking?");
   if (!confirmDelete) return;
 
-  // Second confirmation: Deletion is permanent
   const confirmPermanentDelete = window.confirm(
     "This will permanently delete the booking. Do you want to proceed?"
   );
   if (!confirmPermanentDelete) return;
 
   try {
-    // Call the DELETE API to delete the booking
     const response = await axios.delete(`${import.meta.env.VITE_API_URL}/api/bookings/${id}`);
     // const response = await axios.delete(`http://localhost:8000/api/bookings/${id}`);
     
     if (response.data.success) {
       toast.success("Booking deleted successfully");
-      navigate("/bookings"); // Redirect to bookings list after deletion
+      navigate("/bookings");
     } else {
       toast.error(response.data.message || "Failed to delete booking");
     }
@@ -119,68 +116,68 @@ const handleDelete = async () => {
   }
 
   return (
-    <div className="p-4">
-      <div className="mb-8 flex items-center justify-between">
-        <div className="flex items-center">
+    <div className="p-3 sm:p-4 md:p-6">
+      {/* Header Section - Now fully responsive */}
+      <div className="mb-6 sm:mb-8">
+        <div className="flex items-start sm:items-center gap-3 sm:gap-4 mb-4">
           <button
             onClick={() => navigate("/bookings")}
-            className="mr-4 p-2 text-gray-600 hover:text-gray-900"
+            className="p-2 text-gray-600 hover:text-gray-900 shrink-0"
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Booking Details</h1>
-            <p className="text-gray-600">Booking ID: {booking.bookingId || "N/A"}</p>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">Booking Details</h1>
+            <p className="text-sm sm:text-base text-gray-600 truncate">Booking ID: {booking.bookingId || "N/A"}</p>
           </div>
         </div>
-        <div className="flex space-x-3">
-  {editMode ? (
-    <>
-      <button
-        onClick={() => setEditMode(false)}
-        className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-      >
-        Cancel
-      </button>
-      <button
-        onClick={handleSave}
-        disabled={saving}
-        className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 disabled:opacity-50 flex items-center"
-      >
-        <Save className="h-4 w-4 mr-2" />
-        {saving ? "Saving..." : "Save Changes"}
-      </button>
-    </>
-  ) : (
-    <>
-      <button
-        onClick={() => setEditMode(true)}
-        className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600"
-      >
-        Edit Booking
-      </button>
-      <button
-        onClick={handleDelete}
-        className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
-      >
-        Delete Booking
-      </button>
-    </>
-  )}
-</div>
-
-
         
+        {/* Action Buttons - Responsive Layout */}
+        <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3">
+          {editMode ? (
+            <>
+              <button
+                onClick={() => setEditMode(false)}
+                className="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 text-sm sm:text-base"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="w-full sm:w-auto px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 disabled:opacity-50 flex items-center justify-center text-sm sm:text-base"
+              >
+                <Save className="h-4 w-4 mr-2" />
+                {saving ? "Saving..." : "Save Changes"}
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => setEditMode(true)}
+                className="w-full sm:w-auto px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 text-sm sm:text-base"
+              >
+                Edit Booking
+              </button>
+              <button
+                onClick={handleDelete}
+                className="w-full sm:w-auto px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-sm sm:text-base"
+              >
+                Delete Booking
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Sender Details */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
           <div className="flex items-center mb-4">
             <User className="h-5 w-5 text-primary-500 mr-2" />
-            <h3 className="text-lg font-medium text-gray-900">Sender Details</h3>
+            <h3 className="text-base sm:text-lg font-medium text-gray-900">Sender Details</h3>
           </div>
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
               {editMode ? (
@@ -188,10 +185,10 @@ const handleDelete = async () => {
                   type="text"
                   value={booking.senderDetails.name}
                   onChange={(e) => handleInputChange("name", e.target.value, "senderDetails")}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                 />
               ) : (
-                <p className="text-gray-900">{booking.senderDetails.name}</p>
+                <p className="text-sm sm:text-base text-gray-900 break-words">{booking.senderDetails.name}</p>
               )}
             </div>
             <div>
@@ -201,10 +198,10 @@ const handleDelete = async () => {
                   type="text"
                   value={booking.senderDetails.phone}
                   onChange={(e) => handleInputChange("phone", e.target.value, "senderDetails")}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                 />
               ) : (
-                <p className="text-gray-900">{booking.senderDetails.phone}</p>
+                <p className="text-sm sm:text-base text-gray-900">{booking.senderDetails.phone}</p>
               )}
             </div>
             <div>
@@ -214,10 +211,10 @@ const handleDelete = async () => {
                   type="email"
                   value={booking.senderDetails.email || ""}
                   onChange={(e) => handleInputChange("email", e.target.value, "senderDetails")}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                 />
               ) : (
-                <p className="text-gray-900">{booking.senderDetails.email || "N/A"}</p>
+                <p className="text-sm sm:text-base text-gray-900 break-words">{booking.senderDetails.email || "N/A"}</p>
               )}
             </div>
             <div>
@@ -227,13 +224,13 @@ const handleDelete = async () => {
                   value={booking.senderDetails.address}
                   onChange={(e) => handleInputChange("address", e.target.value, "senderDetails")}
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                 />
               ) : (
-                <p className="text-gray-900">{booking.senderDetails.address}</p>
+                <p className="text-sm sm:text-base text-gray-900 break-words">{booking.senderDetails.address}</p>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Pincode</label>
                 {editMode ? (
@@ -241,10 +238,10 @@ const handleDelete = async () => {
                     type="text"
                     value={booking.senderDetails.pincode}
                     onChange={(e) => handleInputChange("pincode", e.target.value, "senderDetails")}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                   />
                 ) : (
-                  <p className="text-gray-900">{booking.senderDetails.pincode}</p>
+                  <p className="text-sm sm:text-base text-gray-900">{booking.senderDetails.pincode}</p>
                 )}
               </div>
               <div>
@@ -254,10 +251,10 @@ const handleDelete = async () => {
                     type="text"
                     value={booking.senderDetails.city || ""}
                     onChange={(e) => handleInputChange("city", e.target.value, "senderDetails")}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                   />
                 ) : (
-                  <p className="text-gray-900">{booking.senderDetails.city || "N/A"}</p>
+                  <p className="text-sm sm:text-base text-gray-900">{booking.senderDetails.city || "N/A"}</p>
                 )}
               </div>
             </div>
@@ -265,12 +262,12 @@ const handleDelete = async () => {
         </div>
 
         {/* Receiver Details */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
           <div className="flex items-center mb-4">
             <MapPin className="h-5 w-5 text-primary-500 mr-2" />
-            <h3 className="text-lg font-medium text-gray-900">Receiver Details</h3>
+            <h3 className="text-base sm:text-lg font-medium text-gray-900">Receiver Details</h3>
           </div>
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
               {editMode ? (
@@ -278,10 +275,10 @@ const handleDelete = async () => {
                   type="text"
                   value={booking.receiverDetails.name}
                   onChange={(e) => handleInputChange("name", e.target.value, "receiverDetails")}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                 />
               ) : (
-                <p className="text-gray-900">{booking.receiverDetails.name}</p>
+                <p className="text-sm sm:text-base text-gray-900 break-words">{booking.receiverDetails.name}</p>
               )}
             </div>
             <div>
@@ -291,10 +288,10 @@ const handleDelete = async () => {
                   type="text"
                   value={booking.receiverDetails.phone}
                   onChange={(e) => handleInputChange("phone", e.target.value, "receiverDetails")}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                 />
               ) : (
-                <p className="text-gray-900">{booking.receiverDetails.phone}</p>
+                <p className="text-sm sm:text-base text-gray-900">{booking.receiverDetails.phone}</p>
               )}
             </div>
             <div>
@@ -304,10 +301,10 @@ const handleDelete = async () => {
                   type="email"
                   value={booking.receiverDetails.email || ""}
                   onChange={(e) => handleInputChange("email", e.target.value, "receiverDetails")}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                 />
               ) : (
-                <p className="text-gray-900">{booking.receiverDetails.email || "N/A"}</p>
+                <p className="text-sm sm:text-base text-gray-900 break-words">{booking.receiverDetails.email || "N/A"}</p>
               )}
             </div>
             <div>
@@ -317,13 +314,13 @@ const handleDelete = async () => {
                   value={booking.receiverDetails.address}
                   onChange={(e) => handleInputChange("address", e.target.value, "receiverDetails")}
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                 />
               ) : (
-                <p className="text-gray-900">{booking.receiverDetails.address}</p>
+                <p className="text-sm sm:text-base text-gray-900 break-words">{booking.receiverDetails.address}</p>
               )}
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Pincode</label>
                 {editMode ? (
@@ -331,10 +328,10 @@ const handleDelete = async () => {
                     type="text"
                     value={booking.receiverDetails.pincode}
                     onChange={(e) => handleInputChange("pincode", e.target.value, "receiverDetails")}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                   />
                 ) : (
-                  <p className="text-gray-900">{booking.receiverDetails.pincode}</p>
+                  <p className="text-sm sm:text-base text-gray-900">{booking.receiverDetails.pincode}</p>
                 )}
               </div>
               <div>
@@ -344,10 +341,10 @@ const handleDelete = async () => {
                     type="text"
                     value={booking.receiverDetails.city || ""}
                     onChange={(e) => handleInputChange("city", e.target.value, "receiverDetails")}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                   />
                 ) : (
-                  <p className="text-gray-900">{booking.receiverDetails.city || "N/A"}</p>
+                  <p className="text-sm sm:text-base text-gray-900">{booking.receiverDetails.city || "N/A"}</p>
                 )}
               </div>
             </div>
@@ -355,13 +352,13 @@ const handleDelete = async () => {
         </div>
 
         {/* Package Details */}
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
           <div className="flex items-center mb-4">
             <Package className="h-5 w-5 text-primary-500 mr-2" />
-            <h3 className="text-lg font-medium text-gray-900">Package Details</h3>
+            <h3 className="text-base sm:text-lg font-medium text-gray-900">Package Details</h3>
           </div>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-3 sm:space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Weight</label>
                 {editMode ? (
@@ -370,19 +367,19 @@ const handleDelete = async () => {
                       type="number"
                       value={booking.packageDetails.weight}
                       onChange={(e) => handleInputChange("weight", Number.parseFloat(e.target.value), "packageDetails")}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-l-lg focus:ring-2 focus:ring-primary-500"
+                      className="flex-1 px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-l-lg focus:ring-2 focus:ring-primary-500"
                     />
                     <select
                       value={booking.packageDetails.weightUnit}
                       onChange={(e) => handleInputChange("weightUnit", e.target.value, "packageDetails")}
-                      className="px-3 py-2 border border-l-0 border-gray-300 rounded-r-lg focus:ring-2 focus:ring-primary-500"
+                      className="px-2 sm:px-3 py-2 text-sm sm:text-base border border-l-0 border-gray-300 rounded-r-lg focus:ring-2 focus:ring-primary-500"
                     >
                       <option value="g">g</option>
                       <option value="kg">kg</option>
                     </select>
                   </div>
                 ) : (
-                  <p className="text-gray-900">
+                  <p className="text-sm sm:text-base text-gray-900">
                     {booking.packageDetails.weight} {booking.packageDetails.weightUnit}
                   </p>
                 )}
@@ -393,7 +390,7 @@ const handleDelete = async () => {
                   <select
                     value={booking.serviceType}
                     onChange={(e) => handleInputChange("serviceType", e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                   >
                     <option value="courier">Courier</option>
                     <option value="shifting">Shifting</option>
@@ -405,7 +402,7 @@ const handleDelete = async () => {
                     <option value="premium">Premium</option>
                   </select>
                 ) : (
-                  <p className="text-gray-900 capitalize">{booking.serviceType}</p>
+                  <p className="text-sm sm:text-base text-gray-900 capitalize">{booking.serviceType}</p>
                 )}
               </div>
             </div>
@@ -416,10 +413,10 @@ const handleDelete = async () => {
                   value={booking.packageDetails.description || ""}
                   onChange={(e) => handleInputChange("description", e.target.value, "packageDetails")}
                   rows={2}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                 />
               ) : (
-                <p className="text-gray-900">{booking.packageDetails.description || "N/A"}</p>
+                <p className="text-sm sm:text-base text-gray-900 break-words">{booking.packageDetails.description || "N/A"}</p>
               )}
             </div>
             <div>
@@ -428,7 +425,7 @@ const handleDelete = async () => {
                 <select
                   value={booking.status}
                   onChange={(e) => handleInputChange("status", e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                 >
                   <option value="pending">Pending</option>
                   <option value="confirmed">Confirmed</option>
@@ -458,136 +455,136 @@ const handleDelete = async () => {
         </div>
 
         {/* Pricing Details */}
-        <div className="bg-white rounded-lg shadow p-6">
-  <div className="flex items-center mb-4">
-    <CreditCard className="h-5 w-5 text-primary-500 mr-2" />
-    <h3 className="text-lg font-medium text-gray-900">Pricing & Payment</h3>
-  </div>
-  <div className="space-y-4">
-    <div className="grid grid-cols-2 gap-4">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Base Price</label>
-        {editMode ? (
-          <input
-            type="number"
-            value={booking.pricing?.basePrice || 0}
-            onChange={(e) => handleInputChange("basePrice", Number(e.target.value), "pricing")}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-          />
-        ) : (
-          <p className="text-gray-900">₹{booking.pricing?.basePrice || 0}</p>
-        )}
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Additional Charges</label>
-        {editMode ? (
-          <input
-            type="number"
-            value={booking.pricing?.additionalCharges || 0}
-            onChange={(e) => handleInputChange("additionalCharges", Number(e.target.value), "pricing")}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-          />
-        ) : (
-          <p className="text-gray-900">₹{booking.pricing?.additionalCharges || 0}</p>
-        )}
-      </div>
-    </div>
+        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+          <div className="flex items-center mb-4">
+            <CreditCard className="h-5 w-5 text-primary-500 mr-2" />
+            <h3 className="text-base sm:text-lg font-medium text-gray-900">Pricing & Payment</h3>
+          </div>
+          <div className="space-y-3 sm:space-y-4">
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Base Price</label>
+                {editMode ? (
+                  <input
+                    type="number"
+                    value={booking.pricing?.basePrice || 0}
+                    onChange={(e) => handleInputChange("basePrice", Number(e.target.value), "pricing")}
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  />
+                ) : (
+                  <p className="text-sm sm:text-base text-gray-900">₹{booking.pricing?.basePrice || 0}</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Packaging</label>
+                {editMode ? (
+                  <input
+                    type="number"
+                    value={booking.pricing?.packagingCharge || 0}
+                    onChange={(e) => handleInputChange("packagingCharge", Number(e.target.value), "pricing")}
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  />
+                ) : (
+                  <p className="text-sm sm:text-base text-gray-900">₹{booking.pricing?.packagingCharge || 0}</p>
+                )}
+              </div>
+            </div>
 
-    <div className="grid grid-cols-2 gap-4">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Tax</label>
-        {editMode ? (
-          <input
-            type="number"
-            value={booking.pricing?.tax || 0}
-            onChange={(e) => handleInputChange("tax", Number(e.target.value), "pricing")}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-          />
-        ) : (
-          <p className="text-gray-900">₹{booking.pricing?.tax || 0}</p>
-        )}
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Total Amount</label>
-        {editMode ? (
-          <input
-            type="number"
-            value={booking.pricing?.totalAmount || 0}
-            onChange={(e) => handleInputChange("totalAmount", Number(e.target.value), "pricing")}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 text-lg font-semibold"
-          />
-        ) : (
-          <p className="text-lg font-semibold text-gray-900">₹{booking.pricing?.totalAmount || 0}</p>
-        )}
-      </div>
-    </div>
+            <div className="grid grid-cols-2 gap-3 sm:gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tax</label>
+                {editMode ? (
+                  <input
+                    type="number"
+                    value={booking.pricing?.tax || 0}
+                    onChange={(e) => handleInputChange("tax", Number(e.target.value), "pricing")}
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  />
+                ) : (
+                  <p className="text-sm sm:text-base text-gray-900">₹{booking.pricing?.tax || 0}</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Total Amount</label>
+                {editMode ? (
+                  <input
+                    type="number"
+                    value={booking.pricing?.totalAmount || 0}
+                    onChange={(e) => handleInputChange("totalAmount", Number(e.target.value), "pricing")}
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 font-semibold"
+                  />
+                ) : (
+                  <p className="text-base sm:text-lg font-semibold text-gray-900">₹{booking.pricing?.totalAmount || 0}</p>
+                )}
+              </div>
+            </div>
 
-    <div className="grid grid-cols-2 gap-4">
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Payment Status</label>
-        {editMode ? (
-          <select
-            value={booking.paymentStatus}
-            onChange={(e) => handleInputChange("paymentStatus", e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-          >
-            <option value="pending">Pending</option>
-            <option value="paid">Paid</option>
-            <option value="failed">Failed</option>
-            <option value="refunded">Refunded</option>
-          </select>
-        ) : (
-          <span
-            className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-              booking.paymentStatus === "paid"
-                ? "bg-green-100 text-green-800"
-                : booking.paymentStatus === "failed"
-                  ? "bg-red-100 text-red-800"
-                  : "bg-yellow-100 text-yellow-800"
-            }`}
-          >
-            {booking.paymentStatus}
-          </span>
-        )}
-      </div>
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
-        {editMode ? (
-          <select
-            value={booking.paymentMethod}
-            onChange={(e) => handleInputChange("paymentMethod", e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-          >
-            <option value="COD">Cash on Delivery</option>
-            <option value="online">Online</option>
-          </select>
-        ) : (
-          <p className="text-gray-900">{booking.paymentMethod}</p>
-        )}
-      </div>
-    </div>
-  </div>
-</div>
-
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Status</label>
+                {editMode ? (
+                  <select
+                    value={booking.paymentStatus}
+                    onChange={(e) => handleInputChange("paymentStatus", e.target.value)}
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="paid">Paid</option>
+                    <option value="failed">Failed</option>
+                    <option value="refunded">Refunded</option>
+                  </select>
+                ) : (
+                  <span
+                    className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                      booking.paymentStatus === "paid"
+                        ? "bg-green-100 text-green-800"
+                        : booking.paymentStatus === "failed"
+                          ? "bg-red-100 text-red-800"
+                          : "bg-yellow-100 text-yellow-800"
+                    }`}
+                  >
+                    {booking.paymentStatus}
+                  </span>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
+                {editMode ? (
+                  <select
+                    value={booking.paymentMethod}
+                    onChange={(e) => handleInputChange("paymentMethod", e.target.value)}
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="COD">Cash on Delivery</option>
+                    <option value="online">Online</option>
+                  </select>
+                ) : (
+                  <p className="text-sm sm:text-base text-gray-900">{booking.paymentMethod}</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Notes */}
       {(booking.notes || editMode) && (
-        <div className="mt-6 bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-medium text-gray-900 mb-4">Notes</h3>
+        <div className="mt-4 sm:mt-6 bg-white rounded-lg shadow p-4 sm:p-6">
+          <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-4">Notes</h3>
           {editMode ? (
             <textarea
               value={booking.notes || ""}
               onChange={(e) => handleInputChange("notes", e.target.value)}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+              className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
               placeholder="Add notes..."
             />
           ) : (
-            <p className="text-gray-900">{booking.notes || "No notes available"}</p>
+            <p className="text-sm sm:text-base text-gray-900">{booking.notes || "No notes available"}</p>
           )}
         </div>
       )}
+
 
 
 
