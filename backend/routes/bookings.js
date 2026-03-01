@@ -14,7 +14,7 @@ const router = express.Router();
 /** ------------------------
  * 📦 Create New Booking (with automatic invoice & email)
  * ------------------------ */
-router.post("/",  async (req, res) => {
+router.post("/", async (req, res) => {
   try {
     const bookingData = req.body;
 
@@ -24,125 +24,125 @@ router.post("/",  async (req, res) => {
 
     // 2️⃣ Invoice Generate
     // 2️⃣ Generate Professional Invoice PDF
-const invoicesDir = path.join(__dirname, "../invoices");
-if (!fs.existsSync(invoicesDir)) fs.mkdirSync(invoicesDir, { recursive: true });
+    const invoicesDir = path.join(__dirname, "../invoices");
+    if (!fs.existsSync(invoicesDir)) fs.mkdirSync(invoicesDir, { recursive: true });
 
-const invoicePath = path.join(invoicesDir, `Invoice-${newBooking.bookingId}.pdf`);
-const doc = new PDFDocument({ margin: 40 });
+    const invoicePath = path.join(invoicesDir, `Invoice-${newBooking.bookingId}.pdf`);
+    const doc = new PDFDocument({ margin: 40 });
 
-doc.pipe(fs.createWriteStream(invoicePath));
+    doc.pipe(fs.createWriteStream(invoicePath));
 
-// -------- Header --------
-doc
-  .fontSize(26)
-  .fillColor("#FF6600")
-  .text("Engineers Parcel", { align: "center" })
-  .moveDown(0.5);
+    // -------- Header --------
+    doc
+      .fontSize(26)
+      .fillColor("#FF6600")
+      .text("Engineers Parcel", { align: "center" })
+      .moveDown(0.5);
 
-doc
-  .fontSize(12)
-  .fillColor("#333333")
-  .text("Invoice", { align: "center" })
-  .moveDown(1);
+    doc
+      .fontSize(12)
+      .fillColor("#333333")
+      .text("Invoice", { align: "center" })
+      .moveDown(1);
 
-// Line Separator
-doc.moveTo(40, doc.y).lineTo(550, doc.y).stroke("#FF6600").moveDown(1);
+    // Line Separator
+    doc.moveTo(40, doc.y).lineTo(550, doc.y).stroke("#FF6600").moveDown(1);
 
-// Booking Details
-doc
-  .fontSize(14)
-  .fillColor("#000000")
-  .text(`Invoice Date: ${new Date().toLocaleDateString()}`)
-  .text(`Booking ID: ${newBooking.bookingId}`)
-  .moveDown(1);
+    // Booking Details
+    doc
+      .fontSize(14)
+      .fillColor("#000000")
+      .text(`Invoice Date: ${new Date().toLocaleDateString()}`)
+      .text(`Booking ID: ${newBooking.bookingId}`)
+      .moveDown(1);
 
-// -------- Sender & Receiver Section --------
-doc
-  .fontSize(16)
-  .fillColor("#FF6600")
-  .text("Sender Information")
-  .moveDown(0.3);
+    // -------- Sender & Receiver Section --------
+    doc
+      .fontSize(16)
+      .fillColor("#FF6600")
+      .text("Sender Information")
+      .moveDown(0.3);
 
-doc
-  .fontSize(12)
-  .fillColor("#000000")
-  .text(`Name: ${newBooking.senderDetails.name}`)
-  .text(`Phone: ${newBooking.senderDetails.phone}`)
-  .text(`Email: ${newBooking.senderDetails.email}`)
-  .text(`Address: ${newBooking.senderDetails.address}, ${newBooking.senderDetails.city}, ${newBooking.senderDetails.state} - ${newBooking.senderDetails.pincode}`)
-  .moveDown(1);
+    doc
+      .fontSize(12)
+      .fillColor("#000000")
+      .text(`Name: ${newBooking.senderDetails.name}`)
+      .text(`Phone: ${newBooking.senderDetails.phone}`)
+      .text(`Email: ${newBooking.senderDetails.email}`)
+      .text(`Address: ${newBooking.senderDetails.address}, ${newBooking.senderDetails.city}, ${newBooking.senderDetails.state} - ${newBooking.senderDetails.pincode}`)
+      .moveDown(1);
 
-doc
-  .fontSize(16)
-  .fillColor("#FF6600")
-  .text("Receiver Information")
-  .moveDown(0.3);
+    doc
+      .fontSize(16)
+      .fillColor("#FF6600")
+      .text("Receiver Information")
+      .moveDown(0.3);
 
-doc
-  .fontSize(12)
-  .fillColor("#000000")
-  .text(`Name: ${newBooking.receiverDetails.name}`)
-  .text(`Phone: ${newBooking.receiverDetails.phone}`)
-  .text(`Email: ${newBooking.receiverDetails.email}`)
-  .text(`Address: ${newBooking.receiverDetails.address}, ${newBooking.receiverDetails.city}, ${newBooking.receiverDetails.state} - ${newBooking.receiverDetails.pincode}`)
-  .moveDown(1);
+    doc
+      .fontSize(12)
+      .fillColor("#000000")
+      .text(`Name: ${newBooking.receiverDetails.name}`)
+      .text(`Phone: ${newBooking.receiverDetails.phone}`)
+      .text(`Email: ${newBooking.receiverDetails.email}`)
+      .text(`Address: ${newBooking.receiverDetails.address}, ${newBooking.receiverDetails.city}, ${newBooking.receiverDetails.state} - ${newBooking.receiverDetails.pincode}`)
+      .moveDown(1);
 
-// -------- Pricing Table --------
-doc
-  .fontSize(16)
-  .fillColor("#FF6600")
-  .text("Pricing Summary")
-  .moveDown(0.5);
+    // -------- Pricing Table --------
+    doc
+      .fontSize(16)
+      .fillColor("#FF6600")
+      .text("Pricing Summary")
+      .moveDown(0.5);
 
-// Table Header
-doc
-  .rect(40, doc.y, 515, 20)
-  .fill("#FFE6CC")
-  .stroke("#FF6600");
+    // Table Header
+    doc
+      .rect(40, doc.y, 515, 20)
+      .fill("#FFE6CC")
+      .stroke("#FF6600");
 
-doc
-  .fillColor("#000000")
-  .fontSize(12)
-  .text("Description", 50, doc.y + 5)
-  .text("Amount (₹)", 450, doc.y + 5);
+    doc
+      .fillColor("#000000")
+      .fontSize(12)
+      .text("Description", 50, doc.y + 5)
+      .text("Amount (₹)", 450, doc.y + 5);
 
-doc.moveDown(1);
+    doc.moveDown(1);
 
-// Table Rows
-const priceY = doc.y;
-doc
-  .text("Base Price", 50, priceY)
-  .text(`${newBooking.pricing.basePrice}`, 450, priceY);
+    // Table Rows
+    const priceY = doc.y;
+    doc
+      .text("Base Price", 50, priceY)
+      .text(`${newBooking.pricing.basePrice}`, 450, priceY);
 
-doc.moveDown(0.7);
+    doc.moveDown(0.7);
 
-doc
-  .text("GST (18%)", 50, doc.y)
-  .text(`${newBooking.pricing.tax}`, 450, doc.y);
+    doc
+      .text("GST (18%)", 50, doc.y)
+      .text(`${newBooking.pricing.tax}`, 450, doc.y);
 
-doc.moveDown(0.7);
+    doc.moveDown(0.7);
 
-// Line before total
-doc.moveTo(40, doc.y + 10).lineTo(550, doc.y + 10).stroke("#FF6600").moveDown(1);
+    // Line before total
+    doc.moveTo(40, doc.y + 10).lineTo(550, doc.y + 10).stroke("#FF6600").moveDown(1);
 
-// Total
-doc
-  .fontSize(14)
-  .fillColor("#000000")
-  .text("Grand Total:", 50, doc.y)
-  .text(`₹${newBooking.pricing.totalAmount}`, 450, doc.y)
-  .moveDown(2);
+    // Total
+    doc
+      .fontSize(14)
+      .fillColor("#000000")
+      .text("Grand Total:", 50, doc.y)
+      .text(`₹${newBooking.pricing.totalAmount}`, 450, doc.y)
+      .moveDown(2);
 
-// Footer Note
-doc
-  .fontSize(10)
-  .fillColor("#555555")
-  .text("Thank you for choosing Engineers Parcel!", { align: "center" })
-  .text("For any query contact: support@engineersparcel.com", { align: "center" });
+    // Footer Note
+    doc
+      .fontSize(10)
+      .fillColor("#555555")
+      .text("Thank you for choosing Engineers Parcel!", { align: "center" })
+      .text("For any query contact: support@engineersparcel.com", { align: "center" });
 
-doc.end();
+    doc.end();
 
-console.log("📝 Invoice generated");
+    console.log("📝 Invoice generated");
 
     newBooking.invoicePath = invoicePath;
     await newBooking.save();
@@ -218,14 +218,56 @@ router.get("/stats/dashboard", authMiddleware, async (req, res) => {
 });
 
 /** ------------------------
+ * 📊 Sales report
+ * ------------------------ */
+router.get("/sales/report", authMiddleware, async (req, res) => {
+  try {
+    const query = {
+      status: { $ne: "cancelled" },
+      "pricing.totalAmount": { $exists: true, $gt: 0 },
+    };
+
+    const bookings = await Booking.find(query).select("createdAt pricing.totalAmount").sort({ createdAt: 1 });
+
+    const monthlySales = {};
+
+    bookings.forEach((booking) => {
+      const date = new Date(booking.createdAt);
+      const yearMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      const amount = booking.pricing?.totalAmount || 0;
+
+      if (!monthlySales[yearMonth]) {
+        monthlySales[yearMonth] = { totalAmount: 0, totalBookings: 0 };
+      }
+      monthlySales[yearMonth].totalAmount += amount;
+      monthlySales[yearMonth].totalBookings += 1;
+    });
+
+    const reportData = Object.entries(monthlySales)
+      .map(([month, data]) => ({
+        month,
+        ...data,
+      }))
+      .sort((a, b) => b.month.localeCompare(a.month));
+
+    res.json({ success: true, reportData });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+
+/** ------------------------
  * 📦 Get all bookings
  * ------------------------ */
 router.get("/", authMiddleware, async (req, res) => {
   try {
-    const { page = 1, limit = 10, status, search } = req.query;
+    const { page = 1, limit = 10, status, search, serviceType } = req.query;
     const query = {};
 
     if (status && status !== "all") query.status = status;
+    if (serviceType && serviceType !== "all") query.serviceType = serviceType;
     if (search) {
       query.$or = [
         { bookingId: { $regex: search, $options: "i" } },
@@ -334,6 +376,49 @@ router.put("/:id/tracking", authMiddleware, async (req, res) => {
     res.status(500).json({ message: "Error updating tracking history" });
   }
 });
+
+/** ------------------------
+ * ✏️ Edit specific tracking update
+ * ------------------------ */
+router.put("/:id/tracking/:trackId", authMiddleware, async (req, res) => {
+  try {
+    const { status, location, description, timestamp } = req.body;
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+    const trackItem = booking.trackingHistory.id(req.params.trackId);
+    if (!trackItem) return res.status(404).json({ message: "Tracking item not found" });
+
+    if (status) trackItem.status = status;
+    if (location) trackItem.location = location;
+    if (description !== undefined) trackItem.description = description;
+    if (timestamp) trackItem.timestamp = new Date(timestamp);
+
+    const updated = await booking.save();
+    res.json(updated);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Error updating specific tracking item" });
+  }
+});
+
+/** ------------------------
+ * 🗑️ Delete specific tracking update
+ * ------------------------ */
+router.delete("/:id/tracking/:trackId", authMiddleware, async (req, res) => {
+  try {
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+    booking.trackingHistory.pull(req.params.trackId);
+    const updated = await booking.save();
+    res.json(updated);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Error deleting tracking history item" });
+  }
+});
+
 
 /** ------------------------
  * 🗑️ Delete booking (admin only)
