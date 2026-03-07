@@ -4,12 +4,24 @@ const path = require("path");
 const PDFDocument = require("pdfkit");
 
 const Booking = require("../models/Booking");
+const IntakeBooking = require("../models/IntakeBooking");
 const authMiddleware = require("../middleware/auth");
 const adminAuth = require("../middleware/adminAuth");
 const sendEmail = require("../utils/sendEmail");
 const bookingConfirmationTemplate = require("../templates/bookingConfirmation");
 
 const router = express.Router();
+
+// Get unverified e-docket count
+router.get("/edocket-count", adminAuth, async (req, res) => {
+  try {
+    const count = await IntakeBooking.countDocuments({ adminVerified: false });
+    res.json({ count });
+  } catch (error) {
+    console.error("Error fetching e-docket count:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
 
 /** ------------------------
  * 📦 Create New Booking (with automatic invoice & email)
