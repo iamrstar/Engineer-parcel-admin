@@ -23,7 +23,11 @@ const adminAuth = async (req, res, next) => {
     req.admin = admin;
     next();
   } catch (error) {
-    console.error("Admin auth failed:", error);
+    if (error.name === "TokenExpiredError") {
+      console.warn("Auth token expired.");
+    } else {
+      console.error("Admin auth failed:", error.message);
+    }
     res.status(401).json({ message: "Admin token invalid or expired" });
   }
 };
