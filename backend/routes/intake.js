@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const exceljs = require("exceljs");
+const { generateReceiptPDF } = require("../utils/pdfReceipt");
 const Razorpay = require("razorpay");
 
 const IntakeBooking = require("../models/IntakeBooking");
@@ -97,17 +98,46 @@ router.post("/verify", adminAuth, async (req, res) => {
                 });
 
                 if (paymentLink && booking.senderDetails?.email) {
-                    // Send simpler manual payment request email logic
+                    const amount = pricing.totalAmount || 0;
                     const emailHtml = `
-            <h2>Payment Requested</h2>
-            <p>Dear ${booking.senderDetails.name},</p>
-            <p>Your booking <b>${booking.trackingId}</b> has been verified.</p>
-            <p>Total Amount: ₹${pricing.totalAmount}</p>
-            <p><a href="${paymentLink.short_url}" style="padding:10px 20px; background:#FF6600; color:#fff; text-decoration:none; border-radius:5px;">Pay Now</a></p>
-          `;
+                <div style="font-family: sans-serif; color: #333; max-width: 600px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+                    <div style="background-color: #166534; color: white; padding: 20px; text-align: center;">
+                        <h2 style="margin:0;">Order Verified & Ready</h2>
+                    </div>
+                    <div style="padding: 20px;">
+                        <p>Hi ${booking.senderDetails.name},</p>
+                        <p>Your shipment <strong>${booking.trackingId}</strong> has been verified and priced.</p>
+                        
+                        <div style="text-align: center; margin: 30px 0;">
+                            <h1 style="color: #166534; font-size: 2.5em; margin: 0;">₹${amount}</h1>
+                            <p style="color: #64748b; margin-top: 5px;">Total Payable Amount</p>
+                        </div>
+
+                        <div style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 15px; border-radius: 6px; text-align: center;">
+                            <p style="margin-bottom: 15px;">Pay securely via <strong>Razorpay</strong> (UPI, Cards, Netbanking)</p>
+                            
+                            <a href="${paymentLink.short_url}" style="background-color: #166534; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">PAY NOW</a>
+                            <p style="font-size: 0.8em; margin-top: 10px; color: #64748b;">Or check your portal.</p>
+                        </div>
+
+                        <div style="margin-top: 20px; font-size: 0.9em; border-top: 1px solid #eee; padding-top: 15px;">
+                            <p><strong>Breakdown:</strong></p>
+                            <ul style="list-style: none; padding: 0;">
+                                <li style="margin-bottom: 5px;">Base Price: ₹${pricing.basePrice}</li>
+                                <li style="margin-bottom: 5px;">Packaging/Extras: ₹${pricing.packagingCharge}</li>
+                                <li style="margin-bottom: 5px;">Tax: ₹${pricing.tax}</li>
+                                <li style="margin-top: 10px; border-top: 1px solid #eee; padding-top: 5px;"><strong>Total: ₹${amount}</strong></li>
+                            </ul>
+                        </div>
+                    </div>
+                     <div style="background-color: #f1f5f9; padding: 10px; text-align: center; font-size: 0.8em; color: #64748b;">
+                        &copy; 2026 Engineers Parcel. All rights reserved.
+                    </div>
+                </div>
+                    `;
                     await sendEmail({
                         to: booking.senderDetails.email,
-                        subject: `Payment Request - ${booking.trackingId}`,
+                        subject: `Invoice & Payment - ${booking.trackingId}`,
                         html: emailHtml
                     });
                 }
@@ -281,6 +311,29 @@ router.get("/excel", adminAuth, async (req, res) => {
         res.end();
     } catch (error) {
         console.error("Error exporting excel:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
+// -----------------------------------------
+// GET /api/intake/receipt
+// Generate PDF receipt for a verified intake booking
+// -----------------------------------------
+router.get("/receipt", adminAuth, async (req, res) => {
+    try {
+        const { id } = req.query;
+        if (!id) return res.status(400).json({ message: "Tracking ID is required" });
+
+        const booking = await IntakeBooking.findOne({ trackingId: id });
+        if (!booking) return res.status(404).json({ message: "Intake Booking not found" });
+
+        const pdfBuffer = await generateReceiptPDF(booking);
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename="Receipt_${id}.pdf"`);
+        res.send(pdfBuffer);
+    } catch (error) {
+        console.error("Failed to generate receipt:", error);
         res.status(500).json({ message: "Server error" });
     }
 });
