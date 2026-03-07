@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { useAuth } from "../contexts/AuthContext";
-import { CheckCircle, ArrowLeft, Download, UploadCloud } from "lucide-react";
+import { CheckCircle, ArrowLeft, Download, UploadCloud, FileDown } from "lucide-react";
 
 export default function EDocket() {
     const { token } = useAuth();
@@ -38,6 +38,7 @@ export default function EDocket() {
 
     const [editForm, setEditForm] = useState({});
     const [verifySuccess, setVerifySuccess] = useState(false);
+    const [isVerifying, setIsVerifying] = useState(false);
 
     const fetchBookings = async () => {
         setLoading(true);
@@ -63,6 +64,7 @@ export default function EDocket() {
 
     const handleVerify = async () => {
         if (!selectedBooking) return;
+        setIsVerifying(true);
         try {
             const currentToken = token || localStorage.getItem("adminToken") || localStorage.getItem("token");
             await axios.post(
@@ -75,8 +77,11 @@ export default function EDocket() {
                 { headers: { Authorization: `Bearer ${currentToken}` } }
             );
             setVerifySuccess(true);
+            toast.success("Booking verified! Email & SMS sent.");
         } catch (error) {
             toast.error("Failed to verify booking");
+        } finally {
+            setIsVerifying(false);
         }
     };
 
@@ -123,6 +128,31 @@ export default function EDocket() {
         } catch (error) {
             console.error(error);
             toast.error("Download Failed");
+        }
+    };
+
+    const handleDownloadReceipt = async (trackingId) => {
+        try {
+            const currentToken = token || localStorage.getItem("adminToken") || localStorage.getItem("token");
+            const res = await axios.get(
+                `${import.meta.env.VITE_API_URL}/api/intake/receipt?id=${trackingId}`,
+                {
+                    headers: { Authorization: `Bearer ${currentToken}` },
+                    responseType: 'blob'
+                }
+            );
+            const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `Receipt_${trackingId}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+            toast.success("Receipt Downloaded");
+        } catch (error) {
+            console.error(error);
+            toast.error("Receipt Download Failed");
         }
     };
 
@@ -289,29 +319,38 @@ export default function EDocket() {
                                             ) : "-"}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                            <button
-                                                onClick={() => {
-                                                    setVerifySuccess(false);
-                                                    setSelectedBooking(booking);
-                                                    setPricing({
-                                                        basePrice: booking.pricing?.basePrice || 0,
-                                                        packagingCharge: booking.pricing?.packagingCharge || 0,
-                                                        tax: booking.pricing?.tax || 0,
-                                                        totalAmount: booking.pricing?.totalAmount || 0,
-                                                    });
-                                                    setEditForm({
-                                                        senderDetails: booking.senderDetails,
-                                                        receiverDetails: booking.receiverDetails,
-                                                        packageDetails: booking.packageDetails,
-                                                        serviceType: booking.serviceType,
-                                                        premiumItemType: booking.premiumItemType || "",
-                                                        trackingId: booking.trackingId,
-                                                    });
-                                                }}
-                                                className="text-primary-600 hover:text-primary-900 font-medium px-3 py-1.5 rounded-lg border border-primary-100 hover:bg-primary-50 transition-colors"
-                                            >
-                                                Verify/Edit
-                                            </button>
+                                            <div className="flex items-center gap-2">
+                                                <button
+                                                    onClick={() => {
+                                                        setVerifySuccess(false);
+                                                        setSelectedBooking(booking);
+                                                        setPricing({
+                                                            basePrice: booking.pricing?.basePrice || 0,
+                                                            packagingCharge: booking.pricing?.packagingCharge || 0,
+                                                            tax: booking.pricing?.tax || 0,
+                                                            totalAmount: booking.pricing?.totalAmount || 0,
+                                                        });
+                                                        setEditForm({
+                                                            senderDetails: booking.senderDetails,
+                                                            receiverDetails: booking.receiverDetails,
+                                                            packageDetails: booking.packageDetails,
+                                                            serviceType: booking.serviceType,
+                                                            premiumItemType: booking.premiumItemType || "",
+                                                            trackingId: booking.trackingId,
+                                                        });
+                                                    }}
+                                                    className="text-primary-600 hover:text-primary-900 font-medium px-3 py-1.5 rounded-lg border border-primary-100 hover:bg-primary-50 transition-colors"
+                                                >
+                                                    Verify/Edit
+                                                </button>
+                                                <button
+                                                    onClick={() => handleDownloadReceipt(booking.trackingId)}
+                                                    title="Download E-Receipt"
+                                                    className="w-8 h-8 text-blue-600 hover:text-blue-900 rounded-md hover:bg-blue-50 transition-colors flex items-center justify-center border border-transparent"
+                                                >
+                                                    <FileDown className="w-4 h-4" />
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
@@ -451,8 +490,24 @@ export default function EDocket() {
                                     </div>
                                 </div>
 
-                                <button onClick={handleVerify} className="w-full py-4 mt-8 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl shadow-lg transition-colors text-lg">
-                                    Verify & Send Payment Link
+                                <button
+                                    onClick={handleVerify}
+                                    disabled={isVerifying}
+                                    className={`w-full py-4 mt-8 text-white font-bold rounded-xl shadow-lg transition-colors text-lg flex items-center justify-center gap-2
+                                        ${isVerifying ? 'bg-primary-400 cursor-not-allowed' : 'bg-primary-600 hover:bg-primary-700'}
+                                    `}
+                                >
+                                    {isVerifying ? (
+                                        <>
+                                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            Processing...
+                                        </>
+                                    ) : (
+                                        "Verify & Send Payment Link"
+                                    )}
                                 </button>
                             </div>
                         </div>
