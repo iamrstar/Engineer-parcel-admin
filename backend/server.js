@@ -16,7 +16,16 @@ const allowedOrigins = [
 // ⭐ CORS (final guaranteed working config)
 app.use(
   cors({
-    origin: allowedOrigins,
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+
+      if (allowedOrigins.indexOf(origin) !== -1 || origin.endsWith(".engineersparcel.in")) {
+        return callback(null, true);
+      } else {
+        return callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
     methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
     allowedHeaders: "Content-Type, Authorization"
@@ -51,7 +60,7 @@ const pincodeRoutes = require("./routes/pincodes");
 const couponRoutes = require("./routes/coupons");
 const manualBookingRoute = require('./routes/manualBooking.js');
 const emailRoutes = require("./routes/emailRoutes.js");
-const webhookRoutes = require("./routes/webhooks");
+
 const intakeRoutes = require("./routes/intake");
 
 app.use("/api/auth", authRoutes);
@@ -60,7 +69,7 @@ app.use("/api/pincodes", pincodeRoutes);
 app.use("/api/coupons", couponRoutes);
 app.use("/api/manual-bookings", manualBookingRoute);
 app.use("/api/email", emailRoutes);
-app.use("/api/webhooks", webhookRoutes);
+
 app.use("/api/intake", intakeRoutes);
 
 // Initialize Background Cron Jobs
