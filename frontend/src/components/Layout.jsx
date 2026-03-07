@@ -1,25 +1,51 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useAuth } from "../contexts/AuthContext"
-import { Package, LayoutDashboard, FileText, MapPin, Ticket, LogOut, Menu, X } from "lucide-react"
+import { Package, LayoutDashboard, FileText, MapPin, Ticket, LogOut, Menu, X, PieChart } from "lucide-react"
+import axios from "axios"
 
 const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const { logout } = useAuth()
+  const [docketCount, setDocketCount] = useState(0)
+  const { logout, token } = useAuth()
   const location = useLocation()
-  const navigate = useNavigate() 
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    const fetchDocketCount = async () => {
+      try {
+        const currentToken = token || localStorage.getItem("adminToken") || localStorage.getItem("token")
+        if (!currentToken) return;
+
+        const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/edocket-count`, {
+          headers: { Authorization: `Bearer ${currentToken}` }
+        })
+        if (res.data && typeof res.data.count === 'number') {
+          setDocketCount(res.data.count)
+        }
+      } catch (error) {
+        console.error("Failed to fetch docket count", error)
+      }
+    }
+
+    fetchDocketCount()
+    const interval = setInterval(fetchDocketCount, 30000)
+    return () => clearInterval(interval)
+  }, [token])
 
   const navigation = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
     { name: "Booking", href: "/bookings", icon: FileText },
+    { name: "E-Docket", href: "/e-docket", icon: Ticket },
     { name: "Pincodes", href: "/pincodes", icon: MapPin },
     { name: "Coupons", href: "/coupons", icon: Ticket },
     { name: "Create Order", href: "/manual-booking", icon: Ticket },
+    { name: "Sales Report", href: "/sales-report", icon: PieChart },
   ]
 
-   const handleLogout = () => {
+  const handleLogout = () => {
     logout()
     navigate("/login")
   }
@@ -42,17 +68,49 @@ const Layout = ({ children }) => {
           <nav className="flex-1 px-4 py-4 space-y-2">
             {navigation.map((item) => {
               const isActive = location.pathname === item.href
+
+              const linkContent = (
+                <div className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors justify-between w-full ${isActive ? "bg-primary-100 text-primary-700" : "text-gray-700 hover:bg-gray-100"}`}>
+                  <div className="flex items-center">
+                    <item.icon className="h-5 w-5 mr-3" />
+                    {item.name}
+                  </div>
+                  {item.name === "E-Docket" && docketCount > 0 && (
+                    <span className="flex items-center justify-center bg-red-500 text-white text-[10px] font-bold h-5 min-w-[20px] px-1.5 rounded-full animate-pulse">
+                      {docketCount}
+                    </span>
+                  )}
+                </div>
+              )
+
+              if (item.external) {
+                return (
+                  <form
+                    key={item.name}
+                    method="POST"
+                    action={`${item.href}/api/auth/callback/credentials`}
+                    target="_blank"
+                    className="w-full"
+                  >
+                    <input type="hidden" name="username" value="admin" />
+                    <input type="hidden" name="password" value="admin123" />
+                    <input type="hidden" name="redirect" value="true" />
+                    <input type="hidden" name="callbackUrl" value={`${item.href}/admin`} />
+
+                    <button type="submit" onClick={() => setSidebarOpen(false)} className="w-full text-left">
+                      {linkContent}
+                    </button>
+                  </form>
+                )
+              }
+
               return (
                 <Link
                   key={item.name}
                   to={item.href}
                   onClick={() => setSidebarOpen(false)}
-                  className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    isActive ? "bg-primary-100 text-primary-700" : "text-gray-700 hover:bg-gray-100"
-                  }`}
                 >
-                  <item.icon className="h-5 w-5 mr-3" />
-                  {item.name}
+                  {linkContent}
                 </Link>
               )
             })}
@@ -79,16 +137,48 @@ const Layout = ({ children }) => {
           <nav className="flex-1 px-4 py-4 space-y-2">
             {navigation.map((item) => {
               const isActive = location.pathname === item.href
+
+              const linkContent = (
+                <div className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors justify-between w-full ${isActive ? "bg-primary-100 text-primary-700" : "text-gray-700 hover:bg-gray-100"}`}>
+                  <div className="flex items-center">
+                    <item.icon className="h-5 w-5 mr-3" />
+                    {item.name}
+                  </div>
+                  {item.name === "E-Docket" && docketCount > 0 && (
+                    <span className="flex items-center justify-center bg-red-500 text-white text-[10px] font-bold h-5 min-w-[20px] px-1.5 rounded-full animate-pulse">
+                      {docketCount}
+                    </span>
+                  )}
+                </div>
+              )
+
+              if (item.external) {
+                return (
+                  <form
+                    key={item.name}
+                    method="POST"
+                    action={`${item.href}/api/auth/callback/credentials`}
+                    target="_blank"
+                    className="w-full"
+                  >
+                    <input type="hidden" name="username" value="admin" />
+                    <input type="hidden" name="password" value="admin123" />
+                    <input type="hidden" name="redirect" value="true" />
+                    <input type="hidden" name="callbackUrl" value={`${item.href}/admin`} />
+
+                    <button type="submit" className="w-full text-left">
+                      {linkContent}
+                    </button>
+                  </form>
+                )
+              }
+
               return (
                 <Link
                   key={item.name}
                   to={item.href}
-                  className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    isActive ? "bg-primary-100 text-primary-700" : "text-gray-700 hover:bg-gray-100"
-                  }`}
                 >
-                  <item.icon className="h-5 w-5 mr-3" />
-                  {item.name}
+                  {linkContent}
                 </Link>
               )
             })}
