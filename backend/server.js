@@ -30,7 +30,7 @@ app.use(express.json());
 
 // Debug → check incoming origin
 app.use((req, res, next) => {
-  console.log("Origin:", req.headers.origin);
+  //   console.log("Origin:", req.headers.origin);
   next();
 });
 
@@ -45,13 +45,14 @@ mongoose
   .then(() => console.log("MongoDB connected"))
   .catch((err) => console.error("MongoDB connection error:", err));
 
-// Routes
 const authRoutes = require("./routes/auth");
 const bookingRoutes = require("./routes/bookings");
 const pincodeRoutes = require("./routes/pincodes");
 const couponRoutes = require("./routes/coupons");
 const manualBookingRoute = require('./routes/manualBooking.js');
 const emailRoutes = require("./routes/emailRoutes.js");
+const webhookRoutes = require("./routes/webhooks");
+const intakeRoutes = require("./routes/intake");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/bookings", bookingRoutes);
@@ -59,6 +60,11 @@ app.use("/api/pincodes", pincodeRoutes);
 app.use("/api/coupons", couponRoutes);
 app.use("/api/manual-bookings", manualBookingRoute);
 app.use("/api/email", emailRoutes);
+app.use("/api/webhooks", webhookRoutes);
+app.use("/api/intake", intakeRoutes);
+
+// Initialize Background Cron Jobs
+require("./cron/trackingCron");
 
 // Start server
 const PORT = process.env.PORT || 8000;
