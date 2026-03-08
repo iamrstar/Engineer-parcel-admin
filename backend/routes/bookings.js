@@ -1,188 +1,150 @@
 const express = require("express");
 const Booking = require("../models/Booking");
-const authMiddleware = require("../middleware/auth");
-const adminAuth = require("../middleware/adminAuth");
+const Pincode = require("../models/Pincode");
+const { protect, admin } = require("../middleware/auth");
+const { calculatePrice } = require("../utils/helpers");
+
+// ✅ Import email sender
+const { sendBookingConfirmation } = require("../services/emailTemplates");
 
 const router = express.Router();
 
-/** ------------------------
- * 📊 Dashboard & Test Routes
- * ------------------------ */
-router.get("/stats/dashboard", authMiddleware, async (req, res) => {
+// ✅ POST: Create Booking
+router.post("/", async (req, res) => {
+  console.log("Received booking payload:", req.body);
+
   try {
-    const totalBookings = await Booking.countDocuments();
-    const pendingBookings = await Booking.countDocuments({ status: "pending" });
-    const deliveredBookings = await Booking.countDocuments({ status: "delivered" });
-    const inTransitBookings = await Booking.countDocuments({ status: "in-transit" });
+    const {
+      senderDetails,
+      receiverDetails,
+      serviceType,
+      packageDetails,
+      pickupDate,
+      pickupSlot,
+      notes,
+      paymentMethod
+    } = req.body;
 
-    const totalRevenue = await Booking.aggregate([
-      { $match: { paymentStatus: "paid" } },
-      { $group: { _id: null, total: { $sum: "$pricing.totalAmount" } } },
-    ]);
+    // Validate pincodes
+    const pickupPincode = await Pincode.findOne({ pincode: senderDetails.pincode, isServiceable: true });
+    const deliveryPincode = await Pincode.findOne({ pincode: receiverDetails.pincode, isServiceable: true });
 
-    res.json({
-      totalBookings,
-      pendingBookings,
-      deliveredBookings,
-      inTransitBookings,
-      totalRevenue: totalRevenue[0]?.total || 0,
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Server error" });
-  }
-});
+    if (!pickupPincode) return res.status(400).json({ success: false, message: `Pickup location ${senderDetails.pincode} is not serviceable` });
+    if (!deliveryPincode) return res.status(400).json({ success: false, message: `Delivery location ${receiverDetails.pincode} is not serviceable` });
 
-router.get("/stats/pending-recent", authMiddleware, async (req, res) => {
-  try {
-    const recentPending = await Booking.find({ status: "pending" })
-      .sort({ createdAt: -1 })
-      .limit(5)
-      .select("bookingId senderDetails receiverDetails serviceType pricing createdAt");
+    const distance = Math.abs(pickupPincode.deliveryDays - deliveryPincode.deliveryDays);
 
-    res.json(recentPending);
-  } catch (error) {
-    console.error("Error fetching recent pending:", error);
-    res.status(500).json({ message: "Server error" });
-  }
-});
-
-router.get("/test-log", (req, res) => {
-  console.log("✅ /api/bookings/test-log route hit");
-  res.send("Test log working");
-});
-
-/** ------------------------
- * 📦 Get all bookings
- * ------------------------ */
-router.get("/", authMiddleware, async (req, res) => {
-  try {
-    const { page = 1, limit = 10, status, search } = req.query;
-    const query = {};
-
-    if (status && status !== "all") {
-      query.status = status;
-    }
-
-    if (search) {
-      query.$or = [
-        { bookingId: { $regex: search, $options: "i" } },
-        { "senderDetails.name": { $regex: search, $options: "i" } },
-        { "receiverDetails.name": { $regex: search, $options: "i" } },
-        { "senderDetails.phone": { $regex: search, $options: "i" } },
-        { "receiverDetails.phone": { $regex: search, $options: "i" } },
-      ];
-    }
-
-    const bookings = await Booking.find(query)
-      .sort({ createdAt: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit);
-
-    const total = await Booking.countDocuments(query);
-
-    res.json({
-      bookings,
-      totalPages: Math.ceil(total / limit),
-      currentPage: page,
-      total,
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Server error" });
-  }
-});
-
-/** ------------------------
- * 🔔 Get E-Docket notification count
- * ------------------------ */
-router.get("/edocket-count", adminAuth, async (req, res) => {
-  try {
-    // Count intake bookings that are not yet adminVerified
-    const mongoose = require("mongoose");
-    const IntakeBooking = mongoose.model("IntakeBooking");
-    const count = await IntakeBooking.countDocuments({ adminVerified: false });
-    res.json({ count });
-  } catch (error) {
-    console.error("Error fetching E-Docket count:", error);
-    res.status(500).json({ message: "Server error" });
-  }
-});
-
-/** ------------------------
- * 📦 Get booking by ID
- * ------------------------ */
-router.get("/:id", authMiddleware, async (req, res) => {
-  try {
-    const booking = await Booking.findById(req.params.id);
-    if (!booking) {
-      return res.status(404).json({ message: "Booking not found" });
-    }
-    res.json(booking);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Server error" });
-  }
-});
-
-/** ------------------------
- * ✏️ Update booking (general fields)
- * ------------------------ */
-router.put("/:id", authMiddleware, async (req, res) => {
-  try {
-    const booking = await Booking.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
+    // Calculate pricing
+    // Calculate pricing
+    const pricing = calculatePrice({
+      serviceType,
+      distance,
+      weight: packageDetails.weight || 1,
+      weightUnit: packageDetails.weightUnit || "kg", // <-- Gram / kg handled
+      length: packageDetails.dimensions?.length || 0,
+      width: packageDetails.dimensions?.width || 0,
+      height: packageDetails.dimensions?.height || 0,
+      fragile: packageDetails.fragile || false,
+      value: packageDetails.value || 0,
     });
 
-    if (!booking) {
-      return res.status(404).json({ message: "Booking not found" });
+
+    // Create booking
+    const booking = new Booking({
+      userId: req.user ? req.user.id : null,
+      serviceType,
+      senderDetails,
+      receiverDetails,
+      packageDetails,
+      pickupDate,
+      pickupSlot,
+      pricing,
+      notes,
+      paymentMethod,
+      trackingHistory: [
+        { status: "pending", location: senderDetails.address, description: "Booking created successfully" },
+      ],
+    });
+
+    await booking.save();
+
+    // ✅ Send emails asynchronously
+    try {
+      const sender = { name: booking.senderDetails.name, email: booking.senderDetails.email };
+      const receiver = { name: booking.receiverDetails.name, email: booking.receiverDetails.email };
+      sendBookingConfirmation(booking, sender).catch(console.error);
+      sendBookingConfirmation(booking, receiver).catch(console.error);
+    } catch (err) {
+      console.error("Error sending booking confirmation emails:", err);
     }
 
-    res.json(booking);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Server error" });
+    res.status(201).json({ success: true, message: "Booking created successfully", data: booking });
+
+  } catch (err) {
+    console.error("Booking validation error:", err);
+    if (err.name === "ValidationError") {
+      const messages = Object.values(err.errors).map(e => e.message);
+      return res.status(400).json({ success: false, message: messages.join(", ") });
+    }
+    res.status(500).json({ success: false, message: err.message || "unknown error" });
   }
 });
 
-/** ------------------------
- * 🚚 Add tracking update
- * ------------------------ */
-// ✅ Use this endpoint for tracking history updates
-router.put("/:id/tracking", authMiddleware, async (req, res) => {
+// GET booking by bookingId
+router.get("/:bookingId", async (req, res) => {
   try {
-    const { status, location, description, timestamp } = req.body;
-
-    const booking = await Booking.findById(req.params.id);
-    if (!booking) {
-      return res.status(404).json({ message: "Booking not found" });
-    }
-
-    const newEntry = {
-      status: status || "No Status",
-      location: location || "No Location",
-      description: description || "N/A",
-      timestamp: timestamp ? new Date(timestamp) : new Date(),
-    };
-
-    if (!Array.isArray(booking.trackingHistory)) {
-      booking.trackingHistory = [];
-    }
-
-    booking.trackingHistory.push(newEntry);
-    booking.status = status || booking.status;
-
-    const updated = await booking.save();
-
-    res.json(updated);
+    const booking = await Booking.findOne({ bookingId: req.params.bookingId }).populate("userId", "name email phone");
+    if (!booking) return res.status(404).json({ success: false, message: "Booking not found" });
+    res.json({ success: true, data: booking });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Error updating tracking history" });
+    console.error("Get booking error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 });
 
+// GET all bookings (admin)
+router.get("/", protect, admin, async (req, res) => {
+  try {
+    const bookings = await Booking.find().sort({ createdAt: -1 });
+    res.json({ success: true, data: bookings });
+  } catch (error) {
+    console.error("Get all bookings error:", error);
+    res.status(500).json({ success: false, message: "Server error while fetching bookings" });
+  }
+});
 
+// Confirm booking after online payment
+router.post("/confirm-booking", async (req, res) => {
+  try {
+    const { bookingData } = req.body;
 
+    const booking = new Booking({
+      ...bookingData,
+      paymentMethod: "Online",
+      paymentStatus: "paid",
+      trackingHistory: [
+        { status: "pending", location: bookingData.senderDetails.address, description: "Booking created after successful payment" }
+      ]
+    });
+
+    await booking.save();
+
+    // ✅ Send emails asynchronously
+    try {
+      const sender = { name: booking.senderDetails.name, email: booking.senderDetails.email };
+      const receiver = { name: booking.receiverDetails.name, email: booking.receiverDetails.email };
+      sendBookingConfirmation(booking, sender).catch(console.error);
+      sendBookingConfirmation(booking, receiver).catch(console.error);
+    } catch (err) {
+      console.error("Error sending booking confirmation emails:", err);
+    }
+
+    res.status(201).json({ success: true, booking });
+
+  } catch (err) {
+    console.error("Error creating booking after payment:", err);
+    res.status(500).json({ success: false, message: "Failed to create booking" });
+  }
+});
 
 module.exports = router;
