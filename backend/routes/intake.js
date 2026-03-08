@@ -185,13 +185,44 @@ router.post("/seed", adminAuth, async (req, res) => {
 
         for (const doc of toSeed) {
             // Transform doc to match Main Dashboard Schema
+            const senderAddr = doc.senderDetails.address || [doc.senderDetails.address1, doc.senderDetails.address2].filter(Boolean).join(", ");
+            const receiverAddr = doc.receiverDetails.address || [doc.receiverDetails.address1, doc.receiverDetails.address2].filter(Boolean).join(", ");
+
             const payload = {
                 bookingId: doc.trackingId,
                 trackingId: doc.trackingId,
                 serviceType: doc.serviceType.toLowerCase(),
-                senderDetails: doc.senderDetails,
-                receiverDetails: doc.receiverDetails,
-                packageDetails: doc.packageDetails,
+                senderDetails: {
+                    name: doc.senderDetails.name,
+                    phone: doc.senderDetails.phone,
+                    email: doc.senderDetails.email,
+                    address: senderAddr || "N/A",
+                    pincode: doc.senderDetails.pincode,
+                    city: doc.senderDetails.city,
+                    state: doc.senderDetails.state,
+                    landmark: doc.senderDetails.landmark,
+                },
+                receiverDetails: {
+                    name: doc.receiverDetails.name,
+                    phone: doc.receiverDetails.phone,
+                    email: doc.receiverDetails.email,
+                    address: receiverAddr || "N/A",
+                    pincode: doc.receiverDetails.pincode,
+                    city: doc.receiverDetails.city,
+                    state: doc.receiverDetails.state,
+                    landmark: doc.receiverDetails.landmark,
+                },
+                packageDetails: {
+                    weight: doc.packageDetails.weight,
+                    weightUnit: doc.packageDetails.weightUnit,
+                    volumetricWeight: doc.packageDetails.volumetricWeight,
+                    chargeableWeight: doc.packageDetails.chargeableWeight,
+                    dimensions: doc.packageDetails.dimensions,
+                    boxQuantity: doc.packageDetails.boxQuantity,
+                    description: doc.packageDetails.description || "N/A",
+                    value: doc.packageDetails.value || 0,
+                    fragile: doc.packageDetails.fragile,
+                },
                 pickupPincode: doc.senderDetails.pincode,
                 deliveryPincode: doc.receiverDetails.pincode,
                 pickupDate: doc.pickupDate || new Date(),
