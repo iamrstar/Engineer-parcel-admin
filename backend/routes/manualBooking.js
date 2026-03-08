@@ -1,107 +1,87 @@
 const express = require("express");
 const router = express.Router();
 const Booking = require("../models/Booking");
-const sendEmail = require("../utils/sendEmail");
-const bookingTemplate = require("../templates/bookingConfirmation");
 
+// Create Manual Booking
 router.post("/", async (req, res) => {
   try {
-    const pkg = req.body.packageDetails || {};
+    const {
+      bookingId, // optional
+      serviceType,
+      senderDetails,
+      receiverDetails,
+      packageDetails, // full object aa raha frontend se
+      pickupPincode,
+      deliveryPincode,
+      pickupDate,
+      pickupSlot,
+      deliveryDate,
+      status,
+      currentLocation,
+      parcelImage,
+      couponCode,
+      couponDiscount,
+      insuranceRequired,
+      pricing,
+      estimatedDelivery,
+      paymentStatus,
+      paymentMethod,
+      notes,
+      bookingSource = "Manual",
+    } = req.body;
 
-    const weight = Number(pkg.weight) || 0;
-
-    // ✅ Detect valid goods value
-    const hasGoodsValue =
-      pkg.value !== undefined &&
-      pkg.value !== null &&
-      pkg.value !== "" &&
-      Number(pkg.value) > 0;
-
-    const goodsValue = hasGoodsValue ? Number(pkg.value) : null;
-
-    if (!weight && !hasGoodsValue) {
-      return res.status(400).json({
-        message: "Either weight or goods value must be provided",
-      });
+    // Required fields check
+    if (!serviceType || !senderDetails || !receiverDetails || !packageDetails) {
+      return res.status(400).json({ error: "Missing required booking fields." });
     }
 
-    // ---------------- PRICING RULES ----------------
-    const PER_KG_PRICE = 100;
-    const PACKAGING_RATE = 0.08;
-    const GST_RATE = 0.18;
-
-    let pricing = {};
-
-    // ✅ GOODS VALUE OVERRIDES AUTO PRICING
-    if (hasGoodsValue) {
-      pricing = {
-        basePrice: goodsValue,
-        packagingCharge: 0,
-        tax: 0,
-        totalAmount: goodsValue,
-        pricingMode: "MANUAL",
-      };
-    }
-    // ✅ AUTO WEIGHT CALCULATION (ROUNDED UP)
-    else {
-      const chargeableWeight = Math.ceil(weight); // 🔥 KEY FIX
-
-      const basePrice = chargeableWeight * PER_KG_PRICE;
-      const packagingCharge = +(basePrice * PACKAGING_RATE).toFixed(2);
-      const subtotal = basePrice + packagingCharge;
-      const tax = +(subtotal * GST_RATE).toFixed(2);
-      const totalAmount = +(subtotal + tax).toFixed(2);
-
-      pricing = {
-        actualWeight: weight,        // record purpose
-        chargeableWeight,            // courier weight
-        basePrice: +basePrice.toFixed(2),
-        packagingCharge,
-        tax,
-        totalAmount,
-        pricingMode: "AUTO_WEIGHT",
-      };
-    }
-
-    // ---------------- SAVE BOOKING ----------------
-    const booking = new Booking({
-      ...req.body,
-      pricing, // ✅ single source of truth
-      adminCreated: true,
+    // Manual Booking create karo
+    const newBooking = new Booking({
+      bookingId,
+      serviceType,
+      senderDetails,
+      receiverDetails,
+      packageDetails: {
+        weight: packageDetails.weight,
+        weightUnit: packageDetails.weightUnit,
+        volumetricWeight: packageDetails.volumetricWeight,
+        dimensions: {
+          length: packageDetails.dimensions?.length ?? 0,
+          width: packageDetails.dimensions?.width ?? 0,
+          height: packageDetails.dimensions?.height ?? 0,
+        },
+        description: packageDetails.description,
+        value: packageDetails.value,
+        fragile: packageDetails.fragile,
+      },
+      pickupPincode,
+      deliveryPincode,
+      pickupDate,
+      pickupSlot,
+      deliveryDate,
+      status,
+      currentLocation,
+      parcelImage,
+      couponCode,
+      couponDiscount,
+      insuranceRequired,
+      pricing,
+      estimatedDelivery,
+      paymentStatus,
+      paymentMethod,
+      notes,
+      bookingSource,
     });
 
-    const savedBooking = await booking.save();
+    await newBooking.save();
 
-    // ---------------- EMAIL ----------------
-    const html = bookingTemplate(savedBooking);
-
-    if (savedBooking.senderDetails?.email) {
-      await sendEmail({
-        to: savedBooking.senderDetails.email,
-        subject: `Booking Confirmation - ${savedBooking.bookingId}`,
-        html,
-      });
-    }
-
-    if (
-      savedBooking.receiverDetails?.email &&
-      savedBooking.receiverDetails.email !==
-        savedBooking.senderDetails?.email
-    ) {
-      await sendEmail({
-        to: savedBooking.receiverDetails.email,
-        subject: `Parcel Booked - ${savedBooking.bookingId}`,
-        html,
-      });
-    }
-
-    return res.status(201).json({
-      message: "Manual booking created successfully",
-      booking: savedBooking,
+    res.status(201).json({
+      message: "Manual booking created successfully.",
+      booking: newBooking,
     });
-  } catch (err) {
-    console.error("❌ Manual booking error:", err);
-    return res.status(500).json({ message: "Server error" });
+  } catch (error) {
+    console.error("Manual booking error:", error);
+    res.status(500).json({ error: "Failed to create manual booking." });
   }
 });
 
