@@ -1,478 +1,350 @@
-const express = require("express");
-const fs = require("fs");
-const path = require("path");
-const PDFDocument = require("pdfkit");
+"use client"
 
-const Booking = require("../models/Booking");
-const IntakeBooking = require("../models/IntakeBooking");
-const authMiddleware = require("../middleware/auth");
-const adminAuth = require("../middleware/adminAuth");
-const sendEmail = require("../utils/sendEmail");
-const bookingConfirmationTemplate = require("../templates/bookingConfirmation");
+import { useState, useEffect, useRef } from "react"
+import { Link, useLocation, useNavigate } from "react-router-dom"
+import { useAuth } from "../contexts/AuthContext"
+import axios from "axios"
+import toast from "react-hot-toast"
+import { Package, LayoutDashboard, FileText, MapPin, Ticket, LogOut, Menu, X, BarChart, Bell } from "lucide-react"
 
-const router = express.Router();
+const Layout = ({ children }) => {
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [eDocketCount, setEDocketCount] = useState(0)
+  const [pendingOrdersCount, setPendingOrdersCount] = useState(0)
+  const [recentOrders, setRecentOrders] = useState([])
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false)
+  const { logout } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
 
-// Get unverified e-docket count
-router.get("/edocket-count", adminAuth, async (req, res) => {
-  try {
-    const count = await IntakeBooking.countDocuments({ adminVerified: false });
-    res.json({ count });
-  } catch (error) {
-    console.error("Error fetching e-docket count:", error);
-    res.status(500).json({ message: "Server error" });
-  }
-});
+  const prevCountRef = useRef(0)
+  const prevPendingRef = useRef(0)
+  const isFirstLoadRef = useRef(true)
+  const [playAudio, setPlayAudio] = useState(false)
 
-/** ------------------------
- * 📦 Create New Booking (with automatic invoice & email)
- * ------------------------ */
-router.post("/", async (req, res) => {
-  try {
-    const bookingData = req.body;
-
-    // 1️⃣ Save booking to DB
-    const newBooking = await Booking.create(bookingData);
-    console.log("📌 Booking saved:", newBooking.bookingId);
-
-    // 2️⃣ Invoice Generate
-    // 2️⃣ Generate Professional Invoice PDF
-    const invoicesDir = path.join(__dirname, "../invoices");
-    if (!fs.existsSync(invoicesDir)) fs.mkdirSync(invoicesDir, { recursive: true });
-
-    const invoicePath = path.join(invoicesDir, `Invoice-${newBooking.bookingId}.pdf`);
-    const doc = new PDFDocument({ margin: 40 });
-
-    doc.pipe(fs.createWriteStream(invoicePath));
-
-    // -------- Header --------
-    doc
-      .fontSize(26)
-      .fillColor("#FF6600")
-      .text("Engineers Parcel", { align: "center" })
-      .moveDown(0.5);
-
-    doc
-      .fontSize(12)
-      .fillColor("#333333")
-      .text("Invoice", { align: "center" })
-      .moveDown(1);
-
-    // Line Separator
-    doc.moveTo(40, doc.y).lineTo(550, doc.y).stroke("#FF6600").moveDown(1);
-
-    // Booking Details
-    doc
-      .fontSize(14)
-      .fillColor("#000000")
-      .text(`Invoice Date: ${new Date().toLocaleDateString()}`)
-      .text(`Booking ID: ${newBooking.bookingId}`)
-      .moveDown(1);
-
-    // -------- Sender & Receiver Section --------
-    doc
-      .fontSize(16)
-      .fillColor("#FF6600")
-      .text("Sender Information")
-      .moveDown(0.3);
-
-    doc
-      .fontSize(12)
-      .fillColor("#000000")
-      .text(`Name: ${newBooking.senderDetails.name}`)
-      .text(`Phone: ${newBooking.senderDetails.phone}`)
-      .text(`Email: ${newBooking.senderDetails.email}`)
-      .text(`Address: ${newBooking.senderDetails.address}, ${newBooking.senderDetails.city}, ${newBooking.senderDetails.state} - ${newBooking.senderDetails.pincode}`)
-      .moveDown(1);
-
-    doc
-      .fontSize(16)
-      .fillColor("#FF6600")
-      .text("Receiver Information")
-      .moveDown(0.3);
-
-    doc
-      .fontSize(12)
-      .fillColor("#000000")
-      .text(`Name: ${newBooking.receiverDetails.name}`)
-      .text(`Phone: ${newBooking.receiverDetails.phone}`)
-      .text(`Email: ${newBooking.receiverDetails.email}`)
-      .text(`Address: ${newBooking.receiverDetails.address}, ${newBooking.receiverDetails.city}, ${newBooking.receiverDetails.state} - ${newBooking.receiverDetails.pincode}`)
-      .moveDown(1);
-
-    // -------- Pricing Table --------
-    doc
-      .fontSize(16)
-      .fillColor("#FF6600")
-      .text("Pricing Summary")
-      .moveDown(0.5);
-
-    // Table Header
-    doc
-      .rect(40, doc.y, 515, 20)
-      .fill("#FFE6CC")
-      .stroke("#FF6600");
-
-    doc
-      .fillColor("#000000")
-      .fontSize(12)
-      .text("Description", 50, doc.y + 5)
-      .text("Amount (₹)", 450, doc.y + 5);
-
-    doc.moveDown(1);
-
-    // Table Rows
-    const priceY = doc.y;
-    doc
-      .text("Base Price", 50, priceY)
-      .text(`${newBooking.pricing.basePrice}`, 450, priceY);
-
-    doc.moveDown(0.7);
-
-    doc
-      .text("GST (18%)", 50, doc.y)
-      .text(`${newBooking.pricing.tax}`, 450, doc.y);
-
-    doc.moveDown(0.7);
-
-    // Line before total
-    doc.moveTo(40, doc.y + 10).lineTo(550, doc.y + 10).stroke("#FF6600").moveDown(1);
-
-    // Total
-    doc
-      .fontSize(14)
-      .fillColor("#000000")
-      .text("Grand Total:", 50, doc.y)
-      .text(`₹${newBooking.pricing.totalAmount}`, 450, doc.y)
-      .moveDown(2);
-
-    // Footer Note
-    doc
-      .fontSize(10)
-      .fillColor("#555555")
-      .text("Thank you for choosing Engineers Parcel!", { align: "center" })
-      .text("For any query contact: support@engineersparcel.com", { align: "center" });
-
-    doc.end();
-
-    console.log("📝 Invoice generated");
-
-    newBooking.invoicePath = invoicePath;
-    await newBooking.save();
-
-    // 3️⃣ Send emails
-    const html = bookingConfirmationTemplate(newBooking);
-
-    if (newBooking.senderDetails?.email) {
-      await sendEmail({
-        to: newBooking.senderDetails.email,
-        subject: `Booking Confirmation - ${newBooking.bookingId}`,
-        html,
-        invoicePath,
-        bookingId: newBooking.bookingId,
-      });
-      console.log("📩 Sent to sender");
-    }
-
-    if (newBooking.receiverDetails?.email) {
-      await sendEmail({
-        to: newBooking.receiverDetails.email,
-        subject: `Parcel on the way - ${newBooking.bookingId}`,
-        html,
-        invoicePath,
-        bookingId: newBooking.bookingId,
-      });
-      console.log("📩 Sent to receiver");
-    }
-
-    // 4️⃣ Final API response
-    res.status(201).json({
-      message: "Booking created & emails sent! 🚀",
-      booking: newBooking,
-    });
-
-  } catch (error) {
-    console.error("❌ Booking route error:", error.message);
-    res.status(500).json({ message: "Error creating booking or sending email", error });
-  }
-});
-
-
-/** ------------------------
- * 📊 Dashboard stats
- * ------------------------ */
-router.get("/stats/dashboard", authMiddleware, async (req, res) => {
-  try {
-    const totalBookings = await Booking.countDocuments();
-    const pendingBookings = await Booking.countDocuments({ status: "pending" });
-    const deliveredBookings = await Booking.countDocuments({
-      status: "delivered",
-    });
-    const inTransitBookings = await Booking.countDocuments({
-      status: "in-transit",
-    });
-
-    const totalRevenue = await Booking.aggregate([
-      { $match: { paymentStatus: "paid" } },
-      { $group: { _id: null, total: { $sum: "$pricing.totalAmount" } } },
-    ]);
-
-    res.json({
-      totalBookings,
-      pendingBookings,
-      deliveredBookings,
-      inTransitBookings,
-      totalRevenue: totalRevenue[0]?.total || 0,
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Server error" });
-  }
-});
-
-/** ------------------------
- * 📊 Sales report
- * ------------------------ */
-router.get("/sales/report", authMiddleware, async (req, res) => {
-  try {
-    const query = {
-      status: { $ne: "cancelled" },
-      "pricing.totalAmount": { $exists: true, $gt: 0 },
-    };
-
-    const bookings = await Booking.find(query).select("createdAt pricing.totalAmount").sort({ createdAt: 1 });
-
-    const monthlySales = {};
-
-    bookings.forEach((booking) => {
-      const date = new Date(booking.createdAt);
-      const yearMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-      const amount = booking.pricing?.totalAmount || 0;
-
-      if (!monthlySales[yearMonth]) {
-        monthlySales[yearMonth] = { totalAmount: 0, totalBookings: 0 };
+  // Unlock audio context on first user interaction
+  useEffect(() => {
+    const unlockAudio = () => {
+      // Create empty audio context to unlock
+      const AudioContext = window.AudioContext || window.webkitAudioContext;
+      if (AudioContext) {
+        const ctx = new AudioContext();
+        ctx.resume().then(() => ctx.close());
       }
-      monthlySales[yearMonth].totalAmount += amount;
-      monthlySales[yearMonth].totalBookings += 1;
-    });
 
-    const reportData = Object.entries(monthlySales)
-      .map(([month, data]) => ({
-        month,
-        ...data,
-      }))
-      .sort((a, b) => b.month.localeCompare(a.month));
-
-    res.json({ success: true, reportData });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Server error" });
-  }
-});
-
-
-/** ------------------------
- * 📦 Get all bookings
- * ------------------------ */
-router.get("/", authMiddleware, async (req, res) => {
-  try {
-    const { page = 1, limit = 10, status, search, serviceType } = req.query;
-    const query = {};
-
-    if (status && status !== "all") query.status = status;
-    if (serviceType && serviceType !== "all") query.serviceType = serviceType;
-    if (search) {
-      query.$or = [
-        { bookingId: { $regex: search, $options: "i" } },
-        { "senderDetails.name": { $regex: search, $options: "i" } },
-        { "receiverDetails.name": { $regex: search, $options: "i" } },
-        { "senderDetails.phone": { $regex: search, $options: "i" } },
-        { "receiverDetails.phone": { $regex: search, $options: "i" } },
-      ];
-    }
-
-    const bookings = await Booking.find(query)
-      .sort({ createdAt: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit);
-
-    const total = await Booking.countDocuments(query);
-
-    res.json({
-      bookings,
-      totalPages: Math.ceil(total / limit),
-      currentPage: page,
-      total,
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Server error" });
-  }
-});
-
-/** ------------------------
- * 📦 Get booking by ID
- * ------------------------ */
-router.get("/:id", authMiddleware, async (req, res) => {
-  try {
-    const booking = await Booking.findById(req.params.id);
-    if (!booking) return res.status(404).json({ message: "Booking not found" });
-    res.json(booking);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Server error" });
-  }
-});
-
-/** ------------------------
- * ✏️ Update booking
- * ------------------------ */
-router.put("/:id", authMiddleware, async (req, res) => {
-  try {
-    const booking = await Booking.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    });
-    if (!booking) return res.status(404).json({ message: "Booking not found" });
-    res.json(booking);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Server error" });
-  }
-});
-
-// Update ETD
-router.put("/:id/etd", authMiddleware, async (req, res) => {
-  try {
-    const { etd } = req.body;
-    if (!etd) return res.status(400).json({ message: "ETD is required" });
-
-    const booking = await Booking.findByIdAndUpdate(
-      req.params.id,
-      { estimatedDelivery: etd },
-      { new: true }
-    );
-    if (!booking) return res.status(404).json({ message: "Booking not found" });
-
-    res.json({ message: "Estimated Delivery updated successfully", booking });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Server error" });
-  }
-});
-
-/** ------------------------
- * 🚚 Add tracking update
- * ------------------------ */
-router.put("/:id/tracking", authMiddleware, async (req, res) => {
-  try {
-    const { status, location, description, timestamp } = req.body;
-
-    const booking = await Booking.findById(req.params.id);
-    if (!booking) return res.status(404).json({ message: "Booking not found" });
-
-    const newEntry = {
-      status: status || "No Status",
-      location: location || "No Location",
-      description: description || "N/A",
-      timestamp: timestamp ? new Date(timestamp) : new Date(),
+      document.removeEventListener('click', unlockAudio);
+      document.removeEventListener('touchstart', unlockAudio);
+      document.removeEventListener('keydown', unlockAudio);
     };
 
-    if (!Array.isArray(booking.trackingHistory)) booking.trackingHistory = [];
-    booking.trackingHistory.push(newEntry);
-    booking.status = status || booking.status;
+    document.addEventListener('click', unlockAudio);
+    document.addEventListener('touchstart', unlockAudio);
+    document.addEventListener('keydown', unlockAudio);
 
-    const updated = await booking.save();
-    res.json(updated);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Error updating tracking history" });
+    return () => {
+      document.removeEventListener('click', unlockAudio);
+      document.removeEventListener('touchstart', unlockAudio);
+      document.removeEventListener('keydown', unlockAudio);
+    };
+  }, []);
+
+  useEffect(() => {
+    const fetchCount = async () => {
+      try {
+        const token = localStorage.getItem("adminToken") || localStorage.getItem("token")
+        if (!token) return
+
+        // Fetch E-Docket Count
+        const resDocket = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/edocket-count`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        const newCount = resDocket.data.count || 0
+
+        // Fetch Pending Online Orders Count
+        const resStats = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/stats/dashboard`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        const newPending = resStats.data.pendingBookings || 0
+
+        // Fetch Recent Pending Orders List for Dropdown
+        const resRecent = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/stats/pending-recent`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        setRecentOrders(resRecent.data || [])
+
+        let alertTriggered = false;
+        let alertMessage = "";
+
+        if (!isFirstLoadRef.current) {
+          if (newCount > prevCountRef.current) {
+            alertTriggered = true;
+            alertMessage = "New E-Docket intake bookings have arrived.";
+          }
+          if (newPending > prevPendingRef.current) {
+            alertTriggered = true;
+            // If both triggered, we can just say "New Orders have arrived"
+            alertMessage = alertTriggered && alertMessage ? "New E-Dockets and Online Orders arrived." : "New Online Orders have arrived.";
+          }
+        }
+
+        isFirstLoadRef.current = false;
+
+        // Play sound and show persistent popup only if count increased (and not on initial load)
+        if (alertTriggered) {
+          setPlayAudio(true); // Trigger the iframe render
+
+          // Flash the tab title to get user attention if they are on another tab
+          const originalTitle = document.title;
+          let isAlertTitle = false;
+          const titleInterval = setInterval(() => {
+            document.title = isAlertTitle ? originalTitle : `(1) 🚨 New E-Docket!`;
+            isAlertTitle = !isAlertTitle;
+          }, 1000);
+
+          toast((t) => (
+            <div className="flex flex-col gap-2 min-w-[250px]">
+              <div className="flex items-center gap-2 font-bold text-red-600 text-lg">
+                🚨 New Order Alert!
+              </div>
+              <p className="text-gray-800">{alertMessage}</p>
+              {newCount > prevCountRef.current && <p className="text-sm font-semibold text-gray-600">Pending E-Dockets: {newCount}</p>}
+              {newPending > prevPendingRef.current && <p className="text-sm font-semibold text-gray-600 mb-2">Pending Online Orders: {newPending}</p>}
+              <button
+                onClick={() => {
+                  toast.dismiss(t.id);
+                  setPlayAudio(false);
+                  clearInterval(titleInterval);
+                  document.title = originalTitle;
+                }}
+                className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium transition-colors"
+              >
+                Dismiss Alert
+              </button>
+            </div>
+          ), {
+            duration: Infinity, // Forces user interaction to close
+            position: 'top-center',
+            style: { border: '2px solid #ef4444', padding: '16px', backgroundColor: '#fef2f2' },
+          });
+        }
+
+        prevCountRef.current = newCount
+        prevPendingRef.current = newPending
+        setEDocketCount(newCount)
+        setPendingOrdersCount(newPending)
+      } catch (error) {
+        // Silently fail if not logged in
+      }
+    }
+    fetchCount()
+    const interval = setInterval(fetchCount, 30000)
+    return () => clearInterval(interval)
+  }, [])
+
+  const navigation = [
+    { name: "Dashboard", href: "/", icon: LayoutDashboard },
+    { name: "Booking", href: "/bookings", icon: FileText },
+    { name: "E-Docket", href: "/e-docket", icon: Package, badge: eDocketCount },
+    { name: "Sales Report", href: "/sales-report", icon: BarChart },
+    { name: "Pincodes", href: "/pincodes", icon: MapPin },
+    { name: "Coupons", href: "/coupons", icon: Ticket },
+    { name: "Create Order", href: "/manual-booking", icon: Ticket },
+  ]
+
+  const handleLogout = () => {
+    logout()
+    navigate("/login")
   }
-});
 
-/** ------------------------
- * ✏️ Edit specific tracking update
- * ------------------------ */
-router.put("/:id/tracking/:trackId", authMiddleware, async (req, res) => {
-  try {
-    const { status, location, description, timestamp } = req.body;
-    const booking = await Booking.findById(req.params.id);
-    if (!booking) return res.status(404).json({ message: "Booking not found" });
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Mobile sidebar */}
+      <div className={`fixed inset-0 z-50 lg:hidden ${sidebarOpen ? "block" : "hidden"}`}>
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-75" onClick={() => setSidebarOpen(false)} />
+        <div className="fixed inset-y-0 left-0 flex w-64 flex-col bg-white">
+          <div className="flex h-16 items-center justify-between px-4 border-b">
+            <div className="flex items-center">
+              <Package className="h-8 w-8 text-primary-500" />
+              <span className="ml-2 text-xl font-bold text-gray-900">EngineersParcel</span>
+            </div>
+            <button onClick={() => setSidebarOpen(false)}>
+              <X className="h-6 w-6 text-gray-500" />
+            </button>
+          </div>
+          <nav className="flex-1 px-4 py-4 space-y-2">
+            {navigation.map((item) => {
+              const isActive = location.pathname === item.href
+              return (
+                <Link
+                  key={item.name}
+                  to={item.href}
+                  onClick={() => setSidebarOpen(false)}
+                  className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors ${isActive ? "bg-primary-100 text-primary-700" : "text-gray-700 hover:bg-gray-100"
+                    }`}
+                >
+                  <div className="flex items-center">
+                    <item.icon className="h-5 w-5 mr-3" />
+                    {item.name}
+                  </div>
+                  {item.badge > 0 && (
+                    <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-medium rounded-full bg-red-500 text-white">
+                      {item.badge}
+                    </span>
+                  )}
+                </Link>
+              )
+            })}
+          </nav>
+          <div className="p-4 border-t">
+            <button
+              onClick={handleLogout}
+              className="flex items-center w-full px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            >
+              <LogOut className="h-5 w-5 mr-3" />
+              Logout
+            </button>
+          </div>
+        </div>
+      </div>
 
-    const trackItem = booking.trackingHistory.id(req.params.trackId);
-    if (!trackItem) return res.status(404).json({ message: "Tracking item not found" });
+      {/* Desktop sidebar */}
+      <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
+        <div className="flex flex-col flex-grow bg-white border-r border-gray-200">
+          <div className="flex h-16 items-center px-4 border-b">
+            <Package className="h-8 w-8 text-primary-500" />
+            <span className="ml-2 text-xl font-bold text-gray-900">EngineersParcel</span>
+          </div>
+          <nav className="flex-1 px-4 py-4 space-y-2">
+            {navigation.map((item) => {
+              const isActive = location.pathname === item.href
+              return (
+                <Link
+                  key={item.name}
+                  to={item.href}
+                  className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors ${isActive ? "bg-primary-100 text-primary-700" : "text-gray-700 hover:bg-gray-100"
+                    }`}
+                >
+                  <div className="flex items-center">
+                    <item.icon className="h-5 w-5 mr-3" />
+                    {item.name}
+                  </div>
+                  {item.badge > 0 && (
+                    <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-medium rounded-full bg-red-500 text-white">
+                      {item.badge}
+                    </span>
+                  )}
+                </Link>
+              )
+            })}
+          </nav>
+          <div className="p-4 border-t">
+            <button
+              onClick={handleLogout}
+              className="flex items-center w-full px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+            >
+              <LogOut className="h-5 w-5 mr-3" />
+              Logout
+            </button>
+          </div>
+        </div>
+      </div>
 
-    if (status) trackItem.status = status;
-    if (location) trackItem.location = location;
-    if (description !== undefined) trackItem.description = description;
-    if (timestamp) trackItem.timestamp = new Date(timestamp);
+      {/* Main content */}
+      <div className="lg:pl-64">
+        {/* Top bar */}
+        <div className="sticky top-0 z-40 flex h-16 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
+          <button type="button" className="-m-2.5 p-2.5 text-gray-700 lg:hidden" onClick={() => setSidebarOpen(true)}>
+            <Menu className="h-6 w-6" />
+          </button>
+          <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
+            <div className="flex items-center gap-x-4 lg:gap-x-6">
+              <h1 className="text-xl font-semibold text-gray-900">Admin Dashboard</h1>
+            </div>
 
-    const updated = await booking.save();
-    res.json(updated);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Error updating specific tracking item" });
-  }
-});
+            {/* Right side - Notifications */}
+            <div className="flex flex-1 justify-end items-center gap-x-4">
+              <div className="relative">
+                <button
+                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                  className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <span className="sr-only">View notifications</span>
+                  <Bell className="h-6 w-6" />
+                  {pendingOrdersCount > 0 && (
+                    <span className="absolute top-1 right-1 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-red-500 border-2 border-white rounded-full">
+                      {pendingOrdersCount}
+                    </span>
+                  )}
+                </button>
 
-/** ------------------------
- * 🗑️ Delete specific tracking update
- * ------------------------ */
-router.delete("/:id/tracking/:trackId", authMiddleware, async (req, res) => {
-  try {
-    const booking = await Booking.findById(req.params.id);
-    if (!booking) return res.status(404).json({ message: "Booking not found" });
+                {/* Dropdown Menu */}
+                {isDropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border border-gray-100 z-50 overflow-hidden">
+                    <div className="flex justify-between items-center p-3 border-b border-gray-100 bg-gray-50">
+                      <h3 className="text-sm font-semibold text-gray-900">New Orders / Online Orders</h3>
+                      <button onClick={() => setIsDropdownOpen(false)}>
+                        <X className="h-4 w-4 text-gray-500 hover:text-gray-700" />
+                      </button>
+                    </div>
 
-    booking.trackingHistory.pull(req.params.trackId);
-    const updated = await booking.save();
-    res.json(updated);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Error deleting tracking history item" });
-  }
-});
+                    <div className="max-h-96 overflow-y-auto">
+                      {recentOrders.length === 0 ? (
+                        <div className="p-4 text-center text-sm text-gray-500">
+                          No pending orders.
+                        </div>
+                      ) : (
+                        recentOrders.map((order) => (
+                          <div key={order._id} className="p-3 border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                            <div className="flex justify-between items-start mb-1">
+                              <span className="text-sm font-bold text-gray-900">{order.bookingId}</span>
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                                Pending
+                              </span>
+                            </div>
+                            <div className="text-xs text-gray-600 mb-0.5">
+                              From: <span className="text-gray-900">{order.senderDetails?.name || 'Unknown'}</span>
+                            </div>
+                            <div className="text-xs text-gray-600 mb-1">
+                              To: <span className="text-gray-900">{order.receiverDetails?.name || 'Unknown'}</span>
+                            </div>
+                            <div className="text-xs text-gray-500 mb-1">
+                              Service: {order.serviceType === 'campus-parcel' ? 'Campus-Parcel' : 'Courier'}
+                            </div>
+                            <div className="flex justify-between items-center text-xs text-gray-500">
+                              <span>₹{order.pricing?.totalAmount || 0}</span>
+                              <span>•</span>
+                              <span>{new Date(order.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
 
+                    <Link
+                      to="/bookings"
+                      onClick={() => setIsDropdownOpen(false)}
+                      className="block w-full text-center p-3 text-sm font-medium text-primary-600 hover:bg-primary-50 transition-colors border-t border-gray-100"
+                    >
+                      View All Pending Orders →
+                    </Link>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
 
-/** ------------------------
- * 🗑️ Delete booking (admin only)
- * ------------------------ */
-router.delete("/:id", adminAuth, async (req, res) => {
-  try {
-    const booking = await Booking.findByIdAndDelete(req.params.id);
-    if (!booking) return res.status(404).json({ message: "Booking not found" });
-    res.json({ message: "Booking deleted successfully" });
-  } catch (error) {
-    console.error("Delete booking error:", error);
-    res.status(500).json({ message: "Server error deleting booking" });
-  }
-});
+        {/* Page content */}
+        <main className="py-6">
+          <div className="px-4 sm:px-6 lg:px-8">{children}</div>
+        </main>
+      </div>
 
-/** ------------------------
- * 📧 Manual send booking email
- * ------------------------ */
-router.post("/send-booking-email", async (req, res) => {
-  try {
-    const { email, bookingId } = req.body;
-    if (!email || !bookingId)
-      return res.status(400).json({ message: "email & bookingId required" });
+      {playAudio && (
+        <audio src="/notification.mp3" autoPlay loop style={{ display: 'none' }}></audio>
+      )}
+    </div>
+  )
+}
 
-    const booking = await Booking.findOne({ bookingId });
-    if (!booking) return res.status(404).json({ message: "Booking not found" });
-
-    const html = bookingConfirmationTemplate(booking);
-
-    await sendEmail({
-      to: email,
-      subject: `Booking Confirmation - ${booking.bookingId}`,
-      html,
-      invoicePath: booking.invoicePath,
-      bookingId: booking.bookingId,
-    });
-
-    res.json({ message: "Email sent successfully!" });
-  } catch (error) {
-    console.error("Email route error:", error);
-    res.status(500).json({ message: "Error sending email", error });
-  }
-});
-
-module.exports = router;
+export default Layout
