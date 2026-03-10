@@ -13,7 +13,7 @@ const bookingSchema = new mongoose.Schema(
     serviceType: {
       type: String,
       required: true,
-      enum: ["courier", "shifting", "local", "international", "surface", "air", "express", "premium"],
+      enum: ["courier", "shifting", "local", "international", "surface", "air", "express", "premium", "campus-parcel"],
     },
     senderDetails: {
       name: { type: String, required: true },
@@ -41,13 +41,13 @@ const bookingSchema = new mongoose.Schema(
       volumetricWeight: { type: Number },
       chargeableWeight: { type: Number },
       dimensions: {
-        length: { type: Number, required: false },
-        width: { type: Number, required: false },
-        height: { type: Number, required: false },
+        length: { type: Number, default: 0 },
+        width: { type: Number, default: 0 },
+        height: { type: Number, default: 0 },
       },
       boxQuantity: { type: Number, default: 1 },
-      description: { type: String, required: false },
-      value: { type: Number, required: false },
+      description: { type: String, default: "N/A" },
+      value: { type: Number, default: 0 },
       fragile: { type: Boolean, default: false },
     },
     pickupPincode: String,
@@ -57,14 +57,9 @@ const bookingSchema = new mongoose.Schema(
     deliveryDate: Date,
     status: {
       type: String,
-      enum: ["pending", "confirmed", "picked", "in-transit", "out-for-delivery", "reached", "delivered", "cancelled"],
-      default: "confirmed",
+      enum: ["pending", "confirmed", "picked", "in-transit", "out-for-delivery", "delivered", "cancelled"],
+      default: "pending",
     },
-
-    estimatedDelivery: {
-  type: String, // Can be "3-5 days", "7-10 days", or a date string
-  default: null,
-},
 
     // for admin booking
     trackingId: {
@@ -76,14 +71,14 @@ const bookingSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    
+
     trackingHistory: [
       {
         status: { type: String, default: "No Status" },
         location: { type: String, default: "No Location" },
         description: { type: String, default: "N/A" },
         timestamp: { type: Date, default: Date.now },
-      }, 
+      },
     ],
 
     parcelImage: String,
@@ -103,7 +98,7 @@ const bookingSchema = new mongoose.Schema(
     },
     paymentMethod: {
       type: String,
-      enum: ["COD", "online"], // ✅ Allow both
+      enum: ["COD", "online", "Online"], // ✅ Allow both casings
       required: true,
       default: "COD"
     },
