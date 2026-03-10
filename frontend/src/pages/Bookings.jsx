@@ -11,35 +11,37 @@ const Bookings = () => {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
+  const [serviceFilter, setServiceFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
 
   useEffect(() => {
     fetchBookings()
-  }, [currentPage, statusFilter, searchTerm])
+  }, [currentPage, statusFilter, serviceFilter, searchTerm])
 
- const fetchBookings = async () => {
-  try {
-    setLoading(true)
+  const fetchBookings = async () => {
+    try {
+      setLoading(true)
 
-    const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings`, {
-      params: {
-        page: currentPage,
-        limit: 10,
-        status: statusFilter,
-        search: searchTerm,
-      },
-    })
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings`, {
+        params: {
+          page: currentPage,
+          limit: 10,
+          status: statusFilter,
+          serviceType: serviceFilter,
+          search: searchTerm,
+        },
+      })
 
-    setBookings(response.data.bookings)
-    setTotalPages(response.data.totalPages)
-  } catch (error) {
-    toast.error("Error fetching bookings")
-    console.error("Error fetching bookings:", error)
-  } finally {
-    setLoading(false)
+      setBookings(response.data.bookings)
+      setTotalPages(response.data.totalPages)
+    } catch (error) {
+      toast.error("Error fetching bookings")
+      console.error("Error fetching bookings:", error)
+    } finally {
+      setLoading(false)
+    }
   }
-}
 
 
 
@@ -84,6 +86,21 @@ const Bookings = () => {
               />
             </div>
           </form>
+          <div className="flex items-center gap-2">
+            <Filter className="h-5 w-5 text-gray-400" />
+            <select
+              value={serviceFilter}
+              onChange={(e) => setServiceFilter(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            >
+              <option value="all">All Services</option>
+              <option value="campus-parcel">Campus Parcel</option>
+              <option value="courier">Courier</option>
+              <option value="shifting">Shifting</option>
+              <option value="express">Express</option>
+              <option value="premium">Premium</option>
+            </select>
+          </div>
           <div className="flex items-center gap-2">
             <Filter className="h-5 w-5 text-gray-400" />
             <select
