@@ -151,6 +151,24 @@ router.put("/:id", authMiddleware, async (req, res) => {
 });
 
 /** ------------------------
+ * 🗑️ Delete booking
+ * ------------------------ */
+router.delete("/:id", authMiddleware, async (req, res) => {
+  try {
+    const booking = await Booking.findByIdAndDelete(req.params.id);
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    res.json({ success: true, message: "Booking deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting booking:", error);
+    res.status(500).json({ message: "Server error deleting booking" });
+  }
+});
+
+/** ------------------------
  * 🚚 Add tracking update
  * ------------------------ */
 // ✅ Use this endpoint for tracking history updates
