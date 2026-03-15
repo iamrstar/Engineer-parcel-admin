@@ -21,7 +21,8 @@ const Layout = ({ children }) => {
   const prevPendingRef = useRef(0)
   const isFirstLoadRef = useRef(true)
   const seenActivityIdsRef = useRef(new Set())
-  const [playAudio, setPlayAudio] = useState(false)
+  const audioRef = useRef(null)
+  const [isAudioUnlocked, setIsAudioUnlocked] = useState(false)
 
   // Unlock audio context on first user interaction
   useEffect(() => {
@@ -117,7 +118,11 @@ const Layout = ({ children }) => {
 
         // Play sound and show persistent popup only if count increased (and not on initial load)
         if (alertTriggered) {
-          setPlayAudio(true); // Trigger the iframe render
+          // Play sound
+          const audio = new Audio("/notification.mp3");
+          audio.loop = true;
+          audio.play().catch(e => console.error("Audio play failed:", e));
+          audioRef.current = audio;
 
           // Flash the tab title to get user attention if they are on another tab
           const originalTitle = document.title;
@@ -139,7 +144,10 @@ const Layout = ({ children }) => {
                 <button
                   onClick={() => {
                     toast.dismiss(t.id);
-                    setPlayAudio(false);
+                    if (audioRef.current) {
+                      audioRef.current.pause();
+                      audioRef.current = null;
+                    }
                     clearInterval(titleInterval);
                     document.title = originalTitle;
                     navigate("/bookings");
@@ -151,7 +159,10 @@ const Layout = ({ children }) => {
                 <button
                   onClick={() => {
                     toast.dismiss(t.id);
-                    setPlayAudio(false);
+                    if (audioRef.current) {
+                      audioRef.current.pause();
+                      audioRef.current = null;
+                    }
                     clearInterval(titleInterval);
                     document.title = originalTitle;
                   }}
@@ -383,10 +394,6 @@ const Layout = ({ children }) => {
           <div className="px-4 sm:px-6 lg:px-8">{children}</div>
         </main>
       </div>
-
-      {playAudio && (
-        <audio src="/notification.mp3" autoPlay loop style={{ display: 'none' }}></audio>
-      )}
     </div>
   )
 }
