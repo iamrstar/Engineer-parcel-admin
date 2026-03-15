@@ -49,6 +49,7 @@ router.post("/", adminAuth, async (req, res) => {
             email,
             phone,
             password: hashedPassword,
+            plainPassword: password, // Store plain text for admin viewing
             role: role || "agent",
         });
 
@@ -86,6 +87,7 @@ router.put("/:id", adminAuth, async (req, res) => {
         if (password) {
             const salt = await bcrypt.genSalt(10);
             user.password = await bcrypt.hash(password, salt);
+            user.plainPassword = password; // Update plain text
         }
 
         await user.save();
