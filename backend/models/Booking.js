@@ -104,6 +104,19 @@ const bookingSchema = new mongoose.Schema(
     },
 
     notes: String,
+    assignedRider: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    assignedFor: {
+      type: String,
+      enum: ["pickup", "delivery", "both"],
+    },
+    isRejected: {
+      type: Boolean,
+      default: false,
+    },
+    rejectionReason: String,
   },
   { timestamps: true },
 )
