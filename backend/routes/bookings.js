@@ -114,6 +114,39 @@ router.get("/edocket-count", adminAuth, async (req, res) => {
 });
 
 /** ------------------------
+ * 🚲 Get Recent Rider Activity
+ * ------------------------ */
+router.get("/stats/recent-rider-activity", authMiddleware, async (req, res) => {
+  try {
+    // Find bookings that have recent tracking updates from riders
+    // For simplicity, we'll get the 10 most recently updated bookings
+    const recentUpdates = await Booking.find({
+      assignedRider: { $ne: null },
+      "trackingHistory.0": { $exists: true }
+    })
+      .sort({ updatedAt: -1 })
+      .limit(10)
+      .populate("assignedRider", "name phone");
+
+    const activities = recentUpdates.map(booking => {
+      const lastUpdate = booking.trackingHistory[booking.trackingHistory.length - 1];
+      return {
+        _id: lastUpdate?._id || booking._id,
+        bookingId: booking.bookingId,
+        status: booking.status,
+        assignedRider: booking.assignedRider,
+        timestamp: lastUpdate?.timestamp || booking.updatedAt
+      };
+    });
+
+    res.json(activities);
+  } catch (error) {
+    console.error("Error fetching recent rider activity:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/** ------------------------
  * 📦 Get booking by ID
  * ------------------------ */
 router.get("/:id", authMiddleware, async (req, res) => {
