@@ -60,6 +60,7 @@ const pincodeRoutes = require("./routes/pincodes");
 const couponRoutes = require("./routes/coupons");
 const manualBookingRoute = require('./routes/manualBooking.js');
 const emailRoutes = require("./routes/emailRoutes.js");
+const userRoutes = require("./routes/users");
 
 const intakeRoutes = require("./routes/intake");
 
@@ -69,6 +70,7 @@ app.use("/api/pincodes", pincodeRoutes);
 app.use("/api/coupons", couponRoutes);
 app.use("/api/manual-bookings", manualBookingRoute);
 app.use("/api/email", emailRoutes);
+app.use("/api/users", userRoutes);
 
 app.use("/api/intake", intakeRoutes);
 
