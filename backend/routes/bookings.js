@@ -274,4 +274,71 @@ router.delete("/:id/tracking/:trackingId", authMiddleware, async (req, res) => {
   }
 });
 
+/** ------------------------
+ * 🚲 Assign Rider to Booking
+ * ------------------------ */
+router.put("/:id/assign", adminAuth, async (req, res) => {
+  try {
+    const { riderId, assignedFor } = req.body;
+    const booking = await Booking.findById(req.params.id);
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    booking.assignedRider = riderId || null;
+    booking.assignedFor = assignedFor || "pickup";
+
+    // Add to tracking history if a rider is assigned
+    if (riderId) {
+      const User = require("../models/User");
+      const rider = await User.findById(riderId);
+      if (rider) {
+        booking.trackingHistory.push({
+          status: booking.status,
+          location: "Hub",
+          timestamp: new Date(),
+          description: `Rider ${rider.name} assigned for ${assignedFor || "pickup"}`
+        });
+      }
+    }
+
+    const updated = await booking.save();
+    res.json(updated);
+  } catch (error) {
+    console.error("Error assigning rider:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/** ------------------------
+ * 🔄 Reschedule/Recover Booking
+ * ------------------------ */
+router.put("/:id/reschedule", adminAuth, async (req, res) => {
+  try {
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    booking.status = "pending";
+    booking.isRejected = false;
+    booking.rejectionReason = null;
+    booking.assignedRider = null;
+
+    booking.trackingHistory.push({
+      status: "pending",
+      location: "Hub",
+      timestamp: new Date(),
+      description: "Booking rescheduled by Admin. Ready for new assignment."
+    });
+
+    const updated = await booking.save();
+    res.json(updated);
+  } catch (error) {
+    console.error("Error rescheduling booking:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
 module.exports = router;
