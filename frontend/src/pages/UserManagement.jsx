@@ -15,7 +15,9 @@ import {
     X,
     Shield,
     Phone,
-    Mail
+    Mail,
+    Eye,
+    EyeOff
 } from "lucide-react"
 
 const UserManagement = () => {
@@ -25,6 +27,9 @@ const UserManagement = () => {
     const [roleFilter, setRoleFilter] = useState("all")
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [editingUser, setEditingUser] = useState(null)
+    const [viewingCredentials, setViewingCredentials] = useState(null)
+    const [adminPasswordInput, setAdminPasswordInput] = useState("")
+    const [isPasswordVerified, setIsPasswordVerified] = useState(false)
 
     // Form State
     const [formData, setFormData] = useState({
@@ -153,6 +158,20 @@ const UserManagement = () => {
         }
     }
 
+    const handleViewCredentials = (user) => {
+        setViewingCredentials(user)
+        setAdminPasswordInput("")
+        setIsPasswordVerified(false)
+    }
+
+    const verifyAdminPassword = () => {
+        if (adminPasswordInput === "engineers123") {
+            setIsPasswordVerified(true)
+        } else {
+            toast.error("Incorrect Admin Password")
+        }
+    }
+
     const filteredUsers = users.filter(user =>
         user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -273,8 +292,8 @@ const UserManagement = () => {
                                             <button
                                                 onClick={() => toggleStatus(user)}
                                                 className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-colors ${user.isActive
-                                                        ? "bg-green-50 text-green-700 hover:bg-green-100"
-                                                        : "bg-red-50 text-red-700 hover:bg-red-100"
+                                                    ? "bg-green-50 text-green-700 hover:bg-green-100"
+                                                    : "bg-red-50 text-red-700 hover:bg-red-100"
                                                     }`}
                                             >
                                                 {user.isActive ? <UserCheck className="h-3 w-3" /> : <UserX className="h-3 w-3" />}
@@ -283,6 +302,13 @@ const UserManagement = () => {
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                             <div className="flex items-center gap-3">
+                                                <button
+                                                    onClick={() => handleViewCredentials(user)}
+                                                    className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all"
+                                                    title="View Credentials"
+                                                >
+                                                    <Eye className="h-4 w-4" />
+                                                </button>
                                                 <button
                                                     onClick={() => handleOpenModal(user)}
                                                     className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-all"
@@ -307,7 +333,80 @@ const UserManagement = () => {
                 )}
             </div>
 
-            {/* Add/Edit Modal */}
+            {/* View Credentials Modal */}
+            {viewingCredentials && (
+                <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setViewingCredentials(null)} />
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-sm relative z-10 overflow-hidden p-6 text-center">
+                        {!isPasswordVerified ? (
+                            <div className="space-y-4">
+                                <div className="h-16 w-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <Shield className="h-8 w-8" />
+                                </div>
+                                <h3 className="text-xl font-bold text-gray-900">Security Check</h3>
+                                <p className="text-gray-500 text-sm">Please enter the master admin password to view user credentials.</p>
+                                <input
+                                    type="password"
+                                    value={adminPasswordInput}
+                                    onChange={(e) => setAdminPasswordInput(e.target.value)}
+                                    placeholder="Enter Admin Password"
+                                    className="w-full px-4 py-3 bg-gray-50 border-2 border-transparent focus:border-red-500 rounded-xl outline-none transition-all text-center"
+                                    onKeyDown={(e) => e.key === 'Enter' && verifyAdminPassword()}
+                                    autoFocus
+                                />
+                                <div className="flex gap-3 mt-6">
+                                    <button
+                                        onClick={() => setViewingCredentials(null)}
+                                        className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-all"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={verifyAdminPassword}
+                                        className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white font-bold rounded-xl shadow-lg shadow-red-100 transition-all"
+                                    >
+                                        Verify
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="space-y-6">
+                                <div className="h-16 w-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <Eye className="h-8 w-8" />
+                                </div>
+                                <h3 className="text-xl font-bold text-gray-900">User Credentials</h3>
+                                <div className="bg-gray-50 rounded-2xl p-4 space-y-4 text-left border border-gray-100">
+                                    <div>
+                                        <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Full Name</label>
+                                        <p className="text-gray-900 font-semibold">{viewingCredentials.name}</p>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Username</label>
+                                            <p className="text-primary-600 font-bold">@{viewingCredentials.username}</p>
+                                        </div>
+                                        <div>
+                                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Password</label>
+                                            <p className="text-red-600 font-bold font-mono">
+                                                {viewingCredentials.plainPassword || "********"}
+                                            </p>
+                                            {!viewingCredentials.plainPassword && (
+                                                <p className="text-[10px] text-gray-400 italic mt-1">Hashed in database. Please reset password to see here.</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setViewingCredentials(null)}
+                                    className="w-full py-4 bg-gray-900 hover:bg-black text-white font-bold rounded-2xl transition-all shadow-xl"
+                                >
+                                    Done
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
             {isModalOpen && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
                     <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
