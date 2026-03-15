@@ -11,7 +11,9 @@ import {
   User,
   MapPin,
   CreditCard,
-  Truck
+  Truck,
+  Bike,
+  RefreshCw
 } from "lucide-react"
 
 
@@ -24,10 +26,54 @@ const BookingDetail = () => {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [editMode, setEditMode] = useState(false)
+  const [riders, setRiders] = useState([])
 
   useEffect(() => {
     if (id) fetchBooking()
+    fetchRiders()
   }, [id])
+
+  const fetchRiders = async () => {
+    try {
+      const t = localStorage.getItem("adminToken") || localStorage.getItem("token")
+      // Fetch riders, agents, and staff who can be assigned tasks
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/users?roles=rider,agent,staff`, {
+        headers: { Authorization: `Bearer ${t}` }
+      })
+      setRiders(res.data.filter(r => r.isActive))
+    } catch (e) {
+      console.error("Failed to fetch riders", e)
+    }
+  }
+
+  const handleAssignRider = async (riderId, assignedFor) => {
+    try {
+      const t = localStorage.getItem("adminToken") || localStorage.getItem("token")
+      const res = await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/${id}/assign`, {
+        riderId: riderId || null,
+        assignedFor: assignedFor || "pickup"
+      }, { headers: { Authorization: `Bearer ${t}` } })
+      setBooking(res.data)
+      toast.success(riderId ? "Rider assigned successfully" : "Rider unassigned")
+    } catch (error) {
+      toast.error("Failed to assign rider")
+      console.error(error)
+    }
+  }
+
+  const handleReschedule = async () => {
+    try {
+      const t = localStorage.getItem("adminToken") || localStorage.getItem("token")
+      const res = await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/${id}/reschedule`, {}, {
+        headers: { Authorization: `Bearer ${t}` }
+      })
+      setBooking(res.data)
+      toast.success("Order rescheduled successfully. You can now reassign a rider.")
+    } catch (error) {
+      toast.error("Failed to reschedule order")
+      console.error(error)
+    }
+  }
 
   const fetchBooking = async () => {
     try {
@@ -168,6 +214,91 @@ const BookingDetail = () => {
               </button>
             </>
           )}
+        </div>
+      </div>
+
+      {/* Rider Assignment Section */}
+      <div className="mb-4 sm:mb-6 bg-gradient-to-r from-orange-50 to-amber-50 rounded-lg shadow p-4 sm:p-6 border border-orange-200">
+        <div className="flex items-center mb-3">
+          <Bike className="h-5 w-5 text-orange-500 mr-2" />
+          <h3 className="text-base sm:text-lg font-medium text-gray-900">Rider Assignment</h3>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+          {booking.status === "pending" ? (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Assign Rider</label>
+                <select
+                  value={booking.assignedRider?._id || booking.assignedRider || ""}
+                  onChange={(e) => handleAssignRider(e.target.value, booking.assignedFor || "pickup")}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white"
+                >
+                  <option value="">Unassigned</option>
+                  {riders.map(r => (
+                    <option key={r._id} value={r._id}>{r.name} ({r.phone})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Assigned For</label>
+                <select
+                  value={booking.assignedFor || "pickup"}
+                  onChange={(e) => handleAssignRider(booking.assignedRider?._id || booking.assignedRider, e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white"
+                >
+                  <option value="pickup">Pickup</option>
+                  <option value="delivery">Delivery</option>
+                  <option value="both">Both (Pickup & Delivery)</option>
+                </select>
+              </div>
+            </>
+          ) : (
+            <div className="sm:col-span-2 flex items-center">
+              <div className={`${booking.status === 'cancelled' ? 'bg-red-50 border-red-200' : 'bg-orange-100/50 border-orange-200'} border rounded-lg px-4 py-3 w-full`}>
+                <p className={`text-sm ${booking.status === 'cancelled' ? 'text-red-800' : 'text-orange-800'} flex items-center`}>
+                  <span className="font-bold mr-2">Order Status:</span>
+                  <span className="capitalize">{booking.status}</span>
+                </p>
+                {booking.status === 'cancelled' && booking.rejectionReason && (
+                  <p className="mt-2 p-2 bg-white/50 border border-red-100 rounded text-sm text-red-700 italic">
+                    <span className="font-bold not-italic">REASON:</span> {booking.rejectionReason}
+                  </p>
+                )}
+                <p className={`text-xs ${booking.status === 'cancelled' ? 'text-red-600' : 'text-orange-600'} mt-1`}>
+                  {booking.status === 'cancelled'
+                    ? "Order was rejected. Click 'Reschedule Order' if you want to make it assignable again."
+                    : `Rider assignment is locked for ${booking.status} orders.`}
+                </p>
+                {booking.status === 'cancelled' && (
+                  <button
+                    onClick={handleReschedule}
+                    className="mt-3 px-4 py-1.5 bg-green-600 text-white text-xs font-bold rounded-md hover:bg-green-700 shadow-sm flex items-center gap-1 w-fit"
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                    Reschedule Order
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              {booking.status === "pending" ? "Current Assignment" : "Assigned Rider"}
+            </label>
+            <div className="px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg h-[42px] flex items-center">
+              {booking.assignedRider ? (
+                <span className="inline-flex items-center gap-1.5 overflow-hidden">
+                  <span className="w-2 h-2 rounded-full bg-green-500 shrink-0"></span>
+                  <span className="text-green-700 font-bold truncate">
+                    {typeof booking.assignedRider === 'object' ? booking.assignedRider.name : 'Rider Assigned'}
+                  </span>
+                  <span className="text-gray-500 text-xs shrink-0">— {booking.assignedFor || 'pickup'}</span>
+                </span>
+              ) : (
+                <span className="text-gray-400">No rider assigned</span>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
