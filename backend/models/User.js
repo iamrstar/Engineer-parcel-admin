@@ -35,6 +35,9 @@ const userSchema = new mongoose.Schema(
             type: Boolean,
             default: true,
         },
+        plainPassword: {
+            type: String,
+        },
     },
     { timestamps: true, collection: "intake_users" }
 );
