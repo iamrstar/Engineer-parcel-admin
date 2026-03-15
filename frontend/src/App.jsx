@@ -1,55 +1,50 @@
-"use client";
-import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "./contexts/AuthContext";
-import { Toaster } from "react-hot-toast"; // ✅ Import Toaster
-import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
-import Bookings from "./pages/Bookings";
-import BookingDetail from "./pages/BookingDetail";
-import Pincodes from "./pages/Pincodes";
-import Coupons from "./pages/Coupons";
-import SalesReport from "./pages/SalesReport";
-import Layout from "./components/Layout";
-import ManualBooking from "./pages/manual-booking";
-import EDocket from "./pages/EDocket";
+"use client"
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom"
+import { AuthProvider, useAuth } from "./contexts/AuthContext"
+import Login from "./pages/Login"
+import Dashboard from "./pages/Dashboard"
+import Bookings from "./pages/Bookings"
+import BookingDetail from "./pages/BookingDetail"
+import Pincodes from "./pages/Pincodes"
+import Coupons from "./pages/Coupons"
+import Layout from "./components/Layout"
+import ManualBooking from "./pages/manual-booking"
+import EDocket from "./pages/EDocket"
+import SalesReport from "./pages/SalesReport"
+import UserManagement from "./pages/UserManagement"
+import RiderDashboard from "./pages/RiderDashboard"
 
 function ProtectedRoute({ children }) {
-  const { isAuthenticated } = useAuth();
-  return isAuthenticated ? children : <Navigate to="/login" />;
+  const { isAuthenticated } = useAuth()
+  return isAuthenticated ? children : <Navigate to="/login" />
+}
+
+function HomeRedirect() {
+  const { user } = useAuth()
+  if (user?.role === "rider") {
+    return <Navigate to="/rider-dashboard" />
+  }
+  return (
+    <Layout>
+      <Dashboard />
+    </Layout>
+  )
 }
 
 function App() {
   return (
     <AuthProvider>
       <Router>
-        {/* ✅ Toast container (visible globally) */}
-        <Toaster position="top-right" reverseOrder={false} />
-
         <Routes>
           <Route path="/login" element={<Login />} />
-
           <Route
             path="/"
             element={
               <ProtectedRoute>
-                <Layout>
-                  <Dashboard />
-                </Layout>
+                <HomeRedirect />
               </ProtectedRoute>
             }
           />
-
-          <Route
-            path="/e-docket"
-            element={
-              <ProtectedRoute>
-                <Layout>
-                  <EDocket />
-                </Layout>
-              </ProtectedRoute>
-            }
-          />
-
           <Route
             path="/bookings"
             element={
@@ -60,7 +55,6 @@ function App() {
               </ProtectedRoute>
             }
           />
-
           <Route
             path="/manual-booking"
             element={
@@ -82,7 +76,6 @@ function App() {
               </ProtectedRoute>
             }
           />
-
           <Route
             path="/pincodes"
             element={
@@ -93,7 +86,6 @@ function App() {
               </ProtectedRoute>
             }
           />
-
           <Route
             path="/coupons"
             element={
@@ -104,7 +96,16 @@ function App() {
               </ProtectedRoute>
             }
           />
-
+          <Route
+            path="/e-docket"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <EDocket />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
           <Route
             path="/sales-report"
             element={
@@ -115,10 +116,28 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/user-management"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <UserManagement />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/rider-dashboard"
+            element={
+              <ProtectedRoute>
+                <RiderDashboard />
+              </ProtectedRoute>
+            }
+          />
         </Routes>
       </Router>
     </AuthProvider>
-  );
+  )
 }
 
-export default App;
+export default App
