@@ -5,7 +5,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useAuth } from "../contexts/AuthContext"
 import axios from "axios"
 import toast from "react-hot-toast"
-import { Package, LayoutDashboard, FileText, MapPin, Ticket, LogOut, Menu, X, BarChart, Bell } from "lucide-react"
+import { Package, LayoutDashboard, FileText, MapPin, Ticket, LogOut, Menu, X, BarChart, Bell, Users } from "lucide-react"
 
 const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -20,6 +20,7 @@ const Layout = ({ children }) => {
   const prevCountRef = useRef(0)
   const prevPendingRef = useRef(0)
   const isFirstLoadRef = useRef(true)
+  const seenActivityIdsRef = useRef(new Set())
   const [playAudio, setPlayAudio] = useState(false)
 
   // Unlock audio context on first user interaction
@@ -66,6 +67,12 @@ const Layout = ({ children }) => {
         })
         const newPending = resStats.data.pendingBookings || 0
 
+        // Fetch Recent Rider Activity (Status Updates)
+        const resActivity = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/stats/recent-rider-activity`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        const recentActivity = resActivity.data || []
+
         // Fetch Recent Pending Orders List for Dropdown
         const resRecent = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/stats/pending-recent`, {
           headers: { Authorization: `Bearer ${token}` }
@@ -76,15 +83,34 @@ const Layout = ({ children }) => {
         let alertMessage = "";
 
         if (!isFirstLoadRef.current) {
+          // Check for new intake bookings
           if (newCount > prevCountRef.current) {
             alertTriggered = true;
             alertMessage = "New E-Docket intake bookings have arrived.";
           }
+          // Check for new online orders
           if (newPending > prevPendingRef.current) {
             alertTriggered = true;
-            // If both triggered, we can just say "New Orders have arrived"
             alertMessage = alertTriggered && alertMessage ? "New E-Dockets and Online Orders arrived." : "New Online Orders have arrived.";
           }
+
+          // Check for new Rider Actions (Picked/Delivered)
+          recentActivity.forEach(activity => {
+            if (!seenActivityIdsRef.current.has(activity._id)) {
+              seenActivityIdsRef.current.add(activity._id);
+              alertTriggered = true;
+              const riderName = activity.assignedRider?.name || "A rider";
+              alertMessage = alertTriggered && alertMessage
+                ? `${alertMessage} Also, ${riderName} ${activity.status} order ${activity.bookingId}.`
+                : `${riderName} has ${activity.status} order ${activity.bookingId}.`;
+            }
+          });
+        }
+
+        // Keep track of IDs to avoid memory leaks if it gets too big (optional)
+        if (seenActivityIdsRef.current.size > 100) {
+          const idsArray = Array.from(seenActivityIdsRef.current);
+          seenActivityIdsRef.current = new Set(idsArray.slice(-50));
         }
 
         isFirstLoadRef.current = false;
@@ -109,20 +135,34 @@ const Layout = ({ children }) => {
               <p className="text-gray-800">{alertMessage}</p>
               {newCount > prevCountRef.current && <p className="text-sm font-semibold text-gray-600">Pending E-Dockets: {newCount}</p>}
               {newPending > prevPendingRef.current && <p className="text-sm font-semibold text-gray-600 mb-2">Pending Online Orders: {newPending}</p>}
-              <button
-                onClick={() => {
-                  toast.dismiss(t.id);
-                  setPlayAudio(false);
-                  clearInterval(titleInterval);
-                  document.title = originalTitle;
-                }}
-                className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium transition-colors"
-              >
-                Dismiss Alert
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    toast.dismiss(t.id);
+                    setPlayAudio(false);
+                    clearInterval(titleInterval);
+                    document.title = originalTitle;
+                    navigate("/bookings");
+                  }}
+                  className="flex-1 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 font-medium transition-colors text-sm"
+                >
+                  View Orders
+                </button>
+                <button
+                  onClick={() => {
+                    toast.dismiss(t.id);
+                    setPlayAudio(false);
+                    clearInterval(titleInterval);
+                    document.title = originalTitle;
+                  }}
+                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium transition-colors text-sm"
+                >
+                  Dismiss
+                </button>
+              </div>
             </div>
           ), {
-            duration: Infinity, // Forces user interaction to close
+            duration: Infinity,
             position: 'top-center',
             style: { border: '2px solid #ef4444', padding: '16px', backgroundColor: '#fef2f2' },
           });
@@ -149,6 +189,7 @@ const Layout = ({ children }) => {
     { name: "Pincodes", href: "/pincodes", icon: MapPin },
     { name: "Coupons", href: "/coupons", icon: Ticket },
     { name: "Create Order", href: "/manual-booking", icon: Ticket },
+    { name: "User Management", href: "/user-management", icon: Users },
   ]
 
   const handleLogout = () => {
@@ -294,7 +335,11 @@ const Layout = ({ children }) => {
                         </div>
                       ) : (
                         recentOrders.map((order) => (
-                          <div key={order._id} className="p-3 border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                          <div
+                            key={order._id}
+                            onClick={() => { setIsDropdownOpen(false); navigate(`/bookings/${order._id}`) }}
+                            className="p-3 border-b border-gray-50 hover:bg-primary-50 transition-colors cursor-pointer"
+                          >
                             <div className="flex justify-between items-start mb-1">
                               <span className="text-sm font-bold text-gray-900">{order.bookingId}</span>
                               <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
@@ -312,8 +357,7 @@ const Layout = ({ children }) => {
                             </div>
                             <div className="flex justify-between items-center text-xs text-gray-500">
                               <span>₹{order.pricing?.totalAmount || 0}</span>
-                              <span>•</span>
-                              <span>{new Date(order.createdAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                              <span className="text-primary-600 font-medium">View →</span>
                             </div>
                           </div>
                         ))
