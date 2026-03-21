@@ -24,20 +24,23 @@ if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
 // -----------------------------------------
 router.get("/", adminAuth, async (req, res) => {
     try {
-        const { date } = req.query;
+        const { date, vendorNotAssigned } = req.query;
         let query = {};
 
         if (date) {
             const start = new Date(date);
             start.setHours(0, 0, 0, 0);
-            // Be inclusive of timezone differences
-            const safeStart = new Date(start);
-            safeStart.setDate(safeStart.getDate() - 1);
-
             const end = new Date(date);
             end.setHours(23, 59, 59, 999);
+            query.createdAt = { $gte: start, $lte: end };
+        }
 
-            query.createdAt = { $gte: safeStart, $lte: end };
+        if (vendorNotAssigned === "true") {
+            query.$or = [
+                { vendorName: { $exists: false } },
+                { vendorName: "" },
+                { vendorName: null }
+            ];
         }
 
         const bookings = await IntakeBooking.find(query).sort({ createdAt: -1 });
@@ -54,7 +57,7 @@ router.get("/", adminAuth, async (req, res) => {
 // -----------------------------------------
 router.post("/verify", adminAuth, async (req, res) => {
     try {
-        const { bookingId, pricing, senderDetails, receiverDetails, packageDetails, serviceType, premiumItemType, trackingId } = req.body;
+        const { bookingId, pricing, senderDetails, receiverDetails, packageDetails, serviceType, premiumItemType, trackingId, vendorName, vendorTrackingId } = req.body;
 
         if (!bookingId || !pricing) {
             return res.status(400).json({ message: "Missing required fields" });
@@ -71,6 +74,8 @@ router.post("/verify", adminAuth, async (req, res) => {
         if (serviceType) booking.serviceType = serviceType;
         if (premiumItemType) booking.premiumItemType = premiumItemType;
         if (trackingId) booking.trackingId = trackingId;
+        if (vendorName) booking.vendorName = vendorName;
+        if (vendorTrackingId) booking.vendorTrackingId = vendorTrackingId;
 
         booking.pricing = pricing;
         booking.status = "Verified - Payment Pending";
@@ -96,6 +101,10 @@ router.post("/verify", adminAuth, async (req, res) => {
                         trackingId: booking.trackingId
                     }
                 });
+
+                if (paymentLink) {
+                    booking.paymentLink = paymentLink.short_url;
+                }
 
                 if (paymentLink && booking.senderDetails?.email) {
                     const amount = pricing.totalAmount || 0;
@@ -239,6 +248,7 @@ router.post("/seed", adminAuth, async (req, res) => {
                 paymentStatus: doc.paymentStatus,
                 paymentMethod: doc.paymentMethod,
                 notes: doc.notes || "Imported from Agent Intake",
+                currentLocation: doc.senderDetails.city || "Hub",
                 trackingHistory: [{
                     status: "confirmed",
                     location: doc.senderDetails.city || "Hub",
@@ -355,8 +365,50 @@ router.get("/receipt", adminAuth, async (req, res) => {
         const { id } = req.query;
         if (!id) return res.status(400).json({ message: "Tracking ID is required" });
 
-        const booking = await IntakeBooking.findOne({ trackingId: id });
-        if (!booking) return res.status(404).json({ message: "Intake Booking not found" });
+        // Search in IntakeBooking first, then Booking (checking both trackingId and bookingId fields)
+        let booking = await IntakeBooking.findOne({
+            $or: [{ trackingId: id }, { bookingId: id }]
+        });
+        if (!booking) {
+            booking = await Booking.findOne({
+                $or: [{ trackingId: id }, { bookingId: id }]
+            });
+        }
+
+        if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+        // Ensure paymentLink exists for QR code if it's pending (case-insensitive check)
+        const status = (booking.status || "").toLowerCase();
+        if (!booking.paymentLink && (status.includes("pending") || status.includes("verified"))) {
+            const amount = booking.pricing?.totalAmount || 0;
+            if (amount > 0 && razorpay) {
+                try {
+                    const idToUse = booking.trackingId || booking.bookingId;
+                    const paymentLink = await razorpay.paymentLink.create({
+                        amount: Math.round(amount * 100), // paise
+                        currency: "INR",
+                        accept_partial: false,
+                        description: `Payment for Shipment ${idToUse}`,
+                        customer: {
+                            name: booking.senderDetails?.name || "Customer",
+                            email: booking.senderDetails?.email || "info@engineersparcel.com",
+                            contact: booking.senderDetails?.phone
+                        },
+                        notify: { sms: false, email: false }, // Don't spam them again if just downloading receipt
+                        reminder_enable: true,
+                        notes: {
+                            bookingId: idToUse
+                        }
+                    });
+                    if (paymentLink) {
+                        booking.paymentLink = paymentLink.short_url;
+                        await booking.save();
+                    }
+                } catch (linkErr) {
+                    console.error("Delayed Link Gen Error:", linkErr);
+                }
+            }
+        }
 
         const pdfBuffer = await generateReceiptPDF(booking);
 
