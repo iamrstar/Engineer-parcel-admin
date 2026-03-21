@@ -2,6 +2,17 @@ const express = require("express");
 const Booking = require("../models/Booking");
 const authMiddleware = require("../middleware/auth");
 const adminAuth = require("../middleware/adminAuth");
+const Razorpay = require("razorpay");
+const { generateReceiptPDF } = require("../utils/pdfReceipt");
+
+// Initialize Razorpay
+let razorpay;
+if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
+  razorpay = new Razorpay({
+    key_id: process.env.RAZORPAY_KEY_ID,
+    key_secret: process.env.RAZORPAY_KEY_SECRET,
+  });
+}
 
 const router = express.Router();
 
@@ -66,6 +77,14 @@ router.get("/", authMiddleware, async (req, res) => {
 
     if (serviceType && serviceType !== "all") {
       query.serviceType = serviceType;
+    }
+
+    if (req.query.vendorNotAssigned === "true") {
+      query.$or = [
+        { vendorName: { $exists: false } },
+        { vendorName: "" },
+        { vendorName: null }
+      ];
     }
 
     if (search) {
@@ -146,9 +165,6 @@ router.get("/stats/recent-rider-activity", authMiddleware, async (req, res) => {
   }
 });
 
-/** ------------------------
- * 📦 Get booking by ID
- * ------------------------ */
 router.get("/:id", authMiddleware, async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id);
@@ -159,6 +175,58 @@ router.get("/:id", authMiddleware, async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error" });
+  }
+});
+
+/** ------------------------
+ * 📄 Download Receipt PDF
+ * ------------------------ */
+router.get("/:id/receipt", authMiddleware, async (req, res) => {
+  try {
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    // On-the-fly Razorpay Link generation if missing but amount > 0
+    if (booking.pricing?.totalAmount > 0 && !booking.paymentLink && razorpay) {
+      try {
+        const paymentLink = await razorpay.paymentLink.create({
+          amount: booking.pricing.totalAmount * 100,
+          currency: "INR",
+          accept_partial: false,
+          description: `Payment for Shipment ${booking.bookingId}`,
+          customer: {
+            name: booking.senderDetails.name,
+            email: booking.senderDetails.email || "info@engineersparcel.com",
+            contact: booking.senderDetails.phone
+          },
+          notify: { sms: false, email: false }, // Don't spam during download
+          notes: { bookingId: booking.bookingId }
+        });
+
+        if (paymentLink) {
+          booking.paymentLink = paymentLink.short_url;
+          await booking.save();
+        }
+      } catch (razorpayErr) {
+        console.error("Razorpay Link Error (Download):", razorpayErr);
+      }
+    }
+
+    // Generate PDF
+    const pdfBuffer = await generateReceiptPDF(booking);
+
+    res.set({
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename=Receipt-${booking.bookingId || 'Booking'}.pdf`,
+      "Content-Length": pdfBuffer.length,
+    });
+
+    res.send(pdfBuffer);
+  } catch (error) {
+    console.error("Receipt Download Error:", error);
+    res.status(500).json({ message: "Failed to generate receipt" });
   }
 });
 
@@ -227,6 +295,9 @@ router.put("/:id/tracking", authMiddleware, async (req, res) => {
 
     booking.trackingHistory.push(newEntry);
     booking.status = status || booking.status;
+    if (location) {
+      booking.currentLocation = location;
+    }
 
     const updated = await booking.save();
 
@@ -261,9 +332,10 @@ router.put("/:id/tracking/:trackingId", authMiddleware, async (req, res) => {
     if (description !== undefined) booking.trackingHistory[trackIndex].description = description;
     if (timestamp) booking.trackingHistory[trackIndex].timestamp = new Date(timestamp);
 
-    // Update top-level status if we edited the most recent tracking item
-    if (trackIndex === booking.trackingHistory.length - 1 && status) {
-      booking.status = status;
+    // Update top-level status/location if we edited the most recent tracking item
+    if (trackIndex === booking.trackingHistory.length - 1) {
+      if (status) booking.status = status;
+      if (location) booking.currentLocation = location;
     }
 
     const updated = await booking.save();
