@@ -146,6 +146,46 @@ const BookingDetail = () => {
     }
   }
 
+  const handleDimensionChange = (index, field, value) => {
+    setBooking((prev) => {
+      const newDimensions = [...(prev.packageDetails?.dimensions || [])];
+      if (newDimensions[index]) {
+        newDimensions[index] = { ...newDimensions[index], [field]: Number(value) || 0 };
+      }
+      return {
+        ...prev,
+        packageDetails: {
+          ...prev.packageDetails,
+          dimensions: newDimensions,
+        },
+      };
+    });
+  };
+
+  const handleBoxQuantityChange = (qty) => {
+    const newQty = parseInt(qty) || 1;
+    setBooking((prev) => {
+      const newDimensions = [...(prev.packageDetails?.dimensions || [])];
+
+      if (newQty > newDimensions.length) {
+        for (let i = newDimensions.length; i < newQty; i++) {
+          newDimensions.push({ length: 0, width: 0, height: 0 });
+        }
+      } else if (newQty < newDimensions.length) {
+        newDimensions.splice(newQty);
+      }
+
+      return {
+        ...prev,
+        packageDetails: {
+          ...prev.packageDetails,
+          boxQuantity: newQty,
+          dimensions: newDimensions,
+        },
+      };
+    });
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -630,30 +670,88 @@ const BookingDetail = () => {
               </div>
             </div>
             <div className="border-t pt-4 mt-2">
-              <label className="block text-sm font-bold text-gray-700 mb-2">Dimensions ({booking.packageDetails?.boxQuantity || 1} Box{(booking.packageDetails?.boxQuantity || 1) > 1 ? 'es' : ''})</label>
-              <div className="grid grid-cols-1 gap-2">
-                {booking.packageDetails?.dimensions && Array.isArray(booking.packageDetails.dimensions) ? (
-                  booking.packageDetails.dimensions.map((dim, idx) => (
-                    <div key={idx} className="flex items-center gap-2 text-sm bg-gray-50 p-2 rounded border border-gray-100">
-                      <span className="w-5 h-5 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center text-[10px] font-bold">{idx + 1}</span>
-                      <span className="font-semibold">{dim.length || 0}</span>
-                      <span className="text-gray-400">×</span>
-                      <span className="font-semibold">{dim.width || 0}</span>
-                      <span className="text-gray-400">×</span>
-                      <span className="font-semibold">{dim.height || 0}</span>
-                      <span className="text-gray-400 ml-1">cm</span>
+              <div className="flex justify-between items-center mb-2">
+                <label className="block text-sm font-bold text-gray-700">Dimensions</label>
+                {editMode ? (
+                  <div className="flex items-center gap-2">
+                    <label className="text-[10px] uppercase font-bold text-gray-400">Box Quantity:</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="50"
+                      value={booking.packageDetails?.boxQuantity || 1}
+                      onChange={(e) => handleBoxQuantityChange(e.target.value)}
+                      className="w-16 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-primary-500 outline-none font-bold text-center"
+                    />
+                  </div>
+                ) : (
+                  <span className="text-[10px] bg-gray-100 px-2 py-0.5 rounded-full font-bold text-gray-500 border border-gray-200 uppercase">
+                    {booking.packageDetails?.boxQuantity || 1} Box{(booking.packageDetails?.boxQuantity || 1) > 1 ? 'es' : ''}
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-1 gap-3">
+                {editMode ? (
+                  (booking.packageDetails?.dimensions || []).map((dim, idx) => (
+                    <div key={idx} className="bg-gray-50 p-3 rounded-lg border border-gray-200 shadow-sm relative pt-6">
+                      <span className="absolute top-2 left-2 bg-orange-100 text-orange-600 rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-bold border border-orange-200">
+                        {idx + 1}
+                      </span>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <label className="block text-[10px] uppercase text-gray-400 font-bold mb-1">Length</label>
+                          <input
+                            type="number"
+                            value={dim.length || 0}
+                            onChange={(e) => handleDimensionChange(idx, "length", e.target.value)}
+                            className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-primary-500 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] uppercase text-gray-400 font-bold mb-1">Width</label>
+                          <input
+                            type="number"
+                            value={dim.width || 0}
+                            onChange={(e) => handleDimensionChange(idx, "width", e.target.value)}
+                            className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-primary-500 outline-none"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] uppercase text-gray-400 font-bold mb-1">Height</label>
+                          <input
+                            type="number"
+                            value={dim.height || 0}
+                            onChange={(e) => handleDimensionChange(idx, "height", e.target.value)}
+                            className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-primary-500 outline-none"
+                          />
+                        </div>
+                      </div>
                     </div>
                   ))
                 ) : (
-                  <div className="text-sm bg-gray-50 p-2 rounded border border-gray-100 flex items-center gap-2">
-                    <span className="w-5 h-5 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center text-[10px] font-bold">1</span>
-                    <span className="font-semibold">{booking.packageDetails?.dimensions?.length || 0}</span>
-                    <span className="text-gray-400">×</span>
-                    <span className="font-semibold">{booking.packageDetails?.dimensions?.width || 0}</span>
-                    <span className="text-gray-400">×</span>
-                    <span className="font-semibold">{booking.packageDetails?.dimensions?.height || 0}</span>
-                    <span className="text-gray-400 ml-1">cm</span>
-                  </div>
+                  booking.packageDetails?.dimensions && Array.isArray(booking.packageDetails.dimensions) ? (
+                    booking.packageDetails.dimensions.map((dim, idx) => (
+                      <div key={idx} className="flex items-center gap-2 text-sm bg-gray-50 p-2 rounded border border-gray-100">
+                        <span className="w-5 h-5 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center text-[10px] font-bold">{idx + 1}</span>
+                        <span className="font-semibold">{dim.length || 0}</span>
+                        <span className="text-gray-400">×</span>
+                        <span className="font-semibold">{dim.width || 0}</span>
+                        <span className="text-gray-400">×</span>
+                        <span className="font-semibold">{dim.height || 0}</span>
+                        <span className="text-gray-400 ml-1">cm</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-sm bg-gray-50 p-2 rounded border border-gray-100 flex items-center gap-2">
+                      <span className="w-5 h-5 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center text-[10px] font-bold">1</span>
+                      <span className="font-semibold">{booking.packageDetails?.dimensions?.length || 0}</span>
+                      <span className="text-gray-400">×</span>
+                      <span className="font-semibold">{booking.packageDetails?.dimensions?.width || 0}</span>
+                      <span className="text-gray-400">×</span>
+                      <span className="font-semibold">{booking.packageDetails?.dimensions?.height || 0}</span>
+                      <span className="text-gray-400 ml-1">cm</span>
+                    </div>
+                  )
                 )}
               </div>
             </div>
