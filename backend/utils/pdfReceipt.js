@@ -1,6 +1,7 @@
 const { PDFDocument, rgb, StandardFonts } = require("pdf-lib");
 const path = require("path");
 const fs = require("fs");
+const QRCode = require("qrcode");
 
 /**
  * Professional E-Receipt PDF Generator for Engineers Parcel.
@@ -86,7 +87,8 @@ async function generateReceiptPDF(booking) {
         const r2H = 25;
         const r2Y = y - r2H;
         drawCellText('BOOKING RECEIPT', startX, y, midX - startX, r2H, fontBold, 16, 'center');
-        drawCellText(`Tracking ID: ${booking.trackingId || 'Pending'}`, midX, y, endX - midX, r2H, fontBold, 10, 'left');
+        const idToDisplay = booking.trackingId || booking.bookingId || 'Pending';
+        drawCellText(`Tracking ID: ${idToDisplay}`, midX, y, endX - midX, r2H, fontBold, 10, 'left');
         drawVLine(midX, y, r2Y);
         drawHLine(r2Y);
         y = r2Y;
@@ -95,7 +97,7 @@ async function generateReceiptPDF(booking) {
         const r3H = 20;
         const r3Y = y - r3H;
         const bDate = booking.createdAt ? new Date(booking.createdAt).toLocaleDateString('en-IN') : new Date().toLocaleDateString('en-IN');
-        drawCellText(`Receipt No. ${booking.trackingId || ''}`, startX, y, midX - startX, r3H, fontBold, 9);
+        drawCellText(`Receipt No. ${idToDisplay}`, startX, y, midX - startX, r3H, fontBold, 9);
         drawCellText(`Booking Date: ${bDate}`, midX, y, endX - midX, r3H, fontBold, 9);
         drawVLine(midX, y, r3Y);
         drawHLine(r3Y);
@@ -174,6 +176,35 @@ async function generateReceiptPDF(booking) {
         drawHLine(r7Y);
         y = r7Y;
 
+        // SUBTOTAL ROW
+        const rSubH = 15;
+        const rSubY = y - rSubH;
+        drawCellText('Subtotal:', c4X, y, c5X - c4X, rSubH, fontBold, 8, 'center');
+        const subtotal = (booking.pricing?.basePrice || 0) + (booking.pricing?.additionalCharges || booking.pricing?.packagingCharge || 0);
+        drawCellText(`Rs.${subtotal}`, c5X, y, endX - c5X, rSubH, fontRegular, 8, 'center');
+        drawVLine(c5X, y, rSubY);
+        drawHLine(rSubY);
+        y = rSubY;
+
+        // TAX ROW
+        const rTaxH = 15;
+        const rTaxY = y - rTaxH;
+        drawCellText('Tax (GST):', c4X, y, c5X - c4X, rTaxH, fontBold, 8, 'center');
+        drawCellText(`Rs.${booking.pricing?.tax || 0}`, c5X, y, endX - c5X, rTaxH, fontRegular, 8, 'center');
+        drawVLine(c5X, y, rTaxY);
+        drawHLine(rTaxY);
+        y = rTaxY;
+
+        // TOTAL AMOUNT ROW
+        const rTotalH = 20;
+        const rTotalY = y - rTotalH;
+        page.drawRectangle({ x: c4X, y: rTotalY, width: endX - c4X, height: rTotalH, color: headerBg });
+        drawCellText('Total Amount:', c4X, y, c5X - c4X, rTotalH, fontBold, 8, 'right');
+        drawCellText(`Rs.${booking.pricing?.totalAmount || 0}`, c5X, y, endX - c5X, rTotalH, fontBold, 10, 'center');
+        drawVLine(c5X, y, rTotalY);
+        drawHLine(rTotalY);
+        y = rTotalY;
+
         // ROW 8
         const r8H = 25;
         const r8Y = y - r8H;
@@ -181,40 +212,80 @@ async function generateReceiptPDF(booking) {
         drawHLine(r8Y);
         y = r8Y;
 
-        // ROW 9
-        const r9Y = margin;
+        // FOOTER AREA
+        const rFootY = margin + 10;
         const trackText1 = "Track your shipment at: www.engineersparcel.in";
-        const authText = "This is an electronically generated receipt";
-        const authText2 = "and does not require a physical signature.";
+        const authText = "This is an electronically generated receipt and does not require a physical signature.";
 
-        page.drawText(trackText1, { x: startX + 5, y: y - 20, size: 9, font: fontBold, color: darkGray });
-        page.drawText(authText, { x: startX + 5, y: y - 35, size: 8, font: fontOblique, color: darkGray });
-        page.drawText(authText2, { x: startX + 5, y: y - 47, size: 8, font: fontOblique, color: darkGray });
-
-        page.drawLine({ start: { x: startX + 15, y: r9Y + 30 }, end: { x: midX - 15, y: r9Y + 30 }, thickness: 0.5, color: darkGray });
-        page.drawText("Receiver's Signature", { x: startX + 60, y: r9Y + 15, size: 8, font: fontOblique, color: darkGray });
-
-        try {
-            const sigPath = path.join(__dirname, '..', 'public', 'signature.png');
-            const sigBytes = fs.readFileSync(sigPath);
-            const sigImage = await pdfDoc.embedPng(sigBytes);
-            const sigDims = sigImage.scaleToFit(140, 55);
-            page.drawImage(sigImage, {
-                x: endX - sigDims.width - 20,
-                y: r9Y + 35,
-                width: sigDims.width,
-                height: sigDims.height,
-            });
-        } catch {
-            page.drawText('Engineers Parcel', { x: midX + 60, y: r9Y + 55, size: 10, font: fontBold, color: darkGray });
+        // Special Notes box should have a fixed height or at least some padding
+        const notesBoxHeight = y - (rFootY + 80);
+        if (notesBoxHeight > 0) {
+            drawVLine(midX, y, rFootY + 80);
         }
 
-        page.drawLine({ start: { x: midX + 15, y: r9Y + 30 }, end: { x: endX - 15, y: r9Y + 30 }, thickness: 0.5, color: darkGray });
-        page.drawText("Authorized Signatory", { x: midX + 60, y: r9Y + 15, size: 8, font: fontOblique, color: darkGray });
+        // Tracking & Legal Info (Left side of footer area)
+        page.drawText(trackText1, { x: startX + 10, y: rFootY + 65, size: 9, font: fontBold, color: darkGray });
+        page.drawText(authText, { x: startX + 10, y: rFootY + 52, size: 8, font: fontOblique, color: darkGray });
 
-        drawVLine(midX, y, r9Y);
+        // QR CODE (Center)
+        if (booking.paymentLink) {
+            try {
+                const qrCodeDataUrl = await QRCode.toDataURL(booking.paymentLink, {
+                    margin: 1,
+                    width: 80,
+                    color: { dark: '#000000', light: '#ffffff' },
+                });
+                const qrImageBytes = Buffer.from(qrCodeDataUrl.split(',')[1], 'base64');
+                const qrImage = await pdfDoc.embedPng(qrImageBytes);
+                const qrDims = qrImage.scale(0.7);
+
+                page.drawImage(qrImage, {
+                    x: midX - (qrDims.width / 2),
+                    y: rFootY + 25,
+                    width: qrDims.width,
+                    height: qrDims.height,
+                });
+                page.drawText("Scan to Pay", {
+                    x: midX - (fontBold.widthOfTextAtSize("Scan to Pay", 7) / 2),
+                    y: rFootY + 15,
+                    size: 7,
+                    font: fontBold,
+                    color: darkGray
+                });
+            } catch (qrError) {
+                console.error("QR Code Error:", qrError);
+            }
+        }
+
+
+
+        // SIGNATURES (Left and Right)
+        // Receiver's Signature (Left)
+        page.drawLine({ start: { x: startX + 20, y: rFootY + 30 }, end: { x: startX + 140, y: rFootY + 30 }, thickness: 0.5, color: darkGray });
+        page.drawText("Receiver's Signature", { x: startX + 40, y: rFootY + 15, size: 8, font: fontOblique, color: darkGray });
+
+        // Authorized Signatory (Right)
+        try {
+            const sigPath = path.join(__dirname, '..', 'public', 'signature.png');
+            if (fs.existsSync(sigPath)) {
+                const sigBytes = fs.readFileSync(sigPath);
+                const sigImage = await pdfDoc.embedPng(sigBytes);
+                const sigDims = sigImage.scaleToFit(100, 40);
+                page.drawImage(sigImage, {
+                    x: endX - sigDims.width - 20,
+                    y: rFootY + 35,
+                    width: sigDims.width,
+                    height: sigDims.height,
+                });
+            }
+        } catch (e) { }
+
+        page.drawLine({ start: { x: endX - 140, y: rFootY + 30 }, end: { x: endX - 20, y: rFootY + 30 }, thickness: 0.5, color: darkGray });
+        page.drawText("Authorized Signatory", { x: endX - 110, y: rFootY + 15, size: 8, font: fontOblique, color: darkGray });
+
+        // Main Border
         page.drawRectangle({
-            x: startX, y: r9Y, width: tableWidth, height: topY - r9Y,
+            x: startX, y: margin, width: tableWidth, height: topY - margin,
             borderColor: black, borderWidth: 1.5,
         });
 
