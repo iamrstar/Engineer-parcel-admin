@@ -23,11 +23,11 @@ const sendEmail = async ({ to, subject, html, invoicePath, bookingId }) => {
       html,
       attachments: invoicePath
         ? [
-            {
-              filename: `Invoice-${bookingId}.pdf`,
-              path: invoicePath,
-            },
-          ]
+          {
+            filename: `Receipt-${bookingId || 'Booking'}.pdf`,
+            ...(Buffer.isBuffer(invoicePath) ? { content: invoicePath } : { path: invoicePath })
+          },
+        ]
         : [],
     };
 
