@@ -4,7 +4,30 @@ import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
 import axios from "axios"
 import toast from "react-hot-toast"
-import { Search, Filter, Eye } from "lucide-react"
+import { Search, Filter, Eye, FileText } from "lucide-react"
+
+// Helper functions for status visibility
+const getTimeAgo = (date) => {
+  const seconds = Math.floor((new Date() - new Date(date)) / 1000);
+  if (isNaN(seconds)) return "N/A";
+  let interval = seconds / 31536000;
+  if (interval > 1) return Math.floor(interval) + " years ago";
+  interval = seconds / 2592000;
+  if (interval > 1) return Math.floor(interval) + " months ago";
+  interval = seconds / 86400;
+  if (interval > 1) return Math.floor(interval) + " days ago";
+  interval = seconds / 3600;
+  if (interval > 1) return Math.floor(interval) + " hours ago";
+  interval = seconds / 60;
+  if (interval > 1) return Math.floor(interval) + " minutes ago";
+  return Math.floor(seconds) + " seconds ago";
+};
+
+const isRecent = (date) => {
+  if (!date) return false;
+  const diff = new Date() - new Date(date);
+  return diff < 3600000; // < 1 hour
+};
 
 const Bookings = () => {
   const [bookings, setBookings] = useState([])
@@ -14,10 +37,11 @@ const Bookings = () => {
   const [serviceFilter, setServiceFilter] = useState("all")
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
+  const [vendorNotAssigned, setVendorNotAssigned] = useState(false)
 
   useEffect(() => {
     fetchBookings()
-  }, [currentPage, statusFilter, serviceFilter, searchTerm])
+  }, [currentPage, statusFilter, serviceFilter, searchTerm, vendorNotAssigned])
 
   const fetchBookings = async () => {
     try {
@@ -30,6 +54,7 @@ const Bookings = () => {
           status: statusFilter,
           serviceType: serviceFilter,
           search: searchTerm,
+          vendorNotAssigned: vendorNotAssigned,
         },
       })
 
@@ -118,6 +143,18 @@ const Bookings = () => {
               <option value="cancelled">Cancelled</option>
             </select>
           </div>
+          <div className="flex items-center gap-2 bg-amber-50 px-3 py-2 rounded-lg border border-amber-100">
+            <input
+              type="checkbox"
+              id="vendorFilter"
+              checked={vendorNotAssigned}
+              onChange={(e) => setVendorNotAssigned(e.target.checked)}
+              className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+            />
+            <label htmlFor="vendorFilter" className="text-sm font-medium text-amber-800 cursor-pointer whitespace-nowrap">
+              No Vendor
+            </label>
+          </div>
         </div>
       </div>
 
@@ -152,10 +189,19 @@ const Bookings = () => {
                       Amount
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Date
+                      Vendor
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Track ID
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Booking Date
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Actions
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Receipt
                     </th>
                   </tr>
                 </thead>
@@ -173,28 +219,92 @@ const Bookings = () => {
                         <div className="text-sm text-gray-900">{booking.receiverDetails.name}</div>
                         <div className="text-sm text-gray-500">{booking.receiverDetails.phone}</div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 capitalize">
-                        {booking.serviceType}
-                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span
-                          className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(booking.status)}`}
-                        >
-                          {booking.status}
-                        </span>
+                        <div className="text-sm font-bold text-gray-900 capitalize">{booking.serviceType}</div>
+                        <div className="text-[10px] text-gray-400 font-medium">Source: {booking.bookingSource || 'web'}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap overflow-visible">
+                        <div className="flex flex-col group relative">
+                          <div className="flex items-center space-x-1.5">
+                            <span
+                              className={`inline-flex px-2 py-0.5 text-[10px] font-bold uppercase rounded-full cursor-help shadow-sm border ${getStatusColor(booking.status)}`}
+                            >
+                              {booking.status}
+                            </span>
+                            {isRecent(booking.updatedAt) && (
+                              <span className="flex h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" title="Updated Recently"></span>
+                            )}
+                          </div>
+
+                          {booking.currentLocation && booking.currentLocation !== "Pending" && (
+                            <div className="text-[10px] text-gray-400 mt-0.5 font-medium truncate max-w-[100px]">
+                              {booking.currentLocation}
+                            </div>
+                          )}
+
+                          <div className="hidden group-hover:block absolute z-20 p-2.5 bg-gray-900 text-white rounded-lg shadow-2xl text-[11px] -top-14 left-0 w-48 border border-gray-700 pointer-events-none">
+                            <div className="flex justify-between items-center mb-1 border-b border-gray-700 pb-1">
+                              <span className="font-bold text-blue-400">Activity Report</span>
+                              {isRecent(booking.updatedAt) && <span className="text-[9px] bg-blue-600 px-1 rounded text-white font-bold">NEW</span>}
+                            </div>
+                            <div className="space-y-1">
+                              <div><span className="text-gray-400">Location:</span> <span className="font-medium text-gray-200">{booking.currentLocation || 'Hub'}</span></div>
+                              <div><span className="text-gray-400">Updated:</span> <span className="font-medium text-gray-200">{getTimeAgo(booking.updatedAt)}</span></div>
+                              <div className="text-gray-500 text-[9px] pt-0.5 italic text-right">{new Date(booking.updatedAt).toLocaleString()}</div>
+                            </div>
+                          </div>
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         ₹{booking.pricing?.totalAmount || 0}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 capitalize">
+                        {booking.vendorName || "-"}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-mono text-xs">
+                        {booking.vendorTrackingId || "-"}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {new Date(booking.createdAt).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex space-x-2">
-                          <Link to={`/bookings/${booking._id}`} className="text-primary-600 hover:text-primary-900">
+                          <Link to={`/bookings/${booking._id}`} className="text-primary-600 hover:text-primary-900" title="View Details">
                             <Eye className="h-4 w-4" />
                           </Link>
                         </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        {(booking.trackingId || booking.bookingId) ? (
+                          <button
+                            onClick={async () => {
+                              try {
+                                const t = localStorage.getItem("adminToken") || localStorage.getItem("token")
+                                const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/${booking._id}/receipt`, {
+                                  headers: { Authorization: `Bearer ${t}` },
+                                  responseType: 'blob'
+                                })
+
+                                const url = window.URL.createObjectURL(new Blob([response.data]))
+                                const link = document.createElement('a')
+                                link.href = url
+                                link.setAttribute('download', `Receipt_${booking.bookingId || booking.trackingId}.pdf`)
+                                document.body.appendChild(link)
+                                link.click()
+                                link.remove()
+                                toast.success("Receipt downloaded successfully")
+                              } catch (error) {
+                                console.error("Download error:", error)
+                                toast.error("Failed to download receipt")
+                              }
+                            }}
+                            className="text-red-600 hover:text-red-900 flex items-center gap-1 bg-red-50 px-2 py-1 rounded"
+                            title="Download Receipt"
+                          >
+                            <FileText className="h-4 w-4" />
+                            <span className="text-xs">PDF</span>
+                          </button>
+                        ) : "-"}
                       </td>
                     </tr>
                   ))}
