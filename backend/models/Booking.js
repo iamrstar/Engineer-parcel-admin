@@ -40,11 +40,13 @@ const bookingSchema = new mongoose.Schema(
       weightUnit: { type: String, enum: ["g", "kg"], default: "g" },
       volumetricWeight: { type: Number },
       chargeableWeight: { type: Number },
-      dimensions: {
-        length: { type: Number, default: 0 },
-        width: { type: Number, default: 0 },
-        height: { type: Number, default: 0 },
-      },
+      dimensions: [
+        {
+          length: { type: Number, default: 0 },
+          width: { type: Number, default: 0 },
+          height: { type: Number, default: 0 },
+        },
+      ],
       boxQuantity: { type: Number, default: 1 },
       description: { type: String, default: "N/A" },
       value: { type: Number, default: 0 },
@@ -57,8 +59,12 @@ const bookingSchema = new mongoose.Schema(
     deliveryDate: Date,
     status: {
       type: String,
-      enum: ["pending", "confirmed", "picked", "in-transit", "out-for-delivery", "delivered", "cancelled"],
+      enum: ["pending", "confirmed", "picked", "in-transit", "reached", "out-for-delivery", "delivered", "cancelled"],
       default: "pending",
+    },
+    currentLocation: {
+      type: String,
+      default: "Hub",
     },
 
     // for admin booking
@@ -117,6 +123,11 @@ const bookingSchema = new mongoose.Schema(
       default: false,
     },
     rejectionReason: String,
+
+    // Vendor Details
+    vendorName: String,
+    vendorTrackingId: String,
+    paymentLink: String,
   },
   { timestamps: true },
 )
