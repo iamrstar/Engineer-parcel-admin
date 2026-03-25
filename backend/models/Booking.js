@@ -127,7 +127,27 @@ const bookingSchema = new mongoose.Schema(
     // Vendor Details
     vendorName: String,
     vendorTrackingId: String,
+    isVendorBooking: { type: Boolean, default: false },
+    vendorId: { type: String },
     paymentLink: String,
+
+    // Vendor Financial Tracking (Phase 3)
+    vendorPaidAmount: { type: Number, default: 0 },
+    vendorPaymentMethod: { type: String },
+    vendorReceivedBy: { type: String },
+    vendorPaymentDate: { type: Date },
+    vendorPaymentStatus: { 
+      type: String, 
+      enum: ["Pending", "Partially Paid", "Paid"],
+      default: "Pending"
+    },
+    vendorPaymentHistory: [{
+      amount: { type: Number, required: true },
+      method: { type: String },
+      receivedBy: { type: String },
+      date: { type: Date, default: Date.now },
+      notes: { type: String }
+    }],
   },
   { timestamps: true },
 )
