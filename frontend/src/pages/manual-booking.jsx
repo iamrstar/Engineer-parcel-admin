@@ -226,7 +226,7 @@ export default function ManualBooking() {
       insuranceRequired: formData.insuranceRequired,
       paymentStatus: "pending",
       paymentMethod: "COD",
-      notes: formData.notes || "Manual booking created by admin",
+      notes: formData.notes,
       status: formData.deliveryStatus.toLowerCase(),
       bookingSource: "admin",
       isVendorBooking: formData.isVendorBooking,
