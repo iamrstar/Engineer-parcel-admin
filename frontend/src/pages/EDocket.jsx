@@ -2,7 +2,30 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { useAuth } from "../contexts/AuthContext";
-import { CheckCircle, ArrowLeft, Download, UploadCloud, FileDown } from "lucide-react";
+import { CheckCircle, ArrowLeft, Download, UploadCloud } from "lucide-react";
+
+// Helper functions for relative time
+const getTimeAgo = (date) => {
+    const seconds = Math.floor((new Date() - new Date(date)) / 1000);
+    if (isNaN(seconds)) return "N/A";
+    let interval = seconds / 31536000;
+    if (interval > 1) return Math.floor(interval) + " years ago";
+    interval = seconds / 2592000;
+    if (interval > 1) return Math.floor(interval) + " months ago";
+    interval = seconds / 86400;
+    if (interval > 1) return Math.floor(interval) + " days ago";
+    interval = seconds / 3600;
+    if (interval > 1) return Math.floor(interval) + " hours ago";
+    interval = seconds / 60;
+    if (interval > 1) return Math.floor(interval) + " minutes ago";
+    return Math.floor(seconds) + " seconds ago";
+};
+
+const isRecent = (date) => {
+    if (!date) return false;
+    const diff = new Date() - new Date(date);
+    return diff < 3600000; // < 1 hour
+};
 
 export default function EDocket() {
     const { token } = useAuth();
@@ -13,6 +36,11 @@ export default function EDocket() {
         return d.toISOString().split('T')[0];
     });
     const [selectedBooking, setSelectedBooking] = useState(null);
+    const [isVerifying, setIsVerifying] = useState(false);
+    const [pincodeLoading, setPincodeLoading] = useState(false);
+    const [pincodeStatuses, setPincodeStatuses] = useState({ sender: null, receiver: null });
+    const [vendorNotAssigned, setVendorNotAssigned] = useState(false);
+    const [otherVendor, setOtherVendor] = useState(false);
 
     // Pricing State
     const [pricing, setPricing] = useState({
@@ -38,14 +66,13 @@ export default function EDocket() {
 
     const [editForm, setEditForm] = useState({});
     const [verifySuccess, setVerifySuccess] = useState(false);
-    const [isVerifying, setIsVerifying] = useState(false);
 
     const fetchBookings = async () => {
         setLoading(true);
         try {
             const currentToken = token || localStorage.getItem("adminToken") || localStorage.getItem("token");
             const res = await axios.get(
-                `${import.meta.env.VITE_API_URL}/api/intake?date=${filterDate}`,
+                `${import.meta.env.VITE_API_URL}/api/intake?date=${filterDate}&vendorNotAssigned=${vendorNotAssigned}`,
                 { headers: { Authorization: `Bearer ${currentToken}` } }
             );
             setBookings(res.data);
@@ -60,7 +87,7 @@ export default function EDocket() {
     useEffect(() => {
         const currentToken = token || localStorage.getItem("adminToken") || localStorage.getItem("token");
         if (currentToken) fetchBookings();
-    }, [token, filterDate]);
+    }, [token, filterDate, vendorNotAssigned]);
 
     const handleVerify = async () => {
         if (!selectedBooking) return;
@@ -77,7 +104,6 @@ export default function EDocket() {
                 { headers: { Authorization: `Bearer ${currentToken}` } }
             );
             setVerifySuccess(true);
-            toast.success("Booking verified! Email & SMS sent.");
         } catch (error) {
             toast.error("Failed to verify booking");
         } finally {
@@ -131,36 +157,13 @@ export default function EDocket() {
         }
     };
 
-    const handleDownloadReceipt = async (trackingId) => {
-        try {
-            const currentToken = token || localStorage.getItem("adminToken") || localStorage.getItem("token");
-            const res = await axios.get(
-                `${import.meta.env.VITE_API_URL}/api/intake/receipt?id=${trackingId}`,
-                {
-                    headers: { Authorization: `Bearer ${currentToken}` },
-                    responseType: 'blob'
-                }
-            );
-            const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
-            const a = document.createElement("a");
-            a.href = url;
-            a.download = `Receipt_${trackingId}.pdf`;
-            document.body.appendChild(a);
-            a.click();
-            a.remove();
-            window.URL.revokeObjectURL(url);
-            toast.success("Receipt Downloaded");
-        } catch (error) {
-            console.error(error);
-            toast.error("Receipt Download Failed");
-        }
-    };
-
     // Pincode lookups
     useEffect(() => {
         const timer = setTimeout(() => {
             if (editForm.senderDetails?.pincode && String(editForm.senderDetails.pincode).length === 6) {
                 handlePincodeLookup(editForm.senderDetails.pincode, "sender");
+            } else if (pincodeStatuses.sender) {
+                setPincodeStatuses(prev => ({ ...prev, sender: null }));
             }
         }, 500);
         return () => clearTimeout(timer);
@@ -170,6 +173,8 @@ export default function EDocket() {
         const timer = setTimeout(() => {
             if (editForm.receiverDetails?.pincode && String(editForm.receiverDetails.pincode).length === 6) {
                 handlePincodeLookup(editForm.receiverDetails.pincode, "receiver");
+            } else if (pincodeStatuses.receiver) {
+                setPincodeStatuses(prev => ({ ...prev, receiver: null }));
             }
         }, 500);
         return () => clearTimeout(timer);
@@ -177,6 +182,7 @@ export default function EDocket() {
 
     const handlePincodeLookup = async (pincode, type) => {
         if (!pincode || String(pincode).length < 6) return;
+        setPincodeLoading(true);
         try {
             const currentToken = token || localStorage.getItem("adminToken") || localStorage.getItem("token");
             const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/pincodes?code=${pincode}`, {
@@ -184,7 +190,7 @@ export default function EDocket() {
             });
             const data = res.data;
             if (data.available) {
-                toast.success(data.message);
+                setPincodeStatuses(prev => ({ ...prev, [type]: 'success' }));
                 const section = type === "sender" ? "senderDetails" : "receiverDetails";
                 setEditForm((prev) => ({
                     ...prev,
@@ -195,10 +201,14 @@ export default function EDocket() {
                     },
                 }));
             } else {
-                toast.error(data.message || "Service not available");
+                setPincodeStatuses(prev => ({ ...prev, [type]: 'error' }));
+                toast.error(data.message || "Service not available. You may enter city/state manually.", { duration: 5000 });
             }
         } catch (error) {
             console.error(error);
+            setPincodeStatuses(prev => ({ ...prev, [type]: 'error' }));
+        } finally {
+            setPincodeLoading(false);
         }
     };
 
@@ -274,6 +284,21 @@ export default function EDocket() {
                 )}
             </div>
 
+            {!selectedBooking && (
+                <div className="mb-4 flex items-center gap-2 bg-amber-50 p-3 rounded-lg border border-amber-100 w-fit">
+                    <input
+                        type="checkbox"
+                        id="vendorFilter"
+                        checked={vendorNotAssigned}
+                        onChange={(e) => setVendorNotAssigned(e.target.checked)}
+                        className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                    />
+                    <label htmlFor="vendorFilter" className="text-sm font-medium text-amber-800 cursor-pointer">
+                        Show Vendor Not Assigned Only
+                    </label>
+                </div>
+            )}
+
             {!selectedBooking ? (
                 <div className="bg-white rounded-xl shadow overflow-hidden border border-gray-200">
                     <div className="overflow-x-auto">
@@ -285,9 +310,12 @@ export default function EDocket() {
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sender</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receiver</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vendor</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Track ID</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Verified</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Seeded</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receipt</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
@@ -304,7 +332,18 @@ export default function EDocket() {
                                             <div className="text-xs text-gray-500">{booking.receiverDetails?.city}</div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-700">{booking.status}</span>
+                                            <span
+                                                className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-700 cursor-help"
+                                                title={`Current Location: ${booking.currentLocation || 'N/A'}\nLast Updated: ${new Date(booking.updatedAt).toLocaleString()}`}
+                                            >
+                                                {booking.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 capitalize">
+                                            {booking.vendorName || "-"}
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-mono">
+                                            {booking.vendorTrackingId || "-"}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                                             {booking.adminVerified ? (
@@ -319,38 +358,62 @@ export default function EDocket() {
                                             ) : "-"}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                            <div className="flex items-center gap-2">
-                                                <button
-                                                    onClick={() => {
-                                                        setVerifySuccess(false);
-                                                        setSelectedBooking(booking);
-                                                        setPricing({
-                                                            basePrice: booking.pricing?.basePrice || 0,
-                                                            packagingCharge: booking.pricing?.packagingCharge || 0,
-                                                            tax: booking.pricing?.tax || 0,
-                                                            totalAmount: booking.pricing?.totalAmount || 0,
-                                                        });
-                                                        setEditForm({
-                                                            senderDetails: booking.senderDetails,
-                                                            receiverDetails: booking.receiverDetails,
-                                                            packageDetails: booking.packageDetails,
-                                                            serviceType: booking.serviceType,
-                                                            premiumItemType: booking.premiumItemType || "",
-                                                            trackingId: booking.trackingId,
-                                                        });
-                                                    }}
-                                                    className="text-primary-600 hover:text-primary-900 font-medium px-3 py-1.5 rounded-lg border border-primary-100 hover:bg-primary-50 transition-colors"
-                                                >
-                                                    Verify/Edit
-                                                </button>
-                                                <button
-                                                    onClick={() => handleDownloadReceipt(booking.trackingId)}
-                                                    title="Download E-Receipt"
-                                                    className="w-8 h-8 text-blue-600 hover:text-blue-900 rounded-md hover:bg-blue-50 transition-colors flex items-center justify-center border border-transparent"
-                                                >
-                                                    <FileDown className="w-4 h-4" />
-                                                </button>
-                                            </div>
+                                            <button
+                                                onClick={() => {
+                                                    setVerifySuccess(false);
+                                                    setSelectedBooking(booking);
+                                                    setPricing({
+                                                        basePrice: booking.pricing?.basePrice || 0,
+                                                        packagingCharge: booking.pricing?.packagingCharge || 0,
+                                                        tax: booking.pricing?.tax || 0,
+                                                        totalAmount: booking.pricing?.totalAmount || 0,
+                                                    });
+                                                    setEditForm({
+                                                        senderDetails: booking.senderDetails,
+                                                        receiverDetails: booking.receiverDetails,
+                                                        packageDetails: booking.packageDetails,
+                                                        serviceType: booking.serviceType,
+                                                        premiumItemType: booking.premiumItemType || "",
+                                                        trackingId: booking.trackingId,
+                                                        vendorName: booking.vendorName || "",
+                                                        vendorTrackingId: booking.vendorTrackingId || "",
+                                                        estimatedDelivery: booking.estimatedDelivery || "",
+                                                    });
+                                                    setOtherVendor(false);
+                                                }}
+                                                className="text-primary-600 hover:text-primary-900 font-medium px-3 py-1.5 rounded-lg border border-primary-100 hover:bg-primary-50 transition-colors"
+                                            >
+                                                Verify/Edit
+                                            </button>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                            <button
+                                                onClick={async () => {
+                                                    try {
+                                                        const currentToken = token || localStorage.getItem("adminToken") || localStorage.getItem("token");
+                                                        const response = await axios.get(
+                                                            `${import.meta.env.VITE_API_URL}/api/intake/receipt?id=${booking.trackingId}`,
+                                                            {
+                                                                headers: { Authorization: `Bearer ${currentToken}` },
+                                                                responseType: 'blob'
+                                                            }
+                                                        );
+                                                        const url = window.URL.createObjectURL(new Blob([response.data]));
+                                                        const link = document.createElement('a');
+                                                        link.href = url;
+                                                        link.setAttribute('download', `Receipt_${booking.trackingId}.pdf`);
+                                                        document.body.appendChild(link);
+                                                        link.click();
+                                                        link.remove();
+                                                    } catch (error) {
+                                                        toast.error("Failed to download receipt");
+                                                    }
+                                                }}
+                                                className="text-red-600 hover:text-red-900 font-medium px-3 py-1.5 rounded-lg border border-red-100 hover:bg-red-50 transition-colors flex items-center gap-1"
+                                            >
+                                                <Download className="w-4 h-4" />
+                                                <span>PDF</span>
+                                            </button>
                                         </td>
                                     </tr>
                                 ))}
@@ -402,11 +465,25 @@ export default function EDocket() {
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-1">Pincode</label>
-                                            <input value={editForm.senderDetails?.pincode || ''} onChange={(e) => setEditForm({ ...editForm, senderDetails: { ...editForm.senderDetails, pincode: e.target.value } })} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500" />
+                                            <div className="relative">
+                                                <input
+                                                    value={editForm.senderDetails?.pincode || ''}
+                                                    onChange={(e) => setEditForm({ ...editForm, senderDetails: { ...editForm.senderDetails, pincode: e.target.value } })}
+                                                    className={`w-full px-3 py-2.5 border rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 transition-colors ${pincodeStatuses.sender === 'success' ? 'border-green-500 bg-green-50 text-green-700' :
+                                                        pincodeStatuses.sender === 'error' ? 'border-red-500 bg-red-50 text-red-700' :
+                                                            'border-gray-300 bg-white'
+                                                        }`}
+                                                />
+                                                {pincodeLoading && (
+                                                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                                        <svg className="animate-spin h-4 w-4 text-primary-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-                                            <input readOnly value={editForm.senderDetails?.city || ''} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg shadow-sm bg-gray-50 text-gray-500" />
+                                            <input value={editForm.senderDetails?.city || ''} onChange={(e) => setEditForm({ ...editForm, senderDetails: { ...editForm.senderDetails, city: e.target.value } })} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm bg-white focus:ring-primary-500 focus:border-primary-500" />
                                         </div>
                                     </div>
                                     <div><label className="block text-sm font-medium text-gray-700 mb-1">Full Address</label><input value={editForm.senderDetails?.address1 || ''} onChange={(e) => setEditForm({ ...editForm, senderDetails: { ...editForm.senderDetails, address1: e.target.value } })} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500" /></div>
@@ -423,11 +500,25 @@ export default function EDocket() {
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-1">Pincode</label>
-                                            <input value={editForm.receiverDetails?.pincode || ''} onChange={(e) => setEditForm({ ...editForm, receiverDetails: { ...editForm.receiverDetails, pincode: e.target.value } })} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500" />
+                                            <div className="relative">
+                                                <input
+                                                    value={editForm.receiverDetails?.pincode || ''}
+                                                    onChange={(e) => setEditForm({ ...editForm, receiverDetails: { ...editForm.receiverDetails, pincode: e.target.value } })}
+                                                    className={`w-full px-3 py-2.5 border rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 transition-colors ${pincodeStatuses.receiver === 'success' ? 'border-green-500 bg-green-50 text-green-700' :
+                                                        pincodeStatuses.receiver === 'error' ? 'border-red-500 bg-red-50 text-red-700' :
+                                                            'border-gray-300 bg-white'
+                                                        }`}
+                                                />
+                                                {pincodeLoading && (
+                                                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                                        <svg className="animate-spin h-4 w-4 text-primary-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-                                            <input readOnly value={editForm.receiverDetails?.city || ''} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg shadow-sm bg-gray-50 text-gray-500" />
+                                            <input value={editForm.receiverDetails?.city || ''} onChange={(e) => setEditForm({ ...editForm, receiverDetails: { ...editForm.receiverDetails, city: e.target.value } })} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm bg-white focus:ring-primary-500 focus:border-primary-500" />
                                         </div>
                                     </div>
                                     <div><label className="block text-sm font-medium text-gray-700 mb-1">Full Address</label><input value={editForm.receiverDetails?.address1 || ''} onChange={(e) => setEditForm({ ...editForm, receiverDetails: { ...editForm.receiverDetails, address1: e.target.value } })} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500" /></div>
@@ -464,6 +555,62 @@ export default function EDocket() {
                                     <span className="font-semibold text-primary-800">Shipment Category</span>
                                     <span className="bg-primary-600 text-white px-2 py-0.5 rounded text-xs">{getShipmentCategory()}</span>
                                 </div>
+
+                                <div className="pt-4 border-t border-gray-100 space-y-4">
+                                    <h4 className="text-sm font-bold text-gray-600 uppercase">Vendor Alignment</h4>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Vendor Name</label>
+                                            <select
+                                                value={otherVendor ? "other" : (editForm.vendorName || "")}
+                                                onChange={(e) => {
+                                                    if (e.target.value === "other") {
+                                                        setOtherVendor(true);
+                                                        setEditForm({ ...editForm, vendorName: "" });
+                                                    } else {
+                                                        setOtherVendor(false);
+                                                        setEditForm({ ...editForm, vendorName: e.target.value });
+                                                    }
+                                                }}
+                                                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                                            >
+                                                <option value="">No Vendor</option>
+                                                <option value="delhivery">Delhivery</option>
+                                                <option value="dtdc">DTDC</option>
+                                                <option value="bluedart">Blue Dart</option>
+                                                <option value="shiprocket">Shiprocket</option>
+                                                <option value="other">Other</option>
+                                            </select>
+                                            {otherVendor && (
+                                                <input
+                                                    placeholder="Type Vendor Name"
+                                                    value={editForm.vendorName || ""}
+                                                    onChange={(e) => setEditForm({ ...editForm, vendorName: e.target.value })}
+                                                    className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-lg focus:ring-primary-500"
+                                                />
+                                            )}
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">Vendor Track ID</label>
+                                            <input
+                                                value={editForm.vendorTrackingId || ""}
+                                                onChange={(e) => setEditForm({ ...editForm, vendorTrackingId: e.target.value })}
+                                                placeholder="AWB / Track ID"
+                                                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="mt-4 pt-4 border-t border-gray-100">
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">Estimated Delivery (ETD)</label>
+                                    <input
+                                        value={editForm.estimatedDelivery || ""}
+                                        onChange={(e) => setEditForm({ ...editForm, estimatedDelivery: e.target.value })}
+                                        placeholder="e.g. 3-5 Business Days or March 30"
+                                        className="w-full px-3 py-2.5 border border-primary-200 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500 bg-primary-50/30 text-primary-900 font-medium"
+                                    />
+                                    <p className="text-[10px] text-gray-400 mt-1 italic">This will be shared with the customer via email.</p>
+                                </div>
                             </div>
 
                             {/* Pricing Card */}
@@ -493,17 +640,12 @@ export default function EDocket() {
                                 <button
                                     onClick={handleVerify}
                                     disabled={isVerifying}
-                                    className={`w-full py-4 mt-8 text-white font-bold rounded-xl shadow-lg transition-colors text-lg flex items-center justify-center gap-2
-                                        ${isVerifying ? 'bg-primary-400 cursor-not-allowed' : 'bg-primary-600 hover:bg-primary-700'}
-                                    `}
+                                    className="w-full py-4 mt-8 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl shadow-lg transition-colors text-lg flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                                 >
                                     {isVerifying ? (
                                         <>
-                                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                            </svg>
-                                            Processing...
+                                            <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                                            Verifying & Sending...
                                         </>
                                     ) : (
                                         "Verify & Send Payment Link"
