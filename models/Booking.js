@@ -1,4 +1,4 @@
-import mongoose from "mongoose"
+const mongoose = require("mongoose")
 
 const bookingSchema = new mongoose.Schema(
   {
@@ -13,7 +13,7 @@ const bookingSchema = new mongoose.Schema(
     serviceType: {
       type: String,
       required: true,
-      enum: ["courier", "shifting", "local", "international", "surface", "air", "express", "premium"],
+      enum: ["courier", "shifting", "local", "international", "surface", "air", "express", "premium", "campus-parcel"],
     },
     senderDetails: {
       name: { type: String, required: true },
@@ -38,15 +38,19 @@ const bookingSchema = new mongoose.Schema(
     packageDetails: {
       weight: { type: Number, required: true },
       weightUnit: { type: String, enum: ["g", "kg"], default: "g" },
-      volumetricWeight: Number,
-      dimensions: {
-        length: Number,
-        width: Number,
-        height: Number,
-      },
-      description: String,
-      value: Number,
-      fragile: Boolean,
+      volumetricWeight: { type: Number },
+      chargeableWeight: { type: Number },
+      dimensions: [
+        {
+          length: { type: Number, default: 0 },
+          width: { type: Number, default: 0 },
+          height: { type: Number, default: 0 },
+        },
+      ],
+      boxQuantity: { type: Number, default: 1 },
+      description: { type: String, default: "N/A" },
+      value: { type: Number, default: 0 },
+      fragile: { type: Boolean, default: false },
     },
     pickupPincode: String,
     deliveryPincode: String,
@@ -55,17 +59,34 @@ const bookingSchema = new mongoose.Schema(
     deliveryDate: Date,
     status: {
       type: String,
-      enum: ["pending", "confirmed", "picked", "in-transit", "out-for-delivery", "delivered", "cancelled"],
+      enum: ["pending", "confirmed", "picked", "in-transit", "reached", "out-for-delivery", "delivered", "cancelled"],
       default: "pending",
     },
+    currentLocation: {
+      type: String,
+      default: "Hub",
+    },
+
+    // for admin booking
+    trackingId: {
+      type: String,
+      unique: true,
+      sparse: true, // Allow null unless manually added
+    },
+    adminCreated: {
+      type: Boolean,
+      default: false,
+    },
+
     trackingHistory: [
       {
-        status: String,
-        location: String,
+        status: { type: String, default: "No Status" },
+        location: { type: String, default: "No Location" },
+        description: { type: String, default: "N/A" },
         timestamp: { type: Date, default: Date.now },
-        description: String,
       },
     ],
+
     parcelImage: String,
     couponCode: String,
     couponDiscount: { type: Number, default: 0 },
@@ -83,10 +104,51 @@ const bookingSchema = new mongoose.Schema(
     },
     paymentMethod: {
       type: String,
-      enum: ["COD", "Online"],
-      default: "COD",
+      enum: ["COD", "online", "Online"], // ✅ Allow both casings
+      required: true,
+      default: "COD"
     },
+
     notes: String,
+    assignedRider: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    assignedFor: {
+      type: String,
+      enum: ["pickup", "delivery", "both"],
+    },
+    isRejected: {
+      type: Boolean,
+      default: false,
+    },
+    rejectionReason: String,
+
+    // Vendor Details
+    vendorName: String,
+    vendorTrackingId: String,
+    isVendorBooking: { type: Boolean, default: false },
+    vendorId: { type: String },
+    paymentLink: String,
+
+    // Vendor Financial Tracking (Phase 3)
+    vendorPaidAmount: { type: Number, default: 0 },
+    vendorPaymentMethod: { type: String },
+    vendorReceivedBy: { type: String },
+    vendorPaymentDate: { type: Date },
+    vendorPaymentStatus: { 
+      type: String, 
+      enum: ["Pending", "Partially Paid", "Paid"],
+      default: "Pending"
+    },
+    vendorPaymentHistory: [{
+      amount: { type: Number, required: true },
+      method: { type: String },
+      receivedBy: { type: String },
+      date: { type: Date, default: Date.now },
+      notes: { type: String }
+    }],
+    estimatedDelivery: { type: String },
   },
   { timestamps: true },
 )
@@ -100,4 +162,4 @@ bookingSchema.pre("validate", async function (next) {
   next()
 })
 
-export default mongoose.models.Booking || mongoose.model("Booking", bookingSchema)
+module.exports = mongoose.model("Booking", bookingSchema)
