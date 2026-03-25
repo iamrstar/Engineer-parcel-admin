@@ -13,6 +13,7 @@ import EDocket from "./pages/EDocket"
 import SalesReport from "./pages/SalesReport"
 import UserManagement from "./pages/UserManagement"
 import RiderDashboard from "./pages/RiderDashboard"
+import Vendors from "./pages/Vendors"
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth()
@@ -122,6 +123,16 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <UserManagement />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/vendors"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Vendors />
                 </Layout>
               </ProtectedRoute>
             }
