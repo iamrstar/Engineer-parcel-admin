@@ -39,6 +39,8 @@ router.post("/", async (req, res) => {
       paymentStatus,
       paymentMethod,
       notes,
+      isVendorBooking = false,
+      vendorId = null,
       bookingSource = "Manual",
     } = req.body;
 
@@ -78,6 +80,8 @@ router.post("/", async (req, res) => {
       paymentStatus,
       paymentMethod,
       notes,
+      isVendorBooking,
+      vendorId,
       bookingSource,
     });
 
