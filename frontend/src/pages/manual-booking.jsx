@@ -37,6 +37,8 @@ export default function ManualBooking() {
     premiumItemType: "",
     notes: "",
     totalAmount: "",
+    isVendorBooking: false,
+    vendorId: "",
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -45,6 +47,49 @@ export default function ManualBooking() {
     pickup: null, // null, true, false
     drop: null
   });
+  const [vendorSearch, setVendorSearch] = useState("");
+  const [vendorResults, setVendorResults] = useState([]);
+  const [showVendorDropdown, setShowVendorDropdown] = useState(false);
+
+  const searchVendors = async (query) => {
+    if (!query) {
+      setVendorResults([]);
+      return;
+    }
+    try {
+      const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/vendors/search/${query}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      setVendorResults(data);
+      setShowVendorDropdown(true);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const selectVendor = (vendor) => {
+    setFormData(prev => ({
+      ...prev,
+      isVendorBooking: true,
+      vendorId: vendor.vendorId,
+      senderName: vendor.name,
+      senderPhone: vendor.phone,
+      senderEmail: vendor.email || "",
+      senderAddress: vendor.address,
+      senderAddress2: vendor.address2 || "",
+      senderCity: vendor.city,
+      senderState: vendor.state,
+      senderLandmark: vendor.landmark || "",
+      pickupPincode: vendor.pincode,
+      totalAmount: "0" // Default to 0 as per user request
+    }));
+    setShowVendorDropdown(false);
+    setVendorSearch(vendor.name);
+    // Trigger pincode check for the vendor's pincode
+    checkPincode(vendor.pincode, 'pickup');
+  };
 
   useEffect(() => {
     if (formData.pickupPincode.length === 6) {
@@ -81,6 +126,49 @@ export default function ManualBooking() {
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const handleReset = () => {
+    setFormData({
+      pickupPincode: "",
+      deliveryPincode: "",
+      serviceType: "Surface",
+      actualWeight: "",
+      weightUnit: "kg",
+      dimensions: [{ length: "", width: "", height: "" }],
+      boxQuantity: 1,
+      goodsDescription: "",
+      senderName: "",
+      senderPhone: "",
+      senderEmail: "",
+      senderAddress: "",
+      senderAddress2: "",
+      senderCity: "",
+      senderState: "",
+      senderLandmark: "",
+      receiverName: "",
+      receiverPhone: "",
+      receiverEmail: "",
+      receiverAddress: "",
+      receiverAddress2: "",
+      receiverCity: "",
+      receiverState: "",
+      receiverLandmark: "",
+      bookingId: "",
+      deliveryStatus: "confirmed",
+      pickupDate: new Date().toISOString().split("T")[0],
+      pickupSlot: "Anytime",
+      insuranceRequired: true,
+      fragile: false,
+      premiumItemType: "",
+      notes: "",
+      totalAmount: "",
+      isVendorBooking: false,
+      vendorId: "",
+    });
+    setVendorSearch("");
+    setPincodeStatus({ pickup: null, drop: null });
+    setStep(1);
   };
 
   const handleChange = (e) => {
@@ -141,6 +229,8 @@ export default function ManualBooking() {
       notes: formData.notes || "Manual booking created by admin",
       status: formData.deliveryStatus.toLowerCase(),
       bookingSource: "admin",
+      isVendorBooking: formData.isVendorBooking,
+      vendorId: formData.vendorId,
       premiumItemType: formData.premiumItemType,
       bookingId: `EP${formData.bookingId.replace(/^EP/i, '')}`,
       pricing: {
@@ -236,6 +326,65 @@ export default function ManualBooking() {
       <form onSubmit={handleSubmit}>
         {step === 1 && (
           <div className="space-y-6">
+            <div className="flex gap-4 p-1 bg-gray-100 rounded-2xl mb-6">
+              <button
+                type="button"
+                onClick={() => setFormData(p => ({ ...p, isVendorBooking: false, vendorId: "" }))}
+                className={`flex-1 py-3 px-4 rounded-xl font-bold transition-all ${!formData.isVendorBooking ? 'bg-white shadow-md text-orange-600' : 'text-gray-500'}`}
+              >
+                Normal Booking
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormData(p => ({ ...p, isVendorBooking: true }))}
+                className={`flex-1 py-3 px-4 rounded-xl font-bold transition-all ${formData.isVendorBooking ? 'bg-white shadow-md text-orange-600' : 'text-gray-500'}`}
+              >
+                Vendor Booking
+              </button>
+            </div>
+
+            {formData.isVendorBooking && (
+              <div className="relative mb-6 animate-in slide-in-from-top-4 duration-300">
+                <div className="flex justify-between items-end mb-1">
+                  <label className="block text-sm font-bold text-gray-700">Search Vendor (Name or ID)</label>
+                  <button
+                    type="button"
+                    onClick={handleReset}
+                    className="text-[10px] font-bold text-orange-600 hover:text-orange-700 border border-orange-200 px-2 py-1 rounded-md bg-orange-50 transition-all flex items-center gap-1"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg>
+                    Start New / Reset
+                  </button>
+                </div>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={vendorSearch}
+                    onChange={(e) => {
+                      setVendorSearch(e.target.value);
+                      searchVendors(e.target.value);
+                    }}
+                    placeholder="Enter vendor name or ID..."
+                    className="w-full border border-orange-200 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-orange-50 font-medium"
+                  />
+                  {showVendorDropdown && vendorResults.length > 0 && (
+                    <div className="absolute z-50 left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl max-h-60 overflow-y-auto overflow-hidden">
+                      {vendorResults.map(vendor => (
+                        <div
+                          key={vendor._id}
+                          onClick={() => selectVendor(vendor)}
+                          className="p-3 hover:bg-orange-50 cursor-pointer border-b border-gray-50 last:border-0"
+                        >
+                          <div className="font-bold text-gray-900">{vendor.name}</div>
+                          <div className="text-xs text-orange-600 font-mono">{vendor.vendorId}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <p className="text-[10px] text-orange-600 mt-1 font-bold italic">Selecting a vendor will auto-fill address and set amount to 0.</p>
+              </div>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="relative">
                 <label className="block text-sm font-bold text-gray-700 mb-1">Pickup Pincode</label>
@@ -245,12 +394,12 @@ export default function ManualBooking() {
                     value={formData.pickupPincode}
                     onChange={handleChange}
                     placeholder="e.g. 826001"
-                    className={`w-full border p-3 rounded-xl focus:ring-2 outline-none transition-all ${pincodeStatus.pickup === true ? 'border-green-500 ring-green-50' : pincodeStatus.pickup === false ? 'border-red-400 ring-red-50' : 'border-gray-300 focus:ring-orange-500'}`}
+                    className={`w-full border-2 p-3 rounded-xl focus:ring-2 outline-none transition-all ${pincodeStatus.pickup === true ? 'border-green-500 ring-green-50 bg-green-50/10' : pincodeStatus.pickup === false ? 'border-red-500 ring-red-50 bg-red-50/10' : 'border-gray-300 focus:ring-orange-500'}`}
                     required
                   />
                   {pincodeStatus.pickup === true && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500 animate-in zoom-in duration-300">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-green-600 animate-in zoom-in duration-300">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                       </svg>
                     </div>
@@ -268,12 +417,12 @@ export default function ManualBooking() {
                     value={formData.deliveryPincode}
                     onChange={handleChange}
                     placeholder="e.g. 110001"
-                    className={`w-full border p-3 rounded-xl focus:ring-2 outline-none transition-all ${pincodeStatus.drop === true ? 'border-green-500 ring-green-50' : pincodeStatus.drop === false ? 'border-red-400 ring-red-50' : 'border-gray-300 focus:ring-orange-500'}`}
+                    className={`w-full border-2 p-3 rounded-xl focus:ring-2 outline-none transition-all ${pincodeStatus.drop === true ? 'border-green-500 ring-green-50 bg-green-50/10' : pincodeStatus.drop === false ? 'border-red-500 ring-red-50 bg-red-50/10' : 'border-gray-300 focus:ring-orange-500'}`}
                     required
                   />
                   {pincodeStatus.drop === true && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-green-500 animate-in zoom-in duration-300">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" viewBox="0 0 20 20" fill="currentColor">
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-green-600 animate-in zoom-in duration-300">
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                         <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                       </svg>
                     </div>
@@ -613,7 +762,7 @@ export default function ManualBooking() {
                 </div>
                 <div className="bg-white p-3 rounded-xl border border-gray-100 border-l-4 border-l-green-500">
                   <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Total Amount</p>
-                  <p className="font-bold text-lg text-green-600">₹{formData.totalAmount}</p>
+                  <p className="font-bold text-lg text-green-600">{formData.isVendorBooking ? 'CREDIT' : `₹${formData.totalAmount}`}</p>
                 </div>
               </div>
               <div className="space-y-2 border-t pt-4">
