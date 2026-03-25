@@ -60,9 +60,10 @@ const pincodeRoutes = require("./routes/pincodes");
 const couponRoutes = require("./routes/coupons");
 const manualBookingRoute = require('./routes/manualBooking.js');
 const emailRoutes = require("./routes/emailRoutes.js");
-const userRoutes = require("./routes/users");
-
 const intakeRoutes = require("./routes/intake");
+const userRoutes = require("./routes/users");
+const vendorRoutes = require("./routes/vendors");
+const vendorPaymentRoutes = require("./routes/vendorPayments");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/bookings", bookingRoutes);
@@ -71,6 +72,8 @@ app.use("/api/coupons", couponRoutes);
 app.use("/api/manual-bookings", manualBookingRoute);
 app.use("/api/email", emailRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/vendors", vendorRoutes);
+app.use("/api/vendor-payments", vendorPaymentRoutes);
 
 app.use("/api/intake", intakeRoutes);
 
