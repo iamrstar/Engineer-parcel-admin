@@ -57,7 +57,7 @@ router.get("/", adminAuth, async (req, res) => {
 // -----------------------------------------
 router.post("/verify", adminAuth, async (req, res) => {
     try {
-        const { bookingId, pricing, senderDetails, receiverDetails, packageDetails, serviceType, premiumItemType, trackingId, vendorName, vendorTrackingId } = req.body;
+        const { bookingId, pricing, senderDetails, receiverDetails, packageDetails, serviceType, premiumItemType, trackingId, vendorName, vendorTrackingId, estimatedDelivery } = req.body;
 
         if (!bookingId || !pricing) {
             return res.status(400).json({ message: "Missing required fields" });
@@ -79,6 +79,7 @@ router.post("/verify", adminAuth, async (req, res) => {
 
         booking.pricing = pricing;
         booking.status = "Verified - Payment Pending";
+        if (estimatedDelivery) booking.estimatedDelivery = estimatedDelivery;
         booking.adminVerified = true;
 
         // Generate Payment Link
@@ -130,6 +131,7 @@ router.post("/verify", adminAuth, async (req, res) => {
                         </div>
 
                         <div style="margin-top: 20px; font-size: 0.9em; border-top: 1px solid #eee; padding-top: 15px;">
+                            ${booking.estimatedDelivery ? `<p style="color: #166534; font-weight: bold; margin-bottom: 15px;">📅 Estimated Delivery: ${booking.estimatedDelivery}</p>` : ''}
                             <p><strong>Breakdown:</strong></p>
                             <ul style="list-style: none; padding: 0;">
                                 <li style="margin-bottom: 5px;">Base Price: ₹${pricing.basePrice}</li>
