@@ -60,6 +60,11 @@ const IntakeBookingSchema = new mongoose.Schema({
     // Status & Tracking
     status: { type: String, default: 'Pending Verification' },
     currentLocation: String,
+    vendorName: String,
+    vendorTrackingId: String,
+    isVendorBooking: { type: Boolean, default: false },
+    vendorId: { type: String },
+    paymentLink: String,
     parcelImage: String,
     estimatedDelivery: String,
 
