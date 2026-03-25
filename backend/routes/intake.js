@@ -253,7 +253,7 @@ router.post("/seed", adminAuth, async (req, res) => {
                     status: "confirmed",
                     location: doc.senderDetails.city || "Hub",
                     timestamp: new Date(),
-                    description: "Booking verified and seeded from Intake System"
+                    description: "Booking Verified and Shipment Booked Successfully"
                 }],
             };
 
