@@ -179,9 +179,9 @@ async function generateReceiptPDF(booking) {
         // SUBTOTAL ROW
         const rSubH = 15;
         const rSubY = y - rSubH;
-        drawCellText('Subtotal:', c4X, y, c5X - c4X, rSubH, fontBold, 8, 'center');
         const subtotal = (booking.pricing?.basePrice || 0) + (booking.pricing?.additionalCharges || booking.pricing?.packagingCharge || 0);
-        drawCellText(`Rs.${subtotal}`, c5X, y, endX - c5X, rSubH, fontRegular, 8, 'center');
+        const subtotalText = booking.isVendorBooking ? "CREDIT" : `Rs.${subtotal}`;
+        drawCellText(subtotalText, c5X, y, endX - c5X, rSubH, fontRegular, 8, 'center');
         drawVLine(c5X, y, rSubY);
         drawHLine(rSubY);
         y = rSubY;
@@ -190,7 +190,8 @@ async function generateReceiptPDF(booking) {
         const rTaxH = 15;
         const rTaxY = y - rTaxH;
         drawCellText('Tax (GST):', c4X, y, c5X - c4X, rTaxH, fontBold, 8, 'center');
-        drawCellText(`Rs.${booking.pricing?.tax || 0}`, c5X, y, endX - c5X, rTaxH, fontRegular, 8, 'center');
+        const taxText = booking.isVendorBooking ? "CREDIT" : `Rs.${booking.pricing?.tax || 0}`;
+        drawCellText(taxText, c5X, y, endX - c5X, rTaxH, fontRegular, 8, 'center');
         drawVLine(c5X, y, rTaxY);
         drawHLine(rTaxY);
         y = rTaxY;
@@ -200,7 +201,8 @@ async function generateReceiptPDF(booking) {
         const rTotalY = y - rTotalH;
         page.drawRectangle({ x: c4X, y: rTotalY, width: endX - c4X, height: rTotalH, color: headerBg });
         drawCellText('Total Amount:', c4X, y, c5X - c4X, rTotalH, fontBold, 8, 'right');
-        drawCellText(`Rs.${booking.pricing?.totalAmount || 0}`, c5X, y, endX - c5X, rTotalH, fontBold, 10, 'center');
+        const totalText = booking.isVendorBooking ? "CREDIT" : `Rs.${booking.pricing?.totalAmount || 0}`;
+        drawCellText(totalText, c5X, y, endX - c5X, rTotalH, fontBold, 10, 'center');
         drawVLine(c5X, y, rTotalY);
         drawHLine(rTotalY);
         y = rTotalY;
@@ -227,8 +229,8 @@ async function generateReceiptPDF(booking) {
         page.drawText(trackText1, { x: startX + 10, y: rFootY + 65, size: 9, font: fontBold, color: darkGray });
         page.drawText(authText, { x: startX + 10, y: rFootY + 52, size: 8, font: fontOblique, color: darkGray });
 
-        // QR CODE (Center)
-        if (booking.paymentLink) {
+        // QR CODE (Center) - Hidden for Vendor Booking as they are charged monthly
+        if (booking.paymentLink && !booking.isVendorBooking) {
             try {
                 const qrCodeDataUrl = await QRCode.toDataURL(booking.paymentLink, {
                     margin: 1,
