@@ -49,12 +49,28 @@ router.post("/", async (req, res) => {
       return res.status(400).json({ error: "Missing required booking fields." });
     }
 
+    // Look up EDL and KM for the delivery pincode
+    let edl = 0;
+    let km = 0;
+    try {
+      const Pincode = require("../models/Pincode");
+      const pinData = await Pincode.findOne({ pincode: deliveryPincode || receiverDetails.pincode });
+      if (pinData) {
+        edl = pinData.edl || 0;
+        km = pinData.km || 0;
+      }
+    } catch (pinErr) {
+      console.error("Error fetching pincode data for manual booking:", pinErr);
+    }
+
     // Manual Booking create karo
     const newBooking = new Booking({
       bookingId,
       serviceType,
       senderDetails,
       receiverDetails,
+      edl,
+      km,
       packageDetails: {
         weight: packageDetails.weight,
         weightUnit: packageDetails.weightUnit,
