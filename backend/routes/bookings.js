@@ -68,7 +68,7 @@ router.get("/test-log", (req, res) => {
  * ------------------------ */
 router.get("/", authMiddleware, async (req, res) => {
   try {
-    const { page = 1, limit = 10, status, serviceType, search } = req.query;
+    const { page = 1, limit = 10, status, serviceType, search, startDate, endDate } = req.query;
     const query = {};
 
     if (status && status !== "all") {
@@ -87,6 +87,21 @@ router.get("/", authMiddleware, async (req, res) => {
       ];
     }
 
+    // Date Filtering
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        query.createdAt.$gte = start;
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        query.createdAt.$lte = end;
+      }
+    }
+
     if (search) {
       query.$or = [
         { bookingId: { $regex: search, $options: "i" } },
@@ -97,17 +112,31 @@ router.get("/", authMiddleware, async (req, res) => {
       ];
     }
 
-    const bookings = await Booking.find(query)
+    const bookingsRaw = await Booking.find(query)
       .sort({ createdAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit);
+
+    // Look up EDL/KM for items that don't have it (older bookings)
+    const Pincode = require("../models/Pincode");
+    const bookings = await Promise.all(bookingsRaw.map(async (b) => {
+      let bookingObj = b.toObject();
+      if ((!bookingObj.edl || !bookingObj.km) && bookingObj.receiverDetails?.pincode) {
+        const pin = await Pincode.findOne({ pincode: bookingObj.receiverDetails.pincode });
+        if (pin) {
+          bookingObj.edl = pin.edl || 0;
+          bookingObj.km = pin.km || 0;
+        }
+      }
+      return bookingObj;
+    }));
 
     const total = await Booking.countDocuments(query);
 
     res.json({
       bookings,
       totalPages: Math.ceil(total / limit),
-      currentPage: page,
+      currentPage: Number(page),
       total,
     });
   } catch (error) {
@@ -442,6 +471,130 @@ router.put("/:id/reschedule", adminAuth, async (req, res) => {
     res.json(updated);
   } catch (error) {
     console.error("Error rescheduling booking:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/** ------------------------
+ * 🗓️ Tomorrow's Tasks (Pickups/Deliveries)
+ * ------------------------ */
+
+// Get count of unique bookings for tomorrow
+router.get("/tasks/tomorrow-count", adminAuth, async (req, res) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Tomorrow start: today + 1 day
+    const tomorrowStart = new Date(today);
+    tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+    
+    // Day after tomorrow start: today + 2 days
+    const tomorrowEnd = new Date(today);
+    tomorrowEnd.setDate(tomorrowEnd.getDate() + 2);
+
+    console.log(`Fetching tasks between ${tomorrowStart.toISOString()} and ${tomorrowEnd.toISOString()}`);
+
+    const count = await Booking.countDocuments({
+      $or: [
+        { 
+          pickupDate: { $gte: tomorrowStart, $lt: tomorrowEnd },
+          status: { $nin: ['picked', 'in-transit', 'out-for-delivery', 'delivered', 'cancelled'] }
+        },
+        { 
+          boxDeliveryDate: { $gte: tomorrowStart, $lt: tomorrowEnd },
+          isBoxDelivered: { $ne: true }
+        }
+      ]
+    });
+
+    res.json({ count: count || 0 });
+  } catch (error) {
+    console.error("Error in /tasks/tomorrow-count:", error);
+    res.status(500).json({ 
+      message: "Server error fetching task count",
+      error: error.message 
+    });
+  }
+});
+
+// Get detail of bookings for tomorrow
+router.get("/tasks/tomorrow", adminAuth, async (req, res) => {
+  try {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const tomorrowStart = new Date(today);
+    tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+    
+    const tomorrowEnd = new Date(today);
+    tomorrowEnd.setDate(tomorrowEnd.getDate() + 2);
+
+    const bookings = await Booking.find({
+      $or: [
+        { pickupDate: { $gte: tomorrowStart, $lt: tomorrowEnd } },
+        { boxDeliveryDate: { $gte: tomorrowStart, $lt: tomorrowEnd } }
+      ]
+    }).select('bookingId senderDetails receiverDetails pickupDate pickupSlot boxDeliveryDate boxDeliverySlot serviceType status isBoxDelivered');
+
+    // Categorize
+    const boxPickups = bookings.filter(b => 
+      b.pickupDate && 
+      new Date(b.pickupDate) >= tomorrowStart && 
+      new Date(b.pickupDate) < tomorrowEnd
+    );
+
+    const boxDeliveries = bookings.filter(b => 
+      b.boxDeliveryDate && 
+      new Date(b.boxDeliveryDate) >= tomorrowStart && 
+      new Date(b.boxDeliveryDate) < tomorrowEnd
+    );
+
+    res.json({ 
+      boxPickups: boxPickups || [], 
+      boxDeliveries: boxDeliveries || [] 
+    });
+  } catch (error) {
+    console.error("Error in /tasks/tomorrow:", error);
+    res.status(500).json({ 
+      message: "Server error fetching tasks",
+      error: error.message
+    });
+  }
+});
+
+// Mark a task as completed
+router.put("/:id/tasks/complete", adminAuth, async (req, res) => {
+  try {
+    const { type } = req.body; // 'pickup' or 'delivery'
+    const booking = await Booking.findById(req.params.id);
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    if (type === 'delivery') {
+      booking.isBoxDelivered = true;
+      booking.trackingHistory.push({
+        status: booking.status,
+        location: booking.currentLocation || "Hub",
+        timestamp: new Date(),
+        description: "Empty boxes / packaging material delivered to customer."
+      });
+    } else if (type === 'pickup') {
+      booking.status = 'picked';
+      booking.trackingHistory.push({
+        status: "picked",
+        location: booking.currentLocation || "Hub",
+        timestamp: new Date(),
+        description: "Shipment successfully picked up from customer."
+      });
+    }
+
+    await booking.save();
+    res.json({ message: "Task marked as completed", booking });
+  } catch (error) {
+    console.error("Error completing task:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
