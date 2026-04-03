@@ -51,11 +51,29 @@ const bookingSchema = new mongoose.Schema(
       description: { type: String, default: "N/A" },
       value: { type: Number, default: 0 },
       fragile: { type: Boolean, default: false },
+      isEdl: { type: Boolean, default: false },
+      edlItems: [mongoose.Schema.Types.Mixed],
+      edlContents: [String],
+      otherContentText: String,
     },
     pickupPincode: String,
     deliveryPincode: String,
+    edl: { type: Number, default: 0 },
+    km: { type: Number, default: 0 },
+    pickupMethod: {
+      type: String,
+      enum: ["hub", "doorstep"],
+      default: "hub",
+    },
     pickupDate: Date,
     pickupSlot: String,
+    boxDeliveryType: {
+      type: String,
+      enum: ["self", "delivered"],
+      default: "self",
+    },
+    boxDeliveryDate: Date,
+    boxDeliverySlot: String,
     deliveryDate: Date,
     status: {
       type: String,
@@ -148,6 +166,8 @@ const bookingSchema = new mongoose.Schema(
       date: { type: Date, default: Date.now },
       notes: { type: String }
     }],
+    estimatedDelivery: { type: String },
+    isBoxDelivered: { type: Boolean, default: false },
   },
   { timestamps: true },
 )
