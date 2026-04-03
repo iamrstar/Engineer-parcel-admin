@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Link } from "react-router-dom"
 import axios from "axios"
 import toast from "react-hot-toast"
-import { Search, Filter, Eye, FileText } from "lucide-react"
+import { Search, Filter, Eye, FileText, Calendar } from "lucide-react"
 
 // Helper functions for status visibility
 const getTimeAgo = (date) => {
@@ -38,10 +38,15 @@ const Bookings = () => {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [vendorNotAssigned, setVendorNotAssigned] = useState(false)
+  
+  // Date Filtering State
+  const [dateFilter, setDateFilter] = useState("all") // all, today, last7, last30, custom
+  const [customStartDate, setCustomStartDate] = useState("")
+  const [customEndDate, setCustomEndDate] = useState("")
 
   useEffect(() => {
     fetchBookings()
-  }, [currentPage, statusFilter, serviceFilter, searchTerm, vendorNotAssigned])
+  }, [currentPage, statusFilter, serviceFilter, searchTerm, vendorNotAssigned, dateFilter, customStartDate, customEndDate])
 
   const fetchBookings = async () => {
     try {
@@ -55,6 +60,8 @@ const Bookings = () => {
           serviceType: serviceFilter,
           search: searchTerm,
           vendorNotAssigned: vendorNotAssigned,
+          startDate: getEffectiveStartDate(),
+          endDate: getEffectiveEndDate(),
         },
       })
 
@@ -68,7 +75,33 @@ const Bookings = () => {
     }
   }
 
+  // Helper to calculate effective dates for API
+  const getEffectiveStartDate = () => {
+    if (dateFilter === "all") return ""
+    if (dateFilter === "custom") return customStartDate
 
+    const now = new Date()
+    if (dateFilter === "today") {
+      return now.toISOString().split('T')[0]
+    }
+    if (dateFilter === "last7") {
+      const d = new Date()
+      d.setDate(d.getDate() - 7)
+      return d.toISOString().split('T')[0]
+    }
+    if (dateFilter === "last30") {
+      const d = new Date()
+      d.setDate(d.getDate() - 30)
+      return d.toISOString().split('T')[0]
+    }
+    return ""
+  }
+
+  const getEffectiveEndDate = () => {
+    if (dateFilter === "all") return ""
+    if (dateFilter === "custom") return customEndDate
+    return new Date().toISOString().split('T')[0]
+  }
 
   const getStatusColor = (status) => {
     const colors = {
@@ -96,27 +129,27 @@ const Bookings = () => {
         <p className="text-gray-600">Manage all courier bookings</p>
       </div>
 
-      {/* Filters */}
+      {/* Filters Section */}
       <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <div className="flex flex-col sm:flex-row gap-4">
+        <div className="flex flex-col sm:flex-row gap-4 mb-4">
           <form onSubmit={handleSearch} className="flex-1">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
               <input
                 type="text"
-                placeholder="Search by booking ID, name, or phone..."
+                placeholder="Search..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
               />
             </div>
           </form>
-          <div className="flex items-center gap-2">
-            <Filter className="h-5 w-5 text-gray-400" />
+          
+          <div className="flex flex-wrap gap-2">
             <select
               value={serviceFilter}
               onChange={(e) => setServiceFilter(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
             >
               <option value="all">All Services</option>
               <option value="campus-parcel">Campus Parcel</option>
@@ -125,40 +158,74 @@ const Bookings = () => {
               <option value="express">Express</option>
               <option value="premium">Premium</option>
             </select>
-          </div>
-          <div className="flex items-center gap-2">
-            <Filter className="h-5 w-5 text-gray-400" />
+
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
             >
               <option value="all">All Status</option>
               <option value="pending">Pending</option>
               <option value="confirmed">Confirmed</option>
               <option value="picked">Picked</option>
-              <option value="in-transit">In Transit</option>
-              <option value="out-for-delivery">Out for Delivery</option>
               <option value="delivered">Delivered</option>
               <option value="cancelled">Cancelled</option>
             </select>
+
+            <div className="flex items-center gap-2 bg-amber-50 px-3 py-2 rounded-lg border border-amber-100">
+              <input
+                type="checkbox"
+                id="vendorFilter"
+                checked={vendorNotAssigned}
+                onChange={(e) => setVendorNotAssigned(e.target.checked)}
+                className="w-4 h-4 text-primary-600"
+              />
+              <label htmlFor="vendorFilter" className="text-sm font-medium text-amber-800 whitespace-nowrap">No Vendor</label>
+            </div>
           </div>
-          <div className="flex items-center gap-2 bg-amber-50 px-3 py-2 rounded-lg border border-amber-100">
-            <input
-              type="checkbox"
-              id="vendorFilter"
-              checked={vendorNotAssigned}
-              onChange={(e) => setVendorNotAssigned(e.target.checked)}
-              className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
-            />
-            <label htmlFor="vendorFilter" className="text-sm font-medium text-amber-800 cursor-pointer whitespace-nowrap">
-              No Vendor
-            </label>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-4 pt-4 border-t border-gray-100">
+          <div className="flex items-center gap-2 font-medium text-gray-500">
+            <Calendar className="h-4 w-4" />
+            <span className="text-sm">Date Filter:</span>
+            <select
+              value={dateFilter}
+              onChange={(e) => {
+                setDateFilter(e.target.value)
+                setCurrentPage(1)
+              }}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm ml-1"
+            >
+              <option value="all">Anytime</option>
+              <option value="today">Today</option>
+              <option value="last7">Last Week</option>
+              <option value="last30">Last Month</option>
+              <option value="custom">Custom Range</option>
+            </select>
           </div>
+
+          {dateFilter === "custom" && (
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={customStartDate}
+                onChange={(e) => setCustomStartDate(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              />
+              <span className="text-gray-400">to</span>
+              <input
+                type="date"
+                value={customEndDate}
+                onChange={(e) => setCustomEndDate(e.target.value)}
+                className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              />
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Bookings Table */}
+      {/* Bookings Table Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center h-64">
@@ -170,193 +237,142 @@ const Bookings = () => {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Booking ID
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Sender
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Receiver
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Service
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Amount
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Vendor
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Track ID
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Booking Date
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Receipt
-                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Booking ID</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sender</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receiver</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vendor</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Track ID</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {bookings.map((booking) => (
                     <tr key={booking._id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {booking.bookingId}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">{booking.bookingId}</div>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {booking.edl > 0 && (
+                            <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-700 border border-orange-200">
+                              EDL {booking.edl}
+                            </span>
+                          )}
+                          {booking.km > 0 && (
+                            <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">
+                              {booking.km} KM
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{booking.senderDetails.name}</div>
-                        <div className="text-sm text-gray-500">{booking.senderDetails.phone}</div>
+                        <div className="text-sm font-bold text-gray-900">{booking.senderDetails?.name}</div>
+                        <div className="text-xs text-gray-500">{booking.senderDetails?.phone}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-gray-900">{booking.receiverDetails.name}</div>
-                        <div className="text-sm text-gray-500">{booking.receiverDetails.phone}</div>
+                        <div className="text-sm font-bold text-gray-900">{booking.receiverDetails?.name}</div>
+                        <div className="text-xs text-gray-500">{booking.receiverDetails?.phone}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-bold text-gray-900 capitalize">{booking.serviceType}</div>
+                        <div className="text-sm font-bold text-gray-800 capitalize">{booking.serviceType}</div>
                         <div className="text-[10px] text-gray-400 font-medium">Source: {booking.bookingSource || 'web'}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap overflow-visible">
-                        <div className="flex flex-col group relative">
-                          <div className="flex items-center space-x-1.5">
-                            <span
-                              className={`inline-flex px-2 py-0.5 text-[10px] font-bold uppercase rounded-full cursor-help shadow-sm border ${getStatusColor(booking.status)}`}
-                            >
-                              {booking.status}
-                            </span>
-                            {isRecent(booking.updatedAt) && (
-                              <span className="flex h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" title="Updated Recently"></span>
-                            )}
-                          </div>
-
-                          {booking.currentLocation && booking.currentLocation !== "Pending" && (
-                            <div className="text-[10px] text-gray-400 mt-0.5 font-medium truncate max-w-[100px]">
-                              {booking.currentLocation}
-                            </div>
+                        <div className="flex items-center space-x-1.5 group relative">
+                          <span className={`inline-flex px-2 py-0.5 text-[10px] font-bold uppercase rounded-full border ${getStatusColor(booking.status)}`}>
+                            {booking.status}
+                          </span>
+                          {isRecent(booking.updatedAt) && (
+                            <span className="flex h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse"></span>
                           )}
-
-                          <div className="hidden group-hover:block absolute z-20 p-2.5 bg-gray-900 text-white rounded-lg shadow-2xl text-[11px] -top-14 left-0 w-48 border border-gray-700 pointer-events-none">
-                            <div className="flex justify-between items-center mb-1 border-b border-gray-700 pb-1">
-                              <span className="font-bold text-blue-400">Activity Report</span>
-                              {isRecent(booking.updatedAt) && <span className="text-[9px] bg-blue-600 px-1 rounded text-white font-bold">NEW</span>}
-                            </div>
-                            <div className="space-y-1">
-                              <div><span className="text-gray-400">Location:</span> <span className="font-medium text-gray-200">{booking.currentLocation || 'Hub'}</span></div>
-                              <div><span className="text-gray-400">Updated:</span> <span className="font-medium text-gray-200">{getTimeAgo(booking.updatedAt)}</span></div>
-                              <div className="text-gray-500 text-[9px] pt-0.5 italic text-right">{new Date(booking.updatedAt).toLocaleString()}</div>
-                            </div>
+                          <div className="absolute hidden group-hover:block z-20 p-2 bg-gray-900 text-white rounded text-[10px] -top-12 left-0 w-32 shadow-xl border border-gray-800">
+                            Updated: {getTimeAgo(booking.updatedAt)}
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
                         ₹{booking.pricing?.totalAmount || 0}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 capitalize">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                         {booking.vendorName || "-"}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-mono text-xs">
+                      <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 font-mono">
                         {booking.vendorTrackingId || "-"}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
                         {new Date(booking.createdAt).toLocaleDateString()}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex space-x-2">
-                          <Link to={`/bookings/${booking._id}`} className="text-primary-600 hover:text-primary-900" title="View Details">
+                      <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                        <div className="flex items-center justify-center space-x-2">
+                          <Link to={`/bookings/${booking._id}`} className="p-1 px-2.5 text-primary-600 hover:bg-primary-50 rounded-lg flex items-center gap-1.5 border border-primary-100">
                             <Eye className="h-4 w-4" />
+                            <span className="text-xs font-bold">VIEW</span>
                           </Link>
+                          {(booking.trackingId || booking.bookingId) && (
+                            <button
+                              onClick={async () => {
+                                try {
+                                  const t = localStorage.getItem("adminToken") || localStorage.getItem("token")
+                                  const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/${booking._id}/receipt`, {
+                                    headers: { Authorization: `Bearer ${t}` },
+                                    responseType: "blob"
+                                  })
+                                  const url = window.URL.createObjectURL(new Blob([response.data]))
+                                  const link = document.createElement("a")
+                                  link.href = url
+                                  link.setAttribute("download", `Receipt_${booking.bookingId}.pdf`)
+                                  document.body.appendChild(link)
+                                  link.click()
+                                  link.remove()
+                                  toast.success("Receipt downloaded")
+                                } catch (error) {
+                                  toast.error("Receipt failed")
+                                }
+                              }}
+                              className="p-1 px-2.5 text-red-500 hover:bg-red-50 rounded-lg flex items-center gap-1.5 border border-red-100 transition-colors"
+                              title="Download PDF"
+                            >
+                              <FileText className="h-4 w-4" />
+                              <span className="text-xs font-bold uppercase">PDF</span>
+                            </button>
+                          )}
                         </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        {(booking.trackingId || booking.bookingId) ? (
-                          <button
-                            onClick={async () => {
-                              try {
-                                const t = localStorage.getItem("adminToken") || localStorage.getItem("token")
-                                const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/${booking._id}/receipt`, {
-                                  headers: { Authorization: `Bearer ${t}` },
-                                  responseType: 'blob'
-                                })
-
-                                const url = window.URL.createObjectURL(new Blob([response.data]))
-                                const link = document.createElement('a')
-                                link.href = url
-                                link.setAttribute('download', `Receipt_${booking.bookingId || booking.trackingId}.pdf`)
-                                document.body.appendChild(link)
-                                link.click()
-                                link.remove()
-                                toast.success("Receipt downloaded successfully")
-                              } catch (error) {
-                                console.error("Download error:", error)
-                                toast.error("Failed to download receipt")
-                              }
-                            }}
-                            className="text-red-600 hover:text-red-900 flex items-center gap-1 bg-red-50 px-2 py-1 rounded"
-                            title="Download Receipt"
-                          >
-                            <FileText className="h-4 w-4" />
-                            <span className="text-xs">PDF</span>
-                          </button>
-                        ) : "-"}
                       </td>
                     </tr>
                   ))}
+                  {bookings.length === 0 && (
+                    <tr>
+                      <td colSpan="10" className="px-6 py-10 text-center text-gray-500 italic">No bookings found matching your filters.</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
 
-            {/* Pagination */}
+            {/* Pagination Controls */}
             {totalPages > 1 && (
-              <div className="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
-                <div className="flex-1 flex justify-between sm:hidden">
-                  <button
-                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                    disabled={currentPage === 1}
-                    className="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    Previous
-                  </button>
-                  <button
-                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                    disabled={currentPage === totalPages}
-                    className="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-                  >
-                    Next
-                  </button>
+              <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+                <button
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(prev => prev - 1)}
+                  className="px-4 py-2 text-sm font-bold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-gray-900 px-3 py-1 bg-white border border-gray-200 rounded-lg">
+                    Page {currentPage} of {totalPages}
+                  </span>
                 </div>
-                <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                  <div>
-                    <p className="text-sm text-gray-700">
-                      Page <span className="font-medium">{currentPage}</span> of{" "}
-                      <span className="font-medium">{totalPages}</span>
-                    </p>
-                  </div>
-                  <div>
-                    <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
-                      <button
-                        onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                        disabled={currentPage === 1}
-                        className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-                      >
-                        Previous
-                      </button>
-                      <button
-                        onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                        disabled={currentPage === totalPages}
-                        className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-50"
-                      >
-                        Next
-                      </button>
-                    </nav>
-                  </div>
-                </div>
+                <button
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage(prev => prev + 1)}
+                  className="px-4 py-2 text-sm font-bold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
               </div>
             )}
           </>
