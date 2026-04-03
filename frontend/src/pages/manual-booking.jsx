@@ -44,8 +44,8 @@ export default function ManualBooking() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [pincodeStatus, setPincodeStatus] = useState({
-    pickup: null, // null, true, false
-    drop: null
+    pickup: { available: null, isEDL: false, edl: 0 },
+    drop: { available: null, isEDL: false, edl: 0 }
   });
   const [vendorSearch, setVendorSearch] = useState("");
   const [vendorResults, setVendorResults] = useState([]);
@@ -95,7 +95,7 @@ export default function ManualBooking() {
     if (formData.pickupPincode.length === 6) {
       checkPincode(formData.pickupPincode, 'pickup');
     } else {
-      setPincodeStatus(prev => ({ ...prev, pickup: null }));
+      setPincodeStatus(prev => ({ ...prev, pickup: { available: null, isEDL: false, edl: 0 } }));
     }
   }, [formData.pickupPincode]);
 
@@ -103,7 +103,7 @@ export default function ManualBooking() {
     if (formData.deliveryPincode.length === 6) {
       checkPincode(formData.deliveryPincode, 'drop');
     } else {
-      setPincodeStatus(prev => ({ ...prev, drop: null }));
+      setPincodeStatus(prev => ({ ...prev, drop: { available: null, isEDL: false, edl: 0 } }));
     }
   }, [formData.deliveryPincode]);
 
@@ -114,7 +114,14 @@ export default function ManualBooking() {
         headers: { Authorization: `Bearer ${currentToken}` }
       });
       const data = await res.json();
-      setPincodeStatus(prev => ({ ...prev, [type]: data.available }));
+      setPincodeStatus(prev => ({ 
+        ...prev, 
+        [type]: { 
+          available: data.available, 
+          isEDL: data.isEDL || false, 
+          edl: data.edl || 0 
+        } 
+      }));
 
       if (data.available) {
         if (type === 'pickup') {
@@ -167,7 +174,10 @@ export default function ManualBooking() {
       vendorId: "",
     });
     setVendorSearch("");
-    setPincodeStatus({ pickup: null, drop: null });
+    setPincodeStatus({ 
+      pickup: { available: null, isEDL: false, edl: 0 }, 
+      drop: { available: null, isEDL: false, edl: 0 } 
+    });
     setStep(1);
   };
 
@@ -394,17 +404,24 @@ export default function ManualBooking() {
                     value={formData.pickupPincode}
                     onChange={handleChange}
                     placeholder="e.g. 826001"
-                    className={`w-full border-2 p-3 rounded-xl focus:ring-2 outline-none transition-all ${pincodeStatus.pickup === true ? 'border-green-500 ring-green-50 bg-green-50/10' : pincodeStatus.pickup === false ? 'border-red-500 ring-red-50 bg-red-50/10' : 'border-gray-300 focus:ring-orange-500'}`}
+                    className={`w-full border-2 p-3 rounded-xl focus:ring-2 outline-none transition-all ${pincodeStatus.pickup.available === true ? 'border-green-500 ring-green-50 bg-green-50/10' : pincodeStatus.pickup.available === false ? 'border-red-500 ring-red-50 bg-red-50/10' : 'border-gray-300 focus:ring-orange-500'}`}
                     required
                   />
-                  {pincodeStatus.pickup === true && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-green-600 animate-in zoom-in duration-300">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
+                  {pincodeStatus.pickup.available === true && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                      {pincodeStatus.pickup.isEDL && (
+                        <span className="bg-orange-100 text-orange-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-orange-200">
+                          EDL ({pincodeStatus.pickup.edl})
+                        </span>
+                      )}
+                      <div className="text-green-600 animate-in zoom-in duration-300">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                      </div>
                     </div>
                   )}
-                  {pincodeStatus.pickup === false && (
+                  {pincodeStatus.pickup.available === false && (
                     <span className="absolute -bottom-5 left-1 text-[10px] text-red-500 font-bold">Service not available</span>
                   )}
                 </div>
@@ -417,17 +434,24 @@ export default function ManualBooking() {
                     value={formData.deliveryPincode}
                     onChange={handleChange}
                     placeholder="e.g. 110001"
-                    className={`w-full border-2 p-3 rounded-xl focus:ring-2 outline-none transition-all ${pincodeStatus.drop === true ? 'border-green-500 ring-green-50 bg-green-50/10' : pincodeStatus.drop === false ? 'border-red-500 ring-red-50 bg-red-50/10' : 'border-gray-300 focus:ring-orange-500'}`}
+                    className={`w-full border-2 p-3 rounded-xl focus:ring-2 outline-none transition-all ${pincodeStatus.drop.available === true ? 'border-green-500 ring-green-50 bg-green-50/10' : pincodeStatus.drop.available === false ? 'border-red-500 ring-red-50 bg-red-50/10' : 'border-gray-300 focus:ring-orange-500'}`}
                     required
                   />
-                  {pincodeStatus.drop === true && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 text-green-600 animate-in zoom-in duration-300">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
+                  {pincodeStatus.drop.available === true && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                       {pincodeStatus.drop.isEDL && (
+                        <span className="bg-orange-100 text-orange-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-orange-200">
+                          EDL ({pincodeStatus.drop.edl})
+                        </span>
+                      )}
+                      <div className="text-green-600 animate-in zoom-in duration-300">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                      </div>
                     </div>
                   )}
-                  {pincodeStatus.drop === false && (
+                  {pincodeStatus.drop.available === false && (
                     <span className="absolute -bottom-5 left-1 text-[10px] text-red-500 font-bold">Service not available</span>
                   )}
                 </div>
