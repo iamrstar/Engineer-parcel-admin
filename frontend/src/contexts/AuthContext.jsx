@@ -1,5 +1,3 @@
-"use client"
-
 import { createContext, useContext, useState, useEffect } from "react"
 import axios from "axios"
 
@@ -15,36 +13,47 @@ export const useAuth = () => {
 
 export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [admin, setAdmin] = useState(null)
+  const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
 
   const API_BASE_URL = import.meta.env.VITE_API_URL
 
   useEffect(() => {
-    const token = localStorage.getItem("adminToken")
+    const token = localStorage.getItem("adminToken") || localStorage.getItem("token")
+    const savedUser = localStorage.getItem("userData")
+
     if (token) {
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`
       setIsAuthenticated(true)
+      if (savedUser) {
+        setUser(JSON.parse(savedUser))
+      }
     }
     setLoading(false)
   }, [])
 
-  const login = async (username, password) => {
+  const login = async (identifier, password) => {
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/auth/login`, {
-        username,
-        password,
-      })
+      // Check if it's a numeric phone number (for new User model) or alphanumeric (for Admin model)
+      const isPhone = /^\d+$/.test(identifier)
+      const loginEndpoint = isPhone ? "/api/users/login" : "/api/auth/login"
+      const payload = isPhone ? { phone: identifier, password } : { username: identifier, password }
 
-      const { token, admin } = response.data
+      const response = await axios.post(`${API_BASE_URL}${loginEndpoint}`, payload)
 
-      localStorage.setItem("adminToken", token)
+      const { token, admin, user: userData } = response.data
+      const finalUser = userData || admin // handle both response formats
+
+      localStorage.setItem("token", token)
+      localStorage.setItem("adminToken", token) // for backward compatibility
+      localStorage.setItem("userData", JSON.stringify(finalUser))
+
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`
 
       setIsAuthenticated(true)
-      setAdmin(admin)
+      setUser(finalUser)
 
-      return { success: true }
+      return { success: true, user: finalUser }
     } catch (error) {
       return {
         success: false,
@@ -55,31 +64,17 @@ export const AuthProvider = ({ children }) => {
 
   const logout = () => {
     localStorage.removeItem("adminToken")
+    localStorage.removeItem("token")
+    localStorage.removeItem("userData")
     delete axios.defaults.headers.common["Authorization"]
     setIsAuthenticated(false)
-    setAdmin(null)
+    setUser(null)
   }
-
-  // Handle global 401 unauthorized errors (e.g. expired tokens)
-  useEffect(() => {
-    const interceptor = axios.interceptors.response.use(
-      (response) => response,
-      (error) => {
-        if (error.response && error.response.status === 401) {
-          logout()
-        }
-        return Promise.reject(error)
-      }
-    )
-
-    return () => {
-      axios.interceptors.response.eject(interceptor)
-    }
-  }, [])
 
   const value = {
     isAuthenticated,
-    admin,
+    user,
+    admin: user, // for backward compatibility where admin.username was used
     login,
     logout,
     loading,
