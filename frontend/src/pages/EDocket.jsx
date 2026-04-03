@@ -38,7 +38,10 @@ export default function EDocket() {
     const [selectedBooking, setSelectedBooking] = useState(null);
     const [isVerifying, setIsVerifying] = useState(false);
     const [pincodeLoading, setPincodeLoading] = useState(false);
-    const [pincodeStatuses, setPincodeStatuses] = useState({ sender: null, receiver: null });
+    const [pincodeStatuses, setPincodeStatuses] = useState({ 
+        sender: { status: null, isEDL: false, edl: 0 }, 
+        receiver: { status: null, isEDL: false, edl: 0 } 
+    });
     const [vendorNotAssigned, setVendorNotAssigned] = useState(false);
     const [otherVendor, setOtherVendor] = useState(false);
 
@@ -162,8 +165,8 @@ export default function EDocket() {
         const timer = setTimeout(() => {
             if (editForm.senderDetails?.pincode && String(editForm.senderDetails.pincode).length === 6) {
                 handlePincodeLookup(editForm.senderDetails.pincode, "sender");
-            } else if (pincodeStatuses.sender) {
-                setPincodeStatuses(prev => ({ ...prev, sender: null }));
+            } else if (pincodeStatuses.sender.status) {
+                setPincodeStatuses(prev => ({ ...prev, sender: { status: null, isEDL: false, edl: 0 } }));
             }
         }, 500);
         return () => clearTimeout(timer);
@@ -173,8 +176,8 @@ export default function EDocket() {
         const timer = setTimeout(() => {
             if (editForm.receiverDetails?.pincode && String(editForm.receiverDetails.pincode).length === 6) {
                 handlePincodeLookup(editForm.receiverDetails.pincode, "receiver");
-            } else if (pincodeStatuses.receiver) {
-                setPincodeStatuses(prev => ({ ...prev, receiver: null }));
+            } else if (pincodeStatuses.receiver.status) {
+                setPincodeStatuses(prev => ({ ...prev, receiver: { status: null, isEDL: false, edl: 0 } }));
             }
         }, 500);
         return () => clearTimeout(timer);
@@ -190,7 +193,14 @@ export default function EDocket() {
             });
             const data = res.data;
             if (data.available) {
-                setPincodeStatuses(prev => ({ ...prev, [type]: 'success' }));
+                setPincodeStatuses(prev => ({ 
+                    ...prev, 
+                    [type]: { 
+                        status: 'success', 
+                        isEDL: data.isEDL || false, 
+                        edl: data.edl || 0 
+                    } 
+                }));
                 const section = type === "sender" ? "senderDetails" : "receiverDetails";
                 setEditForm((prev) => ({
                     ...prev,
@@ -201,12 +211,25 @@ export default function EDocket() {
                     },
                 }));
             } else {
-                setPincodeStatuses(prev => ({ ...prev, [type]: 'error' }));
-                toast.error(data.message || "Service not available. You may enter city/state manually.", { duration: 5000 });
+                setPincodeStatuses(prev => ({ 
+                    ...prev, 
+                    [type]: { 
+                        status: 'error', 
+                        isEDL: false, 
+                        edl: 0 
+                    } 
+                }));
             }
         } catch (error) {
             console.error(error);
-            setPincodeStatuses(prev => ({ ...prev, [type]: 'error' }));
+            setPincodeStatuses(prev => ({ 
+                ...prev, 
+                [type]: { 
+                    status: 'error', 
+                    isEDL: false, 
+                    edl: 0 
+                } 
+            }));
         } finally {
             setPincodeLoading(false);
         }
@@ -469,16 +492,21 @@ export default function EDocket() {
                                                 <input
                                                     value={editForm.senderDetails?.pincode || ''}
                                                     onChange={(e) => setEditForm({ ...editForm, senderDetails: { ...editForm.senderDetails, pincode: e.target.value } })}
-                                                    className={`w-full px-3 py-2.5 border rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 transition-colors ${pincodeStatuses.sender === 'success' ? 'border-green-500 bg-green-50 text-green-700' :
-                                                        pincodeStatuses.sender === 'error' ? 'border-red-500 bg-red-50 text-red-700' :
+                                                    className={`w-full px-3 py-2.5 border rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 transition-colors ${pincodeStatuses.sender.status === 'success' ? 'border-green-500 bg-green-50 text-green-700' :
+                                                        pincodeStatuses.sender.status === 'error' ? 'border-red-500 bg-red-50 text-red-700' :
                                                             'border-gray-300 bg-white'
                                                         }`}
                                                 />
-                                                {pincodeLoading && (
-                                                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                                <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                                                    {pincodeStatuses.sender.isEDL && pincodeStatuses.sender.status === 'success' && (
+                                                        <span className="bg-orange-100 text-orange-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-orange-200">
+                                                            EDL ({pincodeStatuses.sender.edl})
+                                                        </span>
+                                                    )}
+                                                    {pincodeLoading && (
                                                         <svg className="animate-spin h-4 w-4 text-primary-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                                    </div>
-                                                )}
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                         <div>
@@ -504,16 +532,21 @@ export default function EDocket() {
                                                 <input
                                                     value={editForm.receiverDetails?.pincode || ''}
                                                     onChange={(e) => setEditForm({ ...editForm, receiverDetails: { ...editForm.receiverDetails, pincode: e.target.value } })}
-                                                    className={`w-full px-3 py-2.5 border rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 transition-colors ${pincodeStatuses.receiver === 'success' ? 'border-green-500 bg-green-50 text-green-700' :
-                                                        pincodeStatuses.receiver === 'error' ? 'border-red-500 bg-red-50 text-red-700' :
+                                                    className={`w-full px-3 py-2.5 border rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 transition-colors ${pincodeStatuses.receiver.status === 'success' ? 'border-green-500 bg-green-50 text-green-700' :
+                                                        pincodeStatuses.receiver.status === 'error' ? 'border-red-500 bg-red-50 text-red-700' :
                                                             'border-gray-300 bg-white'
                                                         }`}
                                                 />
-                                                {pincodeLoading && (
-                                                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                                <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                                                    {pincodeStatuses.receiver.isEDL && pincodeStatuses.receiver.status === 'success' && (
+                                                        <span className="bg-orange-100 text-orange-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-orange-200">
+                                                            EDL ({pincodeStatuses.receiver.edl})
+                                                        </span>
+                                                    )}
+                                                    {pincodeLoading && (
                                                         <svg className="animate-spin h-4 w-4 text-primary-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                                    </div>
-                                                )}
+                                                    )}
+                                                </div>
                                             </div>
                                         </div>
                                         <div>
