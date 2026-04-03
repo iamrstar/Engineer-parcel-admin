@@ -4,8 +4,8 @@ const fs = require("fs");
 const QRCode = require("qrcode");
 
 /**
- * Professional E-Receipt PDF Generator for Engineers Parcel.
- * Ported from the Next.js E-Docket implementation.
+ * Compact Single-Receipt PDF Generator for Engineers Parcel.
+ * Optimized for top-alignment with restored Date/No and complete Destination.
  */
 async function generateReceiptPDF(booking) {
     try {
@@ -13,288 +13,298 @@ async function generateReceiptPDF(booking) {
         const page = pdfDoc.addPage([595.28, 841.89]); // A4
         const { width, height } = page.getSize();
 
-        const fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
-        const fontBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-        const fontOblique = await pdfDoc.embedFont(StandardFonts.HelveticaOblique);
+        const fonts = {
+            regular: await pdfDoc.embedFont(StandardFonts.Helvetica),
+            bold: await pdfDoc.embedFont(StandardFonts.HelveticaBold),
+            oblique: await pdfDoc.embedFont(StandardFonts.HelveticaOblique),
+        };
 
-        const black = rgb(0, 0, 0);
-        const darkGray = rgb(0.2, 0.2, 0.2);
-        const headerBg = rgb(0.85, 0.85, 0.90);
-
-        const margin = 40;
+        const margin = 30;
         const startX = margin;
         const endX = width - margin;
         const tableWidth = endX - startX;
         const midX = startX + tableWidth / 2;
 
-        let y = height - margin;
-        const topY = y;
+        const black = rgb(0, 0, 0);
+        const red = rgb(0.8, 0.1, 0.1);
+        const darkGray = rgb(0.2, 0.2, 0.2);
+        const headerBg = rgb(0.94, 0.96, 1.0);
 
-        const drawCellText = (text, x, yTop, boxW, boxH, font, size, align = 'left', color = black) => {
-            const tw = font.widthOfTextAtSize(text, size);
+        let globalY = height - 20;
+        const sectionTop = globalY;
+
+        const drawCell = (text, x, yTop, boxW, boxH, font, size, align = 'left', color = black) => {
+            const tx = String(text || '');
+            const tw = font.widthOfTextAtSize(tx, size);
             const th = font.sizeAtHeight(size);
-            let textX = x + 5;
-            if (align === 'center') textX = x + (boxW / 2) - (tw / 2);
-            let textY = yTop - (boxH / 2) - (th / 2) + 2;
-            page.drawText(text, { x: textX, y: textY, size, font, color });
+            let px = x + 6;
+            if (align === 'center') px = x + (boxW / 2) - (tw / 2);
+            if (align === 'right') px = x + boxW - tw - 6;
+            let py = yTop - (boxH / 2) - (th / 2) + 2;
+            page.drawText(tx, { x: px, y: py, size, font, color });
         };
 
-        const drawHLine = (yPos) => page.drawLine({ start: { x: startX, y: yPos }, end: { x: endX, y: yPos }, thickness: 1, color: black });
-        const drawVLine = (xPos, yTop, yBot) => page.drawLine({ start: { x: xPos, y: yTop }, end: { x: xPos, y: yBot }, thickness: 1, color: black });
+        const drawHLine = (yPos, start = startX, end = endX) => page.drawLine({ start: { x: start, y: yPos }, end: { x: end, y: yPos }, thickness: 0.6, color: black });
+        const drawVLine = (xPos, yTop, yBot) => page.drawLine({ start: { x: xPos, y: yTop }, end: { x: xPos, y: yBot }, thickness: 0.6, color: black });
 
-        // ROW 1: HEADER
-        const r1H = 80;
-        const r1Y = y - r1H;
-
-        try {
-            // Point to backend/public instead of frontend
-            const logoPath = path.join(__dirname, '..', 'public', 'logo.png');
-            const logoBytes = fs.readFileSync(logoPath);
-            const logoImage = await pdfDoc.embedPng(logoBytes);
-            const maxLogoW = midX - startX - 20;
-            const maxLogoH = r1H - 20;
-            const logoDims = logoImage.scaleToFit(maxLogoW, maxLogoH);
-            page.drawImage(logoImage, {
-                x: startX + ((midX - startX) / 2) - (logoDims.width / 2),
-                y: y - ((r1H / 2) + (logoDims.height / 2)),
-                width: logoDims.width,
-                height: logoDims.height,
-            });
-        } catch (e) {
-            drawCellText('ENGINEERS PARCEL', startX, y, midX - startX, r1H, fontBold, 16, 'center');
-        }
-
-        const c1H = r1H / 4;
-        let cy = y;
-        const lines = [
-            'Address: 4th Floor, I2H Building, IIT (ISM) Dhanbad - 826004',
-            'SRQ ENGINEERS PARCEL AND HAUL PRIVATE LIMITED',
-            'Contact No. : 9708815717 / 9525801506',
-            'info@engineersparcel.in | www.engineersparcel.in'
-        ];
-
-        for (let i = 0; i < 4; i++) {
-            drawCellText(lines[i], midX, cy, endX - midX, c1H, i === 1 ? fontBold : fontRegular, 8.5);
-            if (i < 3) drawHLine(cy - c1H);
-            cy -= c1H;
-        }
-
-        drawVLine(midX, y, r1Y);
-        drawHLine(r1Y);
-        y = r1Y;
-
-        // ROW 2
-        const r2H = 25;
-        const r2Y = y - r2H;
-        drawCellText('BOOKING RECEIPT', startX, y, midX - startX, r2H, fontBold, 16, 'center');
-        const idToDisplay = booking.trackingId || booking.bookingId || 'Pending';
-        drawCellText(`Tracking ID: ${idToDisplay}`, midX, y, endX - midX, r2H, fontBold, 10, 'left');
-        drawVLine(midX, y, r2Y);
-        drawHLine(r2Y);
-        y = r2Y;
-
-        // ROW 3
-        const r3H = 20;
-        const r3Y = y - r3H;
-        const bDate = booking.createdAt ? new Date(booking.createdAt).toLocaleDateString('en-IN') : new Date().toLocaleDateString('en-IN');
-        drawCellText(`Receipt No. ${idToDisplay}`, startX, y, midX - startX, r3H, fontBold, 9);
-        drawCellText(`Booking Date: ${bDate}`, midX, y, endX - midX, r3H, fontBold, 9);
-        drawVLine(midX, y, r3Y);
-        drawHLine(r3Y);
-        y = r3Y;
-
-        // ROW 4
-        const r4H = 15;
-        const r4Y = y - r4H;
-        page.drawRectangle({ x: startX, y: r4Y, width: tableWidth, height: r4H, color: headerBg });
-        drawCellText('SENDER DETAILS', startX, y, midX - startX, r4H, fontBold, 9);
-        drawCellText('RECEIVER DETAILS', midX, y, endX - midX, r4H, fontBold, 9);
-        drawVLine(midX, y, r4Y);
-        drawHLine(r4Y);
-        y = r4Y;
-
-        // ROW 5
-        const r5H = 90;
-        const r5Y = y - r5H;
-        const drawDetails = (details, xOffset) => {
-            let dy = y - 12;
-            page.drawText(`Name:   ${details?.name || 'N/A'}`, { x: xOffset + 5, y: dy, size: 9, font: fontRegular }); dy -= 12;
-            page.drawText(`Phone:  ${details?.phone || 'N/A'}`, { x: xOffset + 5, y: dy, size: 9, font: fontRegular }); dy -= 12;
-            page.drawText(`Email:  ${details?.email || 'N/A'}`, { x: xOffset + 5, y: dy, size: 9, font: fontRegular }); dy -= 12;
-
-            let addr = details?.address || '';
-            if (details?.address1) addr = [details.address1, details.address2].filter(Boolean).join(', ');
-            if (addr.length > 50) addr = addr.substring(0, 48) + '...';
-            page.drawText(`Address: ${addr || 'N/A'}`, { x: xOffset + 5, y: dy, size: 9, font: fontRegular }); dy -= 12;
-            page.drawText(`City:   ${details?.city || ''}, ${details?.state || ''}`, { x: xOffset + 5, y: dy, size: 9, font: fontRegular }); dy -= 12;
-            page.drawText(`Pincode: ${details?.pincode || ''}`, { x: xOffset + 5, y: dy, size: 9, font: fontRegular });
-        };
-
-        drawDetails(booking.senderDetails, startX);
-        drawDetails(booking.receiverDetails, midX);
-        drawVLine(midX, y, r5Y);
-        drawHLine(r5Y);
-        y = r5Y;
-
-        // ROW 6
-        const r6H = 15;
-        const r6Y = y - r6H;
-        page.drawRectangle({ x: startX, y: r6Y, width: tableWidth, height: r6H, color: headerBg });
-
-        const c1X = startX + 30; // Sno
-        const c2X = c1X + 130;  // Contents
-        const c3X = c2X + 100;  // Service Type
-        const c4X = c3X + 70;   // Weight
-        const c5X = c4X + 50;   // Qty
-
-        drawCellText('Sno.', startX, y, c1X - startX, r6H, fontBold, 8, 'center');
-        drawCellText('Items', c1X, y, c2X - c1X, r6H, fontBold, 8, 'center');
-        drawCellText('Mode', c2X, y, c3X - c2X, r6H, fontBold, 8, 'center');
-        drawCellText('Act. Wt.', c3X, y, c4X - c3X, r6H, fontBold, 8, 'center');
-        drawCellText('Qty.', c4X, y, c5X - c4X, r6H, fontBold, 8, 'center');
-        drawCellText('Dimensions', c5X, y, endX - c5X, r6H, fontBold, 8, 'center');
-
-        drawVLine(c1X, y, r6Y); drawVLine(c2X, y, r6Y); drawVLine(c3X, y, r6Y); drawVLine(c4X, y, r6Y); drawVLine(c5X, y, r6Y);
-        drawHLine(r6Y);
-        y = r6Y;
-
-        // ROW 7
-        const r7H = 25;
-        const r7Y = y - r7H;
-        const contentsText = [booking.packageDetails?.description, booking.notes].filter(Boolean).join(' | ') || 'N/A';
-        const dims = booking.packageDetails?.dimensions;
-        const dimText = dims && dims.length && dims.width && dims.height ? `${dims.length} x ${dims.width} x ${dims.height} cm` : 'N/A';
-
-        drawCellText('1', startX, y, c1X - startX, r7H, fontRegular, 8, 'center');
-        drawCellText(contentsText.length > 25 ? contentsText.substring(0, 22) + '...' : contentsText, c1X, y, c2X - c1X, r7H, fontRegular, 8, 'center');
-        drawCellText((booking.serviceType || 'Standard').toUpperCase(), c2X, y, c3X - c2X, r7H, fontRegular, 8, 'center');
-        drawCellText(`${booking.packageDetails?.weight || 0} ${booking.packageDetails?.weightUnit || 'kg'}`, c3X, y, c4X - c3X, r7H, fontRegular, 8, 'center');
-        drawCellText(`${booking.packageDetails?.boxQuantity || 1}`, c4X, y, c5X - c4X, r7H, fontRegular, 8, 'center');
-        drawCellText(dimText, c5X, y, endX - c5X, r7H, fontRegular, 8, 'center');
-
-        drawVLine(c1X, y, r7Y); drawVLine(c2X, y, r7Y); drawVLine(c3X, y, r7Y); drawVLine(c4X, y, r7Y); drawVLine(c5X, y, r7Y);
-        drawHLine(r7Y);
-        y = r7Y;
-
-        // SUBTOTAL ROW
-        const rSubH = 15;
-        const rSubY = y - rSubH;
-        const subtotal = (booking.pricing?.basePrice || 0) + (booking.pricing?.additionalCharges || booking.pricing?.packagingCharge || 0);
-        const subtotalText = booking.isVendorBooking ? "CREDIT" : `Rs.${subtotal}`;
-        drawCellText(subtotalText, c5X, y, endX - c5X, rSubH, fontRegular, 8, 'center');
-        drawVLine(c5X, y, rSubY);
-        drawHLine(rSubY);
-        y = rSubY;
-
-        // TAX ROW
-        const rTaxH = 15;
-        const rTaxY = y - rTaxH;
-        drawCellText('Tax (GST):', c4X, y, c5X - c4X, rTaxH, fontBold, 8, 'center');
-        const taxText = booking.isVendorBooking ? "CREDIT" : `Rs.${booking.pricing?.tax || 0}`;
-        drawCellText(taxText, c5X, y, endX - c5X, rTaxH, fontRegular, 8, 'center');
-        drawVLine(c5X, y, rTaxY);
-        drawHLine(rTaxY);
-        y = rTaxY;
-
-        // TOTAL AMOUNT ROW
-        const rTotalH = 20;
-        const rTotalY = y - rTotalH;
-        page.drawRectangle({ x: c4X, y: rTotalY, width: endX - c4X, height: rTotalH, color: headerBg });
-        drawCellText('Total Amount:', c4X, y, c5X - c4X, rTotalH, fontBold, 8, 'right');
-        const totalText = booking.isVendorBooking ? "CREDIT" : `Rs.${booking.pricing?.totalAmount || 0}`;
-        drawCellText(totalText, c5X, y, endX - c5X, rTotalH, fontBold, 10, 'center');
-        drawVLine(c5X, y, rTotalY);
-        drawHLine(rTotalY);
-        y = rTotalY;
-
-        // ROW 8
-        const r8H = 25;
-        const r8Y = y - r8H;
-        drawCellText(`Special Notes: ${contentsText}`, startX, y, tableWidth, r8H, fontOblique, 8);
-        drawHLine(r8Y);
-        y = r8Y;
-
-        // FOOTER AREA
-        const rFootY = margin + 10;
-        const trackText1 = "Track your shipment at: www.engineersparcel.in";
-        const authText = "This is an electronically generated receipt and does not require a physical signature.";
-
-        // Special Notes box should have a fixed height or at least some padding
-        const notesBoxHeight = y - (rFootY + 80);
-        if (notesBoxHeight > 0) {
-            drawVLine(midX, y, rFootY + 80);
-        }
-
-        // Tracking & Legal Info (Left side of footer area)
-        page.drawText(trackText1, { x: startX + 10, y: rFootY + 65, size: 9, font: fontBold, color: darkGray });
-        page.drawText(authText, { x: startX + 10, y: rFootY + 52, size: 8, font: fontOblique, color: darkGray });
-
-        // QR CODE (Center) - Hidden for Vendor Booking as they are charged monthly
-        if (booking.paymentLink && !booking.isVendorBooking) {
-            try {
-                const qrCodeDataUrl = await QRCode.toDataURL(booking.paymentLink, {
-                    margin: 1,
-                    width: 80,
-                    color: { dark: '#000000', light: '#ffffff' },
-                });
-                const qrImageBytes = Buffer.from(qrCodeDataUrl.split(',')[1], 'base64');
-                const qrImage = await pdfDoc.embedPng(qrImageBytes);
-                const qrDims = qrImage.scale(0.7);
-
-                page.drawImage(qrImage, {
-                    x: midX - (qrDims.width / 2),
-                    y: rFootY + 25,
-                    width: qrDims.width,
-                    height: qrDims.height,
-                });
-                page.drawText("Scan to Pay", {
-                    x: midX - (fontBold.widthOfTextAtSize("Scan to Pay", 7) / 2),
-                    y: rFootY + 15,
-                    size: 7,
-                    font: fontBold,
-                    color: darkGray
-                });
-            } catch (qrError) {
-                console.error("QR Code Error:", qrError);
+        const wrapText = (text, x, y, maxW, font, size) => {
+            const words = String(text || '').split(' ');
+            let line = '';
+            let cy = y;
+            for (const w of words) {
+                const tl = line + w + ' ';
+                if (font.widthOfTextAtSize(tl, size) > maxW) {
+                    page.drawText(line.trim(), { x, y: cy, size, font });
+                    line = w + ' ';
+                    cy -= (size + 2.5);
+                } else {
+                    line = tl;
+                }
             }
+            page.drawText(line.trim(), { x, y: cy, size, font });
+            return cy;
+        };
+
+        // --- 1. EDL Banner ---
+        const isEdl = booking.edl > 0 || booking.packageDetails?.isEdl || (booking.packageDetails?.description && booking.packageDetails.description.toUpperCase().includes('EDL'));
+        if (isEdl) {
+            const h = 18;
+            const ey = globalY - h;
+            page.drawRectangle({ x: startX, y: ey, width: tableWidth, height: h, color: rgb(1, 0.97, 0.94) });
+            drawCell(`!!! EXTRA DELIVERY LOCATION (EDL) AREA !!!`, startX, globalY, tableWidth, h, fonts.bold, 8.5, 'center', red);
+            drawHLine(ey);
+            globalY = ey;
         }
 
-
-
-        // SIGNATURES (Left and Right)
-        // Receiver's Signature (Left)
-        page.drawLine({ start: { x: startX + 20, y: rFootY + 30 }, end: { x: startX + 140, y: rFootY + 30 }, thickness: 0.5, color: darkGray });
-        page.drawText("Receiver's Signature", { x: startX + 40, y: rFootY + 15, size: 8, font: fontOblique, color: darkGray });
-
-        // Authorized Signatory (Right)
+        // --- 2. Header Branding ---
+        const bH = 65;
+        const bY = globalY - bH;
         try {
-            const sigPath = path.join(__dirname, '..', 'public', 'signature.png');
-            if (fs.existsSync(sigPath)) {
-                const sigBytes = fs.readFileSync(sigPath);
-                const sigImage = await pdfDoc.embedPng(sigBytes);
-                const sigDims = sigImage.scaleToFit(100, 40);
-                page.drawImage(sigImage, {
-                    x: endX - sigDims.width - 20,
-                    y: rFootY + 35,
-                    width: sigDims.width,
-                    height: sigDims.height,
-                });
+            const lp = path.join(__dirname, '..', 'public', 'logo.png');
+            if (fs.existsSync(lp)) {
+                const li = await pdfDoc.embedPng(fs.readFileSync(lp));
+                const ld = li.scaleToFit(110, 50);
+                page.drawImage(li, { x: startX + 10, y: bY + (bH / 2) - (ld.height / 2), width: ld.width, height: ld.height });
             }
         } catch (e) { }
 
-        page.drawLine({ start: { x: endX - 140, y: rFootY + 30 }, end: { x: endX - 20, y: rFootY + 30 }, thickness: 0.5, color: darkGray });
-        page.drawText("Authorized Signatory", { x: endX - 110, y: rFootY + 15, size: 8, font: fontOblique, color: darkGray });
+        const adds = [
+            'SRQ ENGINEERS PARCEL AND HAUL PRIVATE LIMITED',
+            'IIT (ISM) Dhanbad - 826004, Jharkhand, India',
+            'Contact: 9708815717 / 9525801506',
+            'Email: info@engineersparcel.in | Website: www.engineersparcel.in'
+        ];
+        let ly = globalY;
+        for (let i = 0; i < adds.length; i++) {
+            drawCell(adds[i], midX - 30, ly, endX - (midX - 30), bH / 4, i === 0 ? fonts.bold : fonts.regular, i === 0 ? 8 : 7, 'left');
+            ly -= (bH / 4);
+        }
+        drawVLine(midX - 30, globalY, bY);
+        drawHLine(bY);
+        globalY = bY;
 
-        // Main Border
+        // --- 3. Tracking ID Bar ---
+        const r2H = 22;
+        const r2Y = globalY - r2H;
+        const tid = booking.trackingId || booking.bookingId || 'EP-PENDING';
+        page.drawRectangle({ x: startX, y: r2Y, width: tableWidth, height: r2H, color: headerBg });
+        drawCell('BOOKING E-RECEIPT', startX, globalY, midX - startX, r2H, fonts.bold, 11, 'center');
+        drawCell(`TRACKING ID: ${tid}`, midX, globalY, endX - midX, r2H, fonts.bold, 9, 'center');
+        drawVLine(midX, globalY, r2Y);
+        drawHLine(r2Y);
+        globalY = r2Y;
+
+        // --- 4. DATE & RECEIPT NO (RESTORED) ---
+        const r3H = 18;
+        const r3Y = globalY - r3H;
+        const resDate = booking.createdAt ? new Date(booking.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }) : new Date().toLocaleDateString('en-IN');
+        drawCell(`Receipt Date: ${resDate}`, startX, globalY, midX - startX, r3H, fonts.regular, 8.5);
+        drawCell(`Receipt No: EP/${new Date().getFullYear()}/${tid.split('-').pop()}`, midX, globalY, endX - midX, r3H, fonts.regular, 8.5);
+        drawVLine(midX, globalY, r3Y);
+        drawHLine(r3Y);
+        globalY = r3Y;
+
+        // --- 5. DETAILS SECTION ---
+        const dhH = 16;
+        const dhY = globalY - dhH;
+        page.drawRectangle({ x: startX, y: dhY, width: tableWidth, height: dhH, color: headerBg });
+        drawCell(' SENDER DETAILS ', startX, globalY, midX - startX, dhH, fonts.bold, 8);
+        drawCell('RECEIVER DETAILS ', midX, globalY, endX - midX, dhH, fonts.bold, 8);
+        drawVLine(midX, globalY, dhY);
+        drawHLine(dhY);
+        globalY = dhY;
+
+        const startDetY = globalY;
+        const renderCol = (det, x) => {
+            let y = startDetY - 12;
+            const sz = 8;
+            const drawF = (l, v) => {
+                page.drawText(`${l}:`, { x: x + 8, y, size: sz, font: fonts.bold });
+                const dy = wrapText(v || 'N/A', x + 60, y, (midX - startX) - 70, fonts.regular, sz);
+                y = dy - 11;
+            };
+            drawF('Name', det?.name);
+            drawF('Phone', det?.phone);
+            let a = det?.address || '';
+            if (det?.address1) a = `${det.address1}, ${det.address2 || ''}`.trim();
+            if (det?.landmark) a += ` (${det.landmark})`;
+            drawF('Address', a);
+            drawF('Destination', `${det?.city || 'N/A'}, ${det?.state || ''} - ${det?.pincode || ''}`);
+            return y;
+        };
+
+        const yS = renderCol(booking.senderDetails, startX);
+        const yR = renderCol(booking.receiverDetails, midX);
+        const detBot = Math.min(yS, yR, startDetY - 60) - 5;
+        drawVLine(midX, startDetY, detBot);
+        drawHLine(detBot);
+        globalY = detBot;
+
+        // --- 6. Item Table Header ---
+        const itH = 18;
+        const itY = globalY - itH;
+        page.drawRectangle({ x: startX, y: itY, width: tableWidth, height: itH, color: headerBg });
+        const cols = [{ l: 'Sno.', w: 30 }, { l: 'Description of Goods', w: 180 }, { l: 'Qty', w: 40 }, { l: 'Weight', w: 80 }, { l: 'Dimensions', w: tableWidth - 330 }];
+        let cx = startX;
+        cols.forEach((c, i) => {
+            drawCell(c.l, cx, globalY, c.w, itH, fonts.bold, 8, 'center');
+            cx += c.w;
+            if (i < cols.length - 1) drawVLine(cx, globalY, itY);
+        });
+        drawHLine(itY);
+        globalY = itY;
+
+        // --- 7. Item Content (Dynamic) ---
+        const startItemY = globalY - 12;
+        const descText = [booking.packageDetails?.description, booking.notes].filter(Boolean).join(' | ') || 'Shipment Content';
+        const lastDescY = wrapText(descText, startX + 35, startItemY, 170, fonts.regular, 7.5);
+
+        const rowBot = Math.min(lastDescY, startItemY - 20) - 8;
+        const r7H = globalY - rowBot;
+
+        drawCell('1', startX, globalY, 30, r7H, fonts.regular, 8, 'center');
+        drawCell(String(booking.packageDetails?.boxQuantity || 1), startX + 210, globalY, 40, r7H, fonts.regular, 8, 'center');
+        drawCell(`${booking.packageDetails?.weight || 0}${booking.packageDetails?.weightUnit || 'kg'}`, startX + 250, globalY, 80, r7H, fonts.bold, 8, 'center');
+
+        const dims = booking.packageDetails?.dimensions || [];
+        let ds = 'N/A';
+        if (dims.length > 0) {
+            ds = Array.isArray(dims) ? dims.map(d => `${d.length}x${d.width}x${d.height}`).join(', ') : `${dims.length}x${dims.width}x${dims.height}`;
+            if (ds.length > 30) ds = ds.substring(0, 27) + '...';
+        }
+        drawCell(ds, startX + 330, globalY, tableWidth - 330, r7H, fonts.regular, 7.5, 'center');
+
+        cx = startX;
+        cols.forEach(c => { cx += c.w; if (cx < endX) drawVLine(cx, globalY, rowBot); });
+        drawHLine(rowBot);
+        globalY = rowBot;
+
+        // --- 8. Pricing & Service Section ---
+        const pH = 55;
+        const pY = globalY - pH;
+        const subT = (booking.pricing?.basePrice || 0) + (booking.pricing?.packagingCharge || 0);
+        drawCell(`SERVICE: ${(booking.serviceType || 'STD').toUpperCase()}`, startX, globalY, 200, 18, fonts.bold, 8);
+        drawCell(`STATUS: ${booking.paymentStatus?.toUpperCase() || 'UNPAID'}`, startX, globalY - 18, 200, 18, fonts.regular, 7.5);
+        drawCell(`DELIVERY: ${booking.estimatedDelivery || '3-5 Days'}`, startX, globalY - 36, 200, 18, fonts.oblique, 7.5);
+
+        const pX1 = endX - 160;
+        const pX2 = endX - 80;
+        const lines = [
+            { l: 'Sub Total', v: `Rs.${subT.toFixed(2)}` },
+            { l: 'Tax/GST', v: `Rs.${(booking.pricing?.tax || 0).toFixed(2)}` },
+            { l: 'TOTAL', v: `Rs.${(booking.pricing?.totalAmount || 0).toFixed(2)}` }
+        ];
+        for (let i = 0; i < 3; i++) {
+            const y = globalY - (i * 18);
+            drawCell(lines[i].l, pX1, y, 80, 18, i === 2 ? fonts.bold : fonts.regular, 7.5, 'right');
+            drawCell(lines[i].v, pX2, y, 80, 18, i === 2 ? fonts.bold : fonts.regular, 8.5, 'center');
+            drawVLine(pX1, globalY, pY);
+            drawVLine(pX2, globalY, pY);
+            if (i < 2) drawHLine(y - 18, pX1, endX);
+        }
+        drawHLine(pY);
+        globalY = pY;
+
+        // --- 9. SIGNATURES ---
+        const sH = 60;
+        const sY = globalY - sH;
+        page.drawLine({ start: { x: startX + 20, y: sY + 20 }, end: { x: startX + 140, y: sY + 20 }, thickness: 0.5, color: black });
+        drawCell('Consignor Signature', startX + 20, sY + 8, 120, 12, fonts.oblique, 7.5, 'center');
+
+        try {
+            const sp = path.join(__dirname, '..', 'public', 'signature.png');
+            if (fs.existsSync(sp)) {
+                const si = await pdfDoc.embedPng(fs.readFileSync(sp));
+                const sd = si.scaleToFit(80, 30);
+                page.drawImage(si, { x: endX - 120, y: sY + 25, width: sd.width, height: sd.height });
+            }
+        } catch (e) { }
+        page.drawLine({ start: { x: endX - 140, y: sY + 20 }, end: { x: endX - 20, y: sY + 20 }, thickness: 0.5, color: black });
+        drawCell('Authorized Signatory', endX - 140, sY + 8, 120, 12, fonts.oblique, 7.5, 'center');
+
+        drawHLine(sY);
+        globalY = sY;
+
+        // --- 10. PAYMENT SECTION (QR & BANK) ---
+        if (booking.paymentStatus?.toLowerCase() === 'pending') {
+            const payYStart = globalY;
+            const payFontSize = 7.5;
+            const colW = tableWidth / 2;
+
+            // Bank Details (Left side)
+            const bX = startX + 10;
+            page.drawText("BANK TRANSFER DETAILS", { x: bX, y: globalY - 12, size: 8, font: fonts.bold });
+
+            const bankLines = [
+                `Name: SRQ ENGINEERS PARCEL AND HAUL PVT LTD`,
+                `A/c No: 01910210001448 (CAA)`,
+                `IFSC: UCBA0000191`,
+                `Branch: HIRAPUR-DHANBAD`
+            ];
+
+            bankLines.forEach((line, i) => {
+                page.drawText(line, { x: bX, y: globalY - 24 - (i * 10), size: payFontSize, font: fonts.regular });
+            });
+
+            const lowestBankY = globalY - 24 - (bankLines.length * 10);
+
+            // QR Code (Right side)
+            let lowestQrY = globalY;
+            if (booking.paymentLink) {
+                try {
+                    const qrCodeDataUrl = await QRCode.toDataURL(booking.paymentLink, {
+                        margin: 1,
+                        width: 100,
+                        color: { dark: '#000000', light: '#ffffff' },
+                    });
+                    const qrImageBytes = Buffer.from(qrCodeDataUrl.split(',')[1], 'base64');
+                    const qrImage = await pdfDoc.embedPng(qrImageBytes);
+                    const qrScale = qrImage.scale(0.55);
+
+                    const qrX = endX - qrScale.width - 25;
+                    const qrY = globalY - qrScale.height - 10;
+
+                    page.drawImage(qrImage, { x: qrX, y: qrY, width: qrScale.width, height: qrScale.height });
+                    drawCell("Scan to Pay (via upi)", qrX, qrY - 2, qrScale.width, 10, fonts.bold, 7, 'center');
+                    lowestQrY = qrY - 12;
+                } catch (qrErr) {
+                    console.error("QR Code Generation Error:", qrErr);
+                }
+            }
+
+            globalY = Math.min(lowestBankY, lowestQrY) - 10;
+        }
+
+        // OUTER BORDER
         page.drawRectangle({
-            x: startX, y: margin, width: tableWidth, height: topY - margin,
-            borderColor: black, borderWidth: 1.5,
+            x: startX, y: globalY, width: tableWidth, height: sectionTop - globalY,
+            borderWidth: 1, borderColor: black,
         });
 
         const pdfBytes = await pdfDoc.save();
         return Buffer.from(pdfBytes);
     } catch (error) {
-        console.error("PDF-LIB Error:", error);
+        console.error("PDF Generate Error:", error);
         throw error;
     }
 }
