@@ -162,6 +162,34 @@ router.get("/edocket-count", adminAuth, async (req, res) => {
 });
 
 /** ------------------------
+ * 📋 Get Tomorrow's Task Count
+ * ------------------------ */
+router.get("/tasks/tomorrow-count", authMiddleware, async (req, res) => {
+  try {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    
+    // Format to start/end of day for accurate comparison
+    const startOfTomorrow = new Date(tomorrow);
+    startOfTomorrow.setHours(0, 0, 0, 0);
+    const endOfTomorrow = new Date(tomorrow);
+    endOfTomorrow.setHours(23, 59, 59, 999);
+
+    const count = await Booking.countDocuments({
+      pickupDate: {
+        $gte: startOfTomorrow,
+        $lte: endOfTomorrow
+      },
+      status: { $nin: ["delivered", "cancelled"] }
+    });
+    res.json({ count });
+  } catch (error) {
+    console.error("Error fetching tomorrow's task count:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/** ------------------------
  * 🚲 Get Recent Rider Activity
  * ------------------------ */
 router.get("/stats/recent-rider-activity", authMiddleware, async (req, res) => {
