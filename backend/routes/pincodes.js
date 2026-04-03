@@ -27,6 +27,9 @@ router.get("/", authMiddleware, async (req, res) => {
         available: found.isActive,
         city: found.city,
         state: found.state,
+        edl: found.edl || 0,
+        km: found.km || 0,
+        isEDL: (found.edl || 0) > 0,
         message: found.isActive ? "Service Available" : "Service temporarily unavailable"
       })
     }
@@ -42,17 +45,42 @@ router.get("/", authMiddleware, async (req, res) => {
 // Add new pincode
 router.post("/", authMiddleware, async (req, res) => {
   try {
-    const { pincode, city, state } = req.body
-
+    const { pincode, city, state, edl, km } = req.body
+    
     const existingPincode = await Pincode.findOne({ pincode })
     if (existingPincode) {
       return res.status(400).json({ message: "Pincode already exists" })
     }
 
-    const newPincode = new Pincode({ pincode, city, state })
+    const newPincode = new Pincode({ 
+      pincode, 
+      city, 
+      state, 
+      edl: edl || 0,
+      km: km || 0
+    })
     await newPincode.save()
 
     res.status(201).json(newPincode)
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ message: "Server error" })
+  }
+})
+
+// Update pincode
+router.put("/:id", authMiddleware, async (req, res) => {
+  try {
+    const { pincode, city, state, edl, km, isActive } = req.body
+    const updatedPincode = await Pincode.findByIdAndUpdate(
+      req.params.id,
+      { pincode, city, state, edl, km, isActive },
+      { new: true, runValidators: true }
+    )
+    if (!updatedPincode) {
+      return res.status(404).json({ message: "Pincode not found" })
+    }
+    res.json(updatedPincode)
   } catch (error) {
     console.error(error)
     res.status(500).json({ message: "Server error" })
