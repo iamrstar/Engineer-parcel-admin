@@ -14,6 +14,7 @@ import SalesReport from "./pages/SalesReport"
 import UserManagement from "./pages/UserManagement"
 import RiderDashboard from "./pages/RiderDashboard"
 import Vendors from "./pages/Vendors"
+import Tasks from "./pages/Tasks.jsx"
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth()
@@ -138,10 +139,12 @@ function App() {
             }
           />
           <Route
-            path="/rider-dashboard"
+            path="/tasks"
             element={
               <ProtectedRoute>
-                <RiderDashboard />
+                <Layout>
+                  <Tasks />
+                </Layout>
               </ProtectedRoute>
             }
           />
