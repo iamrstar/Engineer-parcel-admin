@@ -620,6 +620,110 @@ const BookingDetail = () => {
           </div>
         </div>
 
+        {/* Logistics & Timing - ONLY FOR CAMPUS PARCEL */}
+        {booking.serviceType === 'campus-parcel' && (
+          <div className="bg-white rounded-lg shadow p-4 sm:p-6 lg:col-span-1">
+            <div className="flex items-center mb-4">
+              <Truck className="h-5 w-5 text-primary-500 mr-2" />
+              <h3 className="text-base sm:text-lg font-medium text-gray-900">Logistics & Picking</h3>
+            </div>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Pickup Method</label>
+                  {editMode ? (
+                    <select
+                      value={booking.pickupMethod || "hub"}
+                      onChange={(e) => handleInputChange("pickupMethod", e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    >
+                      <option value="hub">Self (At Hub)</option>
+                      <option value="doorstep">Doorstep Pickup</option>
+                    </select>
+                  ) : (
+                    <p className="text-sm font-medium text-gray-900 capitalize">{booking.pickupMethod || "hub"}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Pickup Slot</label>
+                  {editMode ? (
+                    <input
+                      type="text"
+                      value={booking.pickupSlot || ""}
+                      onChange={(e) => handleInputChange("pickupSlot", e.target.value)}
+                      placeholder="e.g. 10AM - 2PM"
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    />
+                  ) : (
+                    <p className="text-sm text-gray-900">{booking.pickupSlot || "N/A"}</p>
+                  )}
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Pickup Date</label>
+                {editMode ? (
+                  <input
+                    type="date"
+                    value={booking.pickupDate ? new Date(booking.pickupDate).toISOString().split('T')[0] : ""}
+                    onChange={(e) => handleInputChange("pickupDate", e.target.value)}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  />
+                ) : (
+                  <p className="text-sm text-gray-900">{booking.pickupDate ? new Date(booking.pickupDate).toLocaleDateString() : "N/A"}</p>
+                )}
+              </div>
+
+              <div className="border-t pt-4">
+                <h4 className="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wider">Box/Material Delivery</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Type</label>
+                    {editMode ? (
+                      <select
+                        value={booking.boxDeliveryType || "self"}
+                        onChange={(e) => handleInputChange("boxDeliveryType", e.target.value)}
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      >
+                        <option value="self">Self Collection</option>
+                        <option value="delivered">Company Delivered</option>
+                      </select>
+                    ) : (
+                      <p className="text-sm font-medium text-gray-900 capitalize">{booking.boxDeliveryType || "self"}</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Slot</label>
+                    {editMode ? (
+                      <input
+                        type="text"
+                        value={booking.boxDeliverySlot || ""}
+                        onChange={(e) => handleInputChange("boxDeliverySlot", e.target.value)}
+                        placeholder="e.g. Afternoon"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      />
+                    ) : (
+                      <p className="text-sm text-gray-900">{booking.boxDeliverySlot || "N/A"}</p>
+                    )}
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Box Delivery Date</label>
+                  {editMode ? (
+                    <input
+                      type="date"
+                      value={booking.boxDeliveryDate ? new Date(booking.boxDeliveryDate).toISOString().split('T')[0] : ""}
+                      onChange={(e) => handleInputChange("boxDeliveryDate", e.target.value)}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    />
+                  ) : (
+                    <p className="text-sm text-gray-900">{booking.boxDeliveryDate ? new Date(booking.boxDeliveryDate).toLocaleDateString() : "N/A"}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Package Details */}
         <div className="bg-white rounded-lg shadow p-4 sm:p-6">
           <div className="flex items-center mb-4">
@@ -774,6 +878,40 @@ const BookingDetail = () => {
                 <p className="text-sm sm:text-base text-gray-900 break-words">{booking.packageDetails.description || "N/A"}</p>
               )}
             </div>
+
+            {/* Content Display - NEW */}
+            {(booking.packageDetails?.edlContents?.length > 0 || booking.packageDetails?.otherContentText || editMode) && (
+              <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+                <label className="block text-xs font-bold text-blue-600 uppercase mb-2">Package Contents</label>
+                {booking.packageDetails?.edlContents?.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mb-2">
+                    {booking.packageDetails.edlContents.map((content, idx) => (
+                      <span key={idx} className="bg-white px-2 py-0.5 rounded text-[11px] font-medium text-blue-700 border border-blue-200">
+                        {content}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {editMode ? (
+                  <div className="mt-2 text-xs">
+                    <label className="block text-gray-400 font-bold mb-1 uppercase tracking-tighter">Other / Custom Content</label>
+                    <input
+                      type="text"
+                      value={booking.packageDetails?.otherContentText || ""}
+                      onChange={(e) => handleInputChange("otherContentText", e.target.value, "packageDetails")}
+                      placeholder="e.g. Special documents"
+                      className="w-full px-2 py-1.5 border border-blue-200 rounded focus:ring-1 focus:ring-blue-500 outline-none italic"
+                    />
+                  </div>
+                ) : (
+                  booking.packageDetails?.otherContentText && (
+                    <p className="text-xs text-blue-800 bg-white p-2 rounded border border-blue-100 italic">
+                      <span className="font-bold not-italic mr-1">Other:</span> {booking.packageDetails.otherContentText}
+                    </p>
+                  )
+                )}
+              </div>
+            )}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
               {editMode ? (
