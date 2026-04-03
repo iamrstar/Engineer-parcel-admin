@@ -5,12 +5,13 @@ import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useAuth } from "../contexts/AuthContext"
 import axios from "axios"
 import toast from "react-hot-toast"
-import { Package, LayoutDashboard, FileText, MapPin, Ticket, LogOut, Menu, X, BarChart, Bell, Users, Building } from "lucide-react"
+import { Package, LayoutDashboard, FileText, MapPin, Ticket, LogOut, Menu, X, BarChart, Bell, Users, Building, CheckSquare } from "lucide-react"
 
 const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [eDocketCount, setEDocketCount] = useState(0)
   const [pendingOrdersCount, setPendingOrdersCount] = useState(0)
+  const [tasksCount, setTasksCount] = useState(0)
   const [recentOrders, setRecentOrders] = useState([])
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const { logout } = useAuth()
@@ -99,11 +100,31 @@ const Layout = ({ children }) => {
           recentActivity.forEach(activity => {
             if (!seenActivityIdsRef.current.has(activity._id)) {
               seenActivityIdsRef.current.add(activity._id);
-              alertTriggered = true;
-              const riderName = activity.assignedRider?.name || "A rider";
-              alertMessage = alertTriggered && alertMessage
-                ? `${alertMessage} Also, ${riderName} ${activity.status} order ${activity.bookingId}.`
-                : `${riderName} has ${activity.status} order ${activity.bookingId}.`;
+              
+              // Only trigger sound/alert for meaningful actions
+              // 1. Skip "assigned" or "confirmed" as these are admin actions
+              // 2. Skip "pending" IF a rider is assigned (this means an admin just assigned the rider)
+              // 3. Keep "pending" IF NO rider is assigned (this is a new web order)
+              const isAdminAction = activity.status === "assigned" || 
+                                    activity.status === "confirmed" || 
+                                    (activity.status === "pending" && activity.assignedRider);
+
+              if (!isAdminAction) {
+                alertTriggered = true;
+                
+                // Form a clean message
+                let message = "";
+                if (activity.status === "pending" && !activity.assignedRider) {
+                  message = `New Web Order ${activity.bookingId} received.`;
+                } else {
+                  const riderName = activity.assignedRider?.name || "A rider";
+                  message = `${riderName} has ${activity.status} order ${activity.bookingId}.`;
+                }
+
+                alertMessage = alertTriggered && alertMessage
+                  ? `${alertMessage} Also, ${message}`
+                  : message;
+              }
             }
           });
         }
@@ -193,6 +214,12 @@ const Layout = ({ children }) => {
           });
         }
 
+        // Fetch Tomorrow's Task Count
+        const resTasks = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/tasks/tomorrow-count`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        setTasksCount(resTasks.data.count || 0)
+
         prevCountRef.current = newCount
         prevPendingRef.current = newPending
         setEDocketCount(newCount)
@@ -214,6 +241,7 @@ const Layout = ({ children }) => {
     { name: "Pincodes", href: "/pincodes", icon: MapPin },
     { name: "Coupons", href: "/coupons", icon: Ticket },
     { name: "Create Order", href: "/manual-booking", icon: Ticket },
+    { name: "Tasks", href: "/tasks", icon: CheckSquare, badge: tasksCount },
     { name: "User Management", href: "/user-management", icon: Users },
     { name: "Vendor Management", href: "/vendors", icon: Building },
   ]
