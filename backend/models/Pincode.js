@@ -19,6 +19,14 @@ const pincodeSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    edl: {
+      type: Number,
+      default: 0,
+    },
+    km: {
+      type: Number,
+      default: 0,
+    },
   },
   { timestamps: true },
 )
