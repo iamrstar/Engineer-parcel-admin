@@ -16,6 +16,8 @@ const Pincodes = () => {
     pincode: "",
     city: "",
     state: "",
+    edl: 0,
+    km: 0,
   })
 
   useEffect(() => {
@@ -41,15 +43,15 @@ const Pincodes = () => {
     e.preventDefault()
     try {
       if (editingPincode) {
-        await axios.put(`/api/pincodes/${editingPincode._id}`, formData)
+        await axios.put(`${import.meta.env.VITE_API_URL}/api/pincodes/${editingPincode._id}`, formData)
         toast.success("Pincode updated successfully")
       } else {
-        await axios.post("/api/pincodes", formData)
+        await axios.post(`${import.meta.env.VITE_API_URL}/api/pincodes`, formData)
         toast.success("Pincode added successfully")
       }
       setShowModal(false)
       setEditingPincode(null)
-      setFormData({ pincode: "", city: "", state: "" })
+      setFormData({ pincode: "", city: "", state: "", edl: 0, km: 0 })
       fetchPincodes()
     } catch (error) {
       toast.error(error.response?.data?.message || "Error saving pincode")
@@ -62,18 +64,20 @@ const Pincodes = () => {
       pincode: pincode.pincode,
       city: pincode.city,
       state: pincode.state,
+      edl: pincode.edl || 0,
+      km: pincode.km || 0,
     })
     setShowModal(true)
   }
 
 const handleDelete = async (id) => {
-  if (window.confirm("Are you sure you want to delete this coupon?")) {
+  if (window.confirm("Are you sure you want to delete this pincode?")) {
     try {
-      await axios.delete(`${apiBaseUrl}/api/coupons/${id}`)
-      toast.success("Coupon deleted successfully")
-      fetchCoupons()
+      await axios.delete(`${import.meta.env.VITE_API_URL}/api/pincodes/${id}`)
+      toast.success("Pincode deleted successfully")
+      fetchPincodes()
     } catch (error) {
-      toast.error("Error deleting coupon")
+      toast.error("Error deleting pincode")
       console.error("Delete error:", error)
     }
   }
@@ -82,11 +86,11 @@ const handleDelete = async (id) => {
 
   const handleToggleStatus = async (id) => {
   try {
-    await axios.patch(`${apiBaseUrl}/api/coupons/${id}/toggle`)
-    toast.success("Coupon status updated")
-    fetchCoupons()
+    await axios.patch(`${import.meta.env.VITE_API_URL}/api/pincodes/${id}/toggle`)
+    toast.success("Pincode status updated")
+    fetchPincodes()
   } catch (error) {
-    toast.error("Error updating coupon status")
+    toast.error("Error updating pincode status")
     console.error("Toggle error:", error)
   }
 }
@@ -109,7 +113,7 @@ const handleDelete = async (id) => {
         <button
           onClick={() => {
             setEditingPincode(null)
-            setFormData({ pincode: "", city: "", state: "" })
+            setFormData({ pincode: "", city: "", state: "", edl: 0, km: 0 })
             setShowModal(true)
           }}
           className="px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 flex items-center"
@@ -154,6 +158,12 @@ const handleDelete = async (id) => {
                     State
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    KM
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Type
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -167,6 +177,16 @@ const handleDelete = async (id) => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{pincode.pincode}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{pincode.city}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{pincode.state}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{pincode.km || 0} km</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span
+                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                          pincode.edl > 0 ? "bg-orange-100 text-orange-800" : "bg-blue-100 text-blue-800"
+                        }`}
+                      >
+                        {pincode.edl > 0 ? `EDL (${pincode.edl})` : "Simple"}
+                      </span>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
                         className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
@@ -237,6 +257,27 @@ const handleDelete = async (id) => {
                     onChange={(e) => setFormData({ ...formData, state: e.target.value })}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
                     required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">EDL Value (0 for Simple)</label>
+                  <input
+                    type="number"
+                    value={formData.edl}
+                    onChange={(e) => setFormData({ ...formData, edl: parseInt(e.target.value) || 0 })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    min="0"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">KM Distance</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={formData.km}
+                    onChange={(e) => setFormData({ ...formData, km: parseFloat(e.target.value) || 0 })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    min="0"
                   />
                 </div>
                 <div className="flex justify-end space-x-3 pt-4">
