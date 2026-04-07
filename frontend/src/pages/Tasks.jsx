@@ -16,19 +16,31 @@ import {
 import toast from 'react-hot-toast';
 
 const Tasks = () => {
+    const [filter, setFilter] = useState('tomorrow'); // 'tomorrow', 'today', 'last7days', 'custom'
+    const [customDate, setCustomDate] = useState('');
     const [tasks, setTasks] = useState({ boxPickups: [], boxDeliveries: [] });
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('deliveries');
     const navigate = useNavigate();
 
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const dateString = tomorrow.toLocaleDateString('en-IN', { 
-        weekday: 'long', 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-    });
+    // Calculate the display date string
+    let dateString = "";
+    if (filter === 'tomorrow') {
+        const d = new Date(); d.setDate(d.getDate() + 1);
+        dateString = d.toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    } else if (filter === 'today') {
+        const d = new Date();
+        dateString = d.toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    } else if (filter === 'last7days') {
+        const start = new Date(); start.setDate(start.getDate() - 7);
+        const end = new Date();
+        dateString = `${start.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+    } else if (filter === 'custom' && customDate) {
+        const d = new Date(customDate);
+        dateString = d.toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    } else {
+        dateString = "Select a date";
+    }
 
     const [loadingTaskId, setLoadingTaskId] = useState(null);
     const [confirmModal, setConfirmModal] = useState({ show: false, id: null, type: null });
@@ -37,7 +49,18 @@ const Tasks = () => {
         try {
             setLoading(true);
             const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
-            const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/tasks/tomorrow`, {
+            
+            let url = `${import.meta.env.VITE_API_URL}/api/bookings/tasks/tomorrow`;
+            if (filter === 'last7days') {
+                url += `?range=last7days`;
+            } else if (filter === 'today') {
+                const todayStr = new Date().toISOString().split('T')[0];
+                url += `?date=${todayStr}`;
+            } else if (filter === 'custom' && customDate) {
+                url += `?date=${customDate}`;
+            }
+
+            const res = await axios.get(url, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setTasks(res.data);
@@ -50,8 +73,11 @@ const Tasks = () => {
     };
 
     useEffect(() => {
-        fetchTasks();
-    }, []);
+        // Trigger fetch only if filter is custom and we have a date, or if it isn't custom
+        if (filter !== 'custom' || (filter === 'custom' && customDate)) {
+            fetchTasks();
+        }
+    }, [filter, customDate]);
 
     const triggerCompleteTask = (e, id, type) => {
         e.stopPropagation();
@@ -199,15 +225,55 @@ const Tasks = () => {
 
     return (
         <div className="max-w-6xl mx-auto px-4 py-6">
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-4">
                 <div>
                     <div className="flex items-center gap-2 mb-2">
                         <Calendar className="h-5 w-5 text-primary-500" />
-                        <span className="text-sm font-bold text-primary-600 uppercase tracking-widest">Tomorrow's Schedule</span>
+                        <span className="text-sm font-bold text-primary-600 uppercase tracking-widest">
+                            {filter === 'last7days' ? 'Last 7 Days' : filter === 'today' ? "Today's Schedule" : filter === 'custom' ? "Custom Schedule" : "Tomorrow's Schedule"}
+                        </span>
                     </div>
                     <h1 className="text-3xl font-black text-gray-900">{dateString}</h1>
                 </div>
                 
+                <div className="flex flex-col gap-3">
+                    {/* Filters */}
+                    <div className="flex flex-wrap items-center gap-2 bg-gray-50 p-1.5 rounded-xl border border-gray-100">
+                        <button 
+                            onClick={() => setFilter('tomorrow')}
+                            className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${filter === 'tomorrow' ? 'bg-primary-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-200'}`}
+                        >
+                            Tomorrow
+                        </button>
+                        <button 
+                            onClick={() => setFilter('today')}
+                            className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${filter === 'today' ? 'bg-primary-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-200'}`}
+                        >
+                            Today
+                        </button>
+                        <button 
+                            onClick={() => setFilter('last7days')}
+                            className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${filter === 'last7days' ? 'bg-primary-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-200'}`}
+                        >
+                            Last 7 Days
+                        </button>
+                        <div className="relative flex items-center">
+                            <input 
+                                type="date"
+                                className={`pl-8 pr-3 py-1.5 rounded-lg text-sm font-bold border-none outline-none focus:ring-2 focus:ring-primary-500 transition-all ${filter === 'custom' ? 'bg-primary-100 text-primary-800' : 'bg-transparent text-gray-500 hover:bg-gray-200'}`}
+                                value={customDate}
+                                onChange={(e) => {
+                                    setCustomDate(e.target.value);
+                                    setFilter('custom');
+                                }}
+                            />
+                            <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
                 <div className="flex p-1 bg-gray-100 rounded-xl w-fit">
                     <button
                         onClick={() => setActiveTab('deliveries')}
@@ -253,8 +319,8 @@ const Tasks = () => {
                             <div className="bg-gray-100 p-6 rounded-full mb-4">
                                 <Truck className="h-12 w-12 text-gray-300" />
                             </div>
-                            <h2 className="text-xl font-bold text-gray-900 mb-2">No Box Deliveries Scheduled</h2>
-                            <p className="text-gray-500 max-w-xs">There are no material/box delivery tasks for tomorrow.</p>
+                            <h2 className="text-xl font-bold text-gray-900 mb-2">No Box Deliveries Found</h2>
+                            <p className="text-gray-500 max-w-xs">There are no material/box delivery tasks for this date range.</p>
                         </div>
                     )
                 ) : (
@@ -265,8 +331,8 @@ const Tasks = () => {
                             <div className="bg-gray-100 p-6 rounded-full mb-4">
                                 <Package className="h-12 w-12 text-gray-300" />
                             </div>
-                            <h2 className="text-xl font-bold text-gray-900 mb-2">No Box Pickups Scheduled</h2>
-                            <p className="text-gray-500 max-w-xs">There are no box pickup tasks scheduled for tomorrow.</p>
+                            <h2 className="text-xl font-bold text-gray-900 mb-2">No Box Pickups Found</h2>
+                            <p className="text-gray-500 max-w-xs">There are no box pickup tasks scheduled for this date range.</p>
                         </div>
                     )
                 )}
