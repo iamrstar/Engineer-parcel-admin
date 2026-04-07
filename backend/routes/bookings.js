@@ -292,10 +292,32 @@ router.get("/:id/receipt", authMiddleware, async (req, res) => {
  * ------------------------ */
 router.put("/:id", authMiddleware, async (req, res) => {
   try {
-    const booking = await Booking.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    });
+    // Helper to flatten nested objects (like packageDetails) to prevent 
+    // Mongoose validation errors on missing required sub-document fields
+    const flattenObject = (ob) => {
+      const toReturn = {};
+      for (const i in ob) {
+        if (!ob.hasOwnProperty(i)) continue;
+        if (typeof ob[i] === 'object' && ob[i] !== null && ob[i].constructor === Object) {
+          const flatObject = flattenObject(ob[i]);
+          for (const x in flatObject) {
+            if (!flatObject.hasOwnProperty(x)) continue;
+            toReturn[i + '.' + x] = flatObject[x];
+          }
+        } else {
+          toReturn[i] = ob[i];
+        }
+      }
+      return toReturn;
+    };
+
+    const updateData = flattenObject(req.body);
+
+    const booking = await Booking.findByIdAndUpdate(
+      req.params.id, 
+      { $set: updateData }, 
+      { new: true, runValidators: true }
+    );
 
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
@@ -304,6 +326,9 @@ router.put("/:id", authMiddleware, async (req, res) => {
     res.json(booking);
   } catch (error) {
     console.error(error);
+    if (error.name === "ValidationError") {
+      return res.status(400).json({ message: "Validation failed", errors: error.errors });
+    }
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -546,36 +571,48 @@ router.get("/tasks/tomorrow-count", adminAuth, async (req, res) => {
   }
 });
 
-// Get detail of bookings for tomorrow
+// Get detail of bookings for tasks (default tomorrow, or specific date / range)
 router.get("/tasks/tomorrow", adminAuth, async (req, res) => {
   try {
+    const { date, range } = req.query;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
-    const tomorrowStart = new Date(today);
-    tomorrowStart.setDate(tomorrowStart.getDate() + 1);
-    
-    const tomorrowEnd = new Date(today);
-    tomorrowEnd.setDate(tomorrowEnd.getDate() + 2);
+
+    let targetStart = new Date(today);
+    let targetEnd = new Date(today);
+
+    if (range === 'last7days') {
+      targetStart.setDate(targetStart.getDate() - 7);
+      targetEnd.setDate(targetEnd.getDate() + 1); // Up to the end of today
+    } else if (date) {
+      targetStart = new Date(date);
+      targetStart.setHours(0, 0, 0, 0);
+      targetEnd = new Date(targetStart);
+      targetEnd.setDate(targetEnd.getDate() + 1);
+    } else {
+      // Default to tomorrow
+      targetStart.setDate(targetStart.getDate() + 1);
+      targetEnd.setDate(targetEnd.getDate() + 2);
+    }
 
     const bookings = await Booking.find({
       $or: [
-        { pickupDate: { $gte: tomorrowStart, $lt: tomorrowEnd } },
-        { boxDeliveryDate: { $gte: tomorrowStart, $lt: tomorrowEnd } }
+        { pickupDate: { $gte: targetStart, $lt: targetEnd } },
+        { boxDeliveryDate: { $gte: targetStart, $lt: targetEnd } }
       ]
     }).select('bookingId senderDetails receiverDetails pickupDate pickupSlot boxDeliveryDate boxDeliverySlot serviceType status isBoxDelivered');
 
     // Categorize
     const boxPickups = bookings.filter(b => 
       b.pickupDate && 
-      new Date(b.pickupDate) >= tomorrowStart && 
-      new Date(b.pickupDate) < tomorrowEnd
+      new Date(b.pickupDate) >= targetStart && 
+      new Date(b.pickupDate) < targetEnd
     );
 
     const boxDeliveries = bookings.filter(b => 
       b.boxDeliveryDate && 
-      new Date(b.boxDeliveryDate) >= tomorrowStart && 
-      new Date(b.boxDeliveryDate) < tomorrowEnd
+      new Date(b.boxDeliveryDate) >= targetStart && 
+      new Date(b.boxDeliveryDate) < targetEnd
     );
 
     res.json({ 
