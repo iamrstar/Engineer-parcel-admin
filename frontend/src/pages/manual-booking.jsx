@@ -40,7 +40,8 @@ export default function ManualBooking() {
     isVendorBooking: false,
     vendorId: "",
   });
-
+  const [generatedId, setGeneratedId] = useState("");
+  const [isManualId, setIsManualId] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [pincodeStatus, setPincodeStatus] = useState({
@@ -242,7 +243,7 @@ export default function ManualBooking() {
       isVendorBooking: formData.isVendorBooking,
       vendorId: formData.vendorId,
       premiumItemType: formData.premiumItemType,
-      bookingId: `EP${formData.bookingId.replace(/^EP/i, '')}`,
+      bookingId: isManualId ? `EP${formData.bookingId.replace(/^EP/i, '')}` : undefined,
       pricing: {
         totalAmount: parseFloat(formData.totalAmount) || 0,
         basePrice: parseFloat(formData.totalAmount) || 0,
@@ -299,6 +300,8 @@ export default function ManualBooking() {
       });
 
       if (response.ok) {
+        const data = await response.json();
+        setGeneratedId(data.booking?.bookingId || data.bookingId);
         setStep(3);
       } else {
         const errorData = await response.json();
@@ -704,21 +707,34 @@ export default function ManualBooking() {
             </div>
 
             <div className="bg-gray-100 p-4 rounded-xl space-y-3 border-l-4 border-orange-500">
-              <label className="block text-xs font-bold text-gray-700 uppercase mb-1">Booking ID (Mandatory)</label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-xs font-bold text-gray-700 uppercase">
+                  Booking ID {isManualId ? "(Manual)" : "(Auto-Generated)"}
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setIsManualId(!isManualId)}
+                  className={`text-[10px] font-bold px-2 py-1 rounded border transition-all ${isManualId ? 'bg-orange-600 text-white border-orange-600' : 'bg-white text-gray-600 border-gray-300'}`}
+                >
+                  {isManualId ? "Switch to Auto" : "Enter Manually"}
+                </button>
+              </div>
               <div className="flex items-center gap-0">
                 <div className="bg-gray-200 border border-gray-300 border-r-0 p-2.5 rounded-l-lg text-sm font-bold text-gray-600 px-4">
                   EP
                 </div>
                 <input
                   name="bookingId"
-                  value={formData.bookingId.replace(/^EP/i, '')}
+                  value={isManualId ? formData.bookingId.replace(/^EP/i, '') : "XXXXX"}
                   onChange={(e) => {
+                    if (!isManualId) return;
                     const val = e.target.value.replace(/\D/g, ''); // only numbers
                     setFormData(prev => ({ ...prev, bookingId: val }));
                   }}
-                  placeholder="e.g. 04410"
-                  className="flex-1 border border-gray-300 p-2.5 rounded-r-lg outline-none focus:ring-2 focus:ring-orange-500 text-sm font-mono font-bold"
-                  required
+                  placeholder={isManualId ? "e.g. 04410" : "AUTO"}
+                  disabled={!isManualId}
+                  className={`flex-1 border border-gray-300 p-2.5 rounded-r-lg outline-none focus:ring-2 focus:ring-orange-500 text-sm font-mono font-bold ${!isManualId ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-900'}`}
+                  required={isManualId}
                 />
                 <select
                   name="deliveryStatus"
@@ -730,7 +746,9 @@ export default function ManualBooking() {
                   <option value="pending">Pending</option>
                 </select>
               </div>
-              <p className="text-[10px] text-gray-500 italic">Enter only the numeric part after EP. Status is auto-confirmed.</p>
+              <p className="text-[10px] text-gray-500 italic">
+                {isManualId ? "Enter only the numeric part after EP." : "ID will be automatically assigned sequentially."}
+              </p>
             </div>
 
             <div className="flex gap-4 pt-4">
@@ -778,7 +796,7 @@ export default function ManualBooking() {
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div className="bg-white p-3 rounded-xl border border-gray-100">
                   <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Booking ID</p>
-                  <p className="font-mono font-bold text-lg text-orange-600">EP{formData.bookingId.replace(/^EP/i, '')}</p>
+                  <p className="font-mono font-bold text-lg text-orange-600">{generatedId || (isManualId ? `EP${formData.bookingId.replace(/^EP/i, '')}` : 'PENDING')}</p>
                 </div>
                 <div className="bg-white p-3 rounded-xl border border-gray-100">
                   <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Service Type</p>
