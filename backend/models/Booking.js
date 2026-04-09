@@ -175,10 +175,33 @@ const bookingSchema = new mongoose.Schema(
 // Generate booking ID
 bookingSchema.pre("validate", async function (next) {
   if (!this.bookingId) {
-    const count = await mongoose.model("Booking").countDocuments()
-    this.bookingId = `EP${Date.now()}${String(count + 1).padStart(4, "0")}`
+    try {
+      const Booking = mongoose.model("Booking");
+      // Also need to check intake_bookings for cross-continuity
+      const IntakeBooking = mongoose.model("IntakeBooking");
+
+      const lastMain = await Booking.findOne({ bookingId: /^EP\d{5}$/ }).sort({ bookingId: -1 });
+      const lastIntake = await IntakeBooking.findOne({ trackingId: /^EP\d{5}$/ }).sort({ trackingId: -1 });
+
+      let maxNum = 4600; // Starting Floor
+
+      if (lastMain && lastMain.bookingId) {
+        const num = parseInt(lastMain.bookingId.replace("EP", ""));
+        if (!isNaN(num)) maxNum = Math.max(maxNum, num);
+      }
+      if (lastIntake && lastIntake.trackingId) {
+        const num = parseInt(lastIntake.trackingId.replace("EP", ""));
+        if (!isNaN(num)) maxNum = Math.max(maxNum, num);
+      }
+
+      this.bookingId = `EP${String(maxNum + 1).padStart(5, "0")}`;
+    } catch (err) {
+      console.error("Error generating sequential bookingId:", err);
+      // Fallback to timestamp to prevent saving error, but should not happen
+      this.bookingId = `EP${Date.now()}`;
+    }
   }
-  next()
-})
+  next();
+});
 
 module.exports = mongoose.model("Booking", bookingSchema)
