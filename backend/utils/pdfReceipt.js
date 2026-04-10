@@ -27,7 +27,6 @@ async function generateReceiptPDF(booking) {
 
         const black = rgb(0, 0, 0);
         const red = rgb(0.8, 0.1, 0.1);
-        const darkGray = rgb(0.2, 0.2, 0.2);
         const headerBg = rgb(0.94, 0.96, 1.0);
 
         let globalY = height - 20;
@@ -149,7 +148,7 @@ async function generateReceiptPDF(booking) {
             if (det?.address1) a = `${det.address1}, ${det.address2 || ''}`.trim();
             if (det?.landmark) a += ` (${det.landmark})`;
             drawF('Address', a);
-            drawF('Destination', `${det?.city || 'N/A'}, ${det?.state || ''} - ${det?.pincode || ''}`);
+            drawF('Destination', `${det?.city || det?.pincode || 'N/A'}, ${det?.state || ''}`);
             return y;
         };
 
@@ -164,7 +163,9 @@ async function generateReceiptPDF(booking) {
         const itH = 18;
         const itY = globalY - itH;
         page.drawRectangle({ x: startX, y: itY, width: tableWidth, height: itH, color: headerBg });
-        const cols = [{ l: 'Sno.', w: 30 }, { l: 'Description of Goods', w: 180 }, { l: 'Qty', w: 40 }, { l: 'Weight', w: 80 }, { l: 'Dimensions', w: tableWidth - 330 }];
+        const cols = [{ l: 'Sno.', w: 30 }, { l: 'Description of Goods', w: isEdl ? 180 : 260 }, { l: 'Qty', w: 40 }];
+        if (isEdl) cols.push({ l: 'Weight', w: 80 });
+        cols.push({ l: 'Dimensions', w: tableWidth - 330 });
         let cx = startX;
         cols.forEach((c, i) => {
             drawCell(c.l, cx, globalY, c.w, itH, fonts.bold, 8, 'center');
@@ -177,22 +178,29 @@ async function generateReceiptPDF(booking) {
         // --- 7. Item Content (Dynamic) ---
         const startItemY = globalY - 12;
         const descText = [booking.packageDetails?.description, booking.notes].filter(Boolean).join(' | ') || 'Shipment Content';
-        const lastDescY = wrapText(descText, startX + 35, startItemY, 170, fonts.regular, 7.5);
+        const lastDescY = wrapText(descText, startX + 35, startItemY, isEdl ? 170 : 250, fonts.regular, 7.5);
 
         const rowBot = Math.min(lastDescY, startItemY - 20) - 8;
         const r7H = globalY - rowBot;
 
-        drawCell('1', startX, globalY, 30, r7H, fonts.regular, 8, 'center');
-        drawCell(String(booking.packageDetails?.boxQuantity || 1), startX + 210, globalY, 40, r7H, fonts.regular, 8, 'center');
-        drawCell(`${booking.packageDetails?.weight || 0}${booking.packageDetails?.weightUnit || 'kg'}`, startX + 250, globalY, 80, r7H, fonts.bold, 8, 'center');
-
-        const dims = booking.packageDetails?.dimensions || [];
-        let ds = 'N/A';
-        if (dims.length > 0) {
-            ds = Array.isArray(dims) ? dims.map(d => `${d.length}x${d.width}x${d.height}`).join(', ') : `${dims.length}x${dims.width}x${dims.height}`;
-            if (ds.length > 30) ds = ds.substring(0, 27) + '...';
+        let cx2 = startX;
+        drawCell('1', cx2, globalY, cols[0].w, r7H, fonts.regular, 8, 'center');
+        cx2 += cols[0].w + cols[1].w;
+        drawCell(String(booking.packageDetails?.boxQuantity || 1), cx2, globalY, cols[2].w, r7H, fonts.regular, 8, 'center');
+        cx2 += cols[2].w;
+        if (isEdl) {
+            drawCell(`${booking.packageDetails?.weight || 0}${booking.packageDetails?.weightUnit || 'kg'}`, cx2, globalY, 80, r7H, fonts.bold, 8, 'center');
         }
-        drawCell(ds, startX + 330, globalY, tableWidth - 330, r7H, fonts.regular, 7.5, 'center');
+
+        let ds = 'N/A';
+        if (isEdl && booking.packageDetails?.edlItems) {
+            ds = booking.packageDetails.edlItems.map(item => item.dims).join(', ');
+        } else {
+            const dims = booking.packageDetails?.dimensions || {};
+            if (dims.length) ds = `${dims.length}x${dims.width}x${dims.height}`;
+        }
+        if (ds.length > 30) ds = ds.substring(0, 27) + '...';
+        drawCell(ds, isEdl ? cx2 + 80 : cx2, globalY, tableWidth - 330, r7H, fonts.regular, 7.5, 'center');
 
         cx = startX;
         cols.forEach(c => { cx += c.w; if (cx < endX) drawVLine(cx, globalY, rowBot); });
@@ -247,10 +255,8 @@ async function generateReceiptPDF(booking) {
 
         // --- 10. PAYMENT SECTION (QR & BANK) ---
         if (booking.paymentStatus?.toLowerCase() === 'pending') {
-            const payYStart = globalY;
             const payFontSize = 7.5;
-            const colW = tableWidth / 2;
-
+            
             // Bank Details (Left side)
             const bX = startX + 10;
             page.drawText("BANK TRANSFER DETAILS", { x: bX, y: globalY - 12, size: 8, font: fonts.bold });
@@ -293,6 +299,8 @@ async function generateReceiptPDF(booking) {
             }
 
             globalY = Math.min(lowestBankY, lowestQrY) - 10;
+        } else {
+            globalY -= 10;
         }
 
         // OUTER BORDER
@@ -301,12 +309,285 @@ async function generateReceiptPDF(booking) {
             borderWidth: 1, borderColor: black,
         });
 
-        const pdfBytes = await pdfDoc.save();
-        return Buffer.from(pdfBytes);
+        return await pdfDoc.save();
     } catch (error) {
-        console.error("PDF Generate Error:", error);
+        console.error("PDF-LIB Receipt Error:", error);
         throw error;
     }
 }
 
-module.exports = { generateReceiptPDF };
+async function generateLabelPDF(booking) {
+    try {
+        const pdfDoc = await PDFDocument.create();
+        // A6 size for shipping label
+        const page = pdfDoc.addPage([297.64, 419.53]);
+        const { width, height } = page.getSize();
+
+        const fonts = {
+            regular: await pdfDoc.embedFont(StandardFonts.Helvetica),
+            bold: await pdfDoc.embedFont(StandardFonts.HelveticaBold),
+        };
+
+        const black = rgb(0, 0, 0);
+        const margin = 15;
+        let globalY = height - margin;
+
+        const drawText = (t, x, y, size, font) => {
+            page.drawText(String(t || ''), { x, y, size, font, color: black });
+        };
+
+        // Header
+        page.drawRectangle({ x: margin, y: globalY - 30, width: width - (margin * 2), height: 30, color: black });
+        page.drawText('ENGINEERS PARCEL', { x: margin + 10, y: globalY - 20, size: 14, font: fonts.bold, color: rgb(1, 1, 1) });
+        globalY -= 40;
+
+        // QR / Tracking ID
+        const tid = booking.trackingId || booking.bookingId || 'EP-PENDING';
+        try {
+            const qrCodeDataUrl = await QRCode.toDataURL(tid, { margin: 1, width: 80 });
+            const qrImageBytes = Buffer.from(qrCodeDataUrl.split(',')[1], 'base64');
+            const qrImage = await pdfDoc.embedPng(qrImageBytes);
+            page.drawImage(qrImage, { x: width - margin - 80, y: globalY - 50, width: 80, height: 80 });
+        } catch (e) {}
+
+        drawText('TRACKING ID:', margin, globalY, 10, fonts.bold);
+        drawText(tid, margin, globalY - 15, 14, fonts.bold);
+        drawText(`Service: ${(booking.serviceType || 'STD').toUpperCase()}`, margin, globalY - 30, 10, fonts.bold);
+        globalY -= 70;
+
+        page.drawLine({ start: { x: margin, y: globalY }, end: { x: width - margin, y: globalY }, thickness: 1 });
+        globalY -= 15;
+
+        // Receiver (TO)
+        drawText('TO (RECEIVER):', margin, globalY, 12, fonts.bold);
+        globalY -= 15;
+        drawText(booking.receiverDetails?.name || 'N/A', margin, globalY, 10, fonts.bold);
+        globalY -= 12;
+        const rAddr = booking.receiverDetails?.address || '';
+        const rWords = rAddr.split(' ');
+        let rLine = '';
+        for (const w of rWords) {
+            if (fonts.regular.widthOfTextAtSize(rLine + w + ' ', 9) > (width - margin * 2)) {
+                drawText(rLine, margin, globalY, 9, fonts.regular);
+                rLine = w + ' ';
+                globalY -= 10;
+            } else {
+                rLine += w + ' ';
+            }
+        }
+        drawText(rLine, margin, globalY, 9, fonts.regular);
+        globalY -= 12;
+        drawText(`${booking.receiverDetails?.pincode || ''} - ${booking.receiverDetails?.city || ''}`, margin, globalY, 10, fonts.bold);
+        globalY -= 12;
+        drawText(`Ph: ${booking.receiverDetails?.phone || ''}`, margin, globalY, 10, fonts.bold);
+        globalY -= 20;
+
+        page.drawLine({ start: { x: margin, y: globalY }, end: { x: width - margin, y: globalY }, thickness: 1 });
+        globalY -= 15;
+
+        // Sender (FROM)
+        drawText('FROM (SENDER):', margin, globalY, 10, fonts.bold);
+        globalY -= 12;
+        drawText(booking.senderDetails?.name || 'N/A', margin, globalY, 9, fonts.bold);
+        globalY -= 12;
+        
+        const sAddr = booking.senderDetails?.address || '';
+        const sWords = sAddr.split(' ');
+        let sLine = '';
+        for (const w of sWords) {
+            if (fonts.regular.widthOfTextAtSize(sLine + w + ' ', 9) > (width - margin * 2)) {
+                drawText(sLine, margin, globalY, 9, fonts.regular);
+                sLine = w + ' ';
+                globalY -= 10;
+            } else {
+                sLine += w + ' ';
+            }
+        }
+        drawText(sLine, margin, globalY, 9, fonts.regular);
+        globalY -= 12;
+        if (booking.serviceType === 'campus-parcel') {
+            drawText('IIT ISM Dhanbad - 826004', margin, globalY, 10, fonts.bold);
+        } else {
+            drawText(`${booking.senderDetails?.city || ''} - ${booking.senderDetails?.pincode || ''}`, margin, globalY, 10, fonts.bold);
+        }
+        globalY -= 12;
+        drawText(`Ph: ${booking.senderDetails?.phone || ''}`, margin, globalY, 9, fonts.regular);
+        globalY -= 20;
+
+        page.drawLine({ start: { x: margin, y: globalY }, end: { x: width - margin, y: globalY }, thickness: 1 });
+        globalY -= 15;
+
+        // Package Box Details
+        const isEdl = booking.edl > 0 || booking.packageDetails?.isEdl || (booking.packageDetails?.description && booking.packageDetails.description.toUpperCase().includes('EDL'));
+        if (isEdl) {
+            drawText(`Weight: ${booking.packageDetails?.weight || ''} ${booking.packageDetails?.weightUnit || 'kg'}`, margin, globalY, 10, fonts.bold);
+        } else {
+            drawText(`Package: ${booking.packageDetails?.description || 'Standard Box'}`, margin, globalY, 10, fonts.bold);
+        }
+        globalY -= 12;
+        let ds = 'N/A';
+        if (isEdl && booking.packageDetails?.edlItems) {
+            ds = booking.packageDetails.edlItems.map(item => item.dims).join(', ') + ' cm';
+            drawText(`Dimensions: ${ds}`, margin, globalY, 9, fonts.regular);
+        } else {
+            const dims = booking.packageDetails?.dimensions || {};
+            if (dims.length) {
+                drawText(`Dimensions: ${dims.length}x${dims.width}x${dims.height} cm`, margin, globalY, 9, fonts.regular);
+            }
+        }
+
+        // Subtext
+        globalY = margin + 10;
+        drawText('Please do not bend. Handle with care.', margin, globalY, 8, fonts.regular);
+
+        return await pdfDoc.save();
+    } catch (error) {
+        console.error("PDF-LIB Label Error:", error);
+        throw error;
+    }
+}
+
+async function generateDeclarationPDF(booking) {
+    try {
+        const pdfDoc = await PDFDocument.create();
+        const page = pdfDoc.addPage([595.28, 841.89]); // A4
+        const { width, height } = page.getSize();
+
+        const fonts = {
+            regular: await pdfDoc.embedFont(StandardFonts.Helvetica),
+            bold: await pdfDoc.embedFont(StandardFonts.HelveticaBold),
+            oblique: await pdfDoc.embedFont(StandardFonts.HelveticaOblique),
+        };
+
+        const black = rgb(0, 0, 0);
+        const margin = 50;
+        let globalY = height - 50;
+
+        const drawText = (t, x, y, size, font) => {
+            page.drawText(String(t || ''), { x, y, size, font, color: black });
+        };
+
+        // Title
+        drawText('SELF DECLARATION FORM', width / 2 - 100, globalY, 16, fonts.bold);
+        globalY -= 40;
+
+        drawText(`Date: ${new Date().toLocaleDateString('en-IN')}`, margin, globalY, 11, fonts.regular);
+        drawText(`Tracking ID: ${booking.bookingId || 'PENDING'}`, width - margin - 150, globalY, 11, fonts.bold);
+        globalY -= 40;
+
+        // Content
+        const lines = [
+            `I, ${booking.senderDetails?.name || '_______________'}, hereby declare that the goods/parcel`,
+            `being dispatched through Engineers Parcel do not contain any prohibited,`,
+            `hazardous, or illegal items.`
+        ];
+        lines.forEach(line => {
+            drawText(line, margin, globalY, 12, fonts.regular);
+            globalY -= 15;
+        });
+
+        globalY -= 20;
+        drawText('I explicitly confirm that the parcel DOES NOT contain:', margin, globalY, 12, fonts.bold);
+        globalY -= 25;
+
+        const prohibited = [
+            "1. Medicines of any kind (Prescription or counter)",
+            "2. Alcoholic items or Beverages",
+            "3. Indecent or Obscene materials",
+            "4. Flammable, Hazardous, or Explosive items",
+            "5. Drugs or Narcotics",
+            "6. Any item banned by the relevant State or Central Authorities"
+        ];
+
+        prohibited.forEach(item => {
+            drawText(item, margin + 20, globalY, 11, fonts.regular);
+            globalY -= 20;
+        });
+
+        globalY -= 20;
+        const liability = [
+            `I understand that strict inspection will be performed by the authorities.`,
+            `If any of the aforementioned prohibited items are found during scanning`,
+            `or transit, I take full legal responsibility. I understand that legal action`,
+            `may be taken by authorities, and Engineers Parcel holds no liability.`
+        ];
+
+        liability.forEach(line => {
+            drawText(line, margin, globalY, 11, fonts.regular);
+            globalY -= 15;
+        });
+
+        globalY -= 40;
+        drawText('SENDER DETAILS:', margin, globalY, 12, fonts.bold);
+        globalY -= 15;
+        drawText(`Name: ${booking.senderDetails?.name || 'N/A'}`, margin, globalY, 11, fonts.regular);
+        globalY -= 15;
+        drawText(`Phone: ${booking.senderDetails?.phone || 'N/A'}`, margin, globalY, 11, fonts.regular);
+        globalY -= 15;
+        drawText(`Address: ${booking.senderDetails?.address || 'N/A'}, ${booking.senderDetails?.city || 'N/A'} - ${booking.senderDetails?.pincode || 'N/A'}`, margin, globalY, 11, fonts.regular);
+
+        // Signature block
+        globalY -= 80;
+        page.drawLine({ start: { x: margin, y: globalY }, end: { x: margin + 150, y: globalY }, thickness: 1 });
+        drawText(`Signature of the Sender`, margin, globalY - 15, 10, fonts.bold);
+        drawText(`Digitally accepted by ${booking.senderDetails?.name || 'Sender'}`, margin, globalY - 30, 9, fonts.oblique);
+
+        return await pdfDoc.save();
+    } catch (error) {
+        console.error("PDF-LIB Declaration Error:", error);
+        throw error;
+    }
+}
+
+/**
+ * Combined PDF Generator: Receipt + Label + Declaration (Selective)
+ */
+async function generateCombinedPDF(booking, options = { receipt: true, label: true, declaration: true }) {
+    try {
+        const mergedPdf = await PDFDocument.create();
+        
+        // Ensure options aren't null/undefined and default to true if not provided string 'false'
+        const includeReceipt = options.receipt !== 'false' && options.receipt !== false;
+        const includeLabel = options.label !== 'false' && options.label !== false;
+        const includeDecl = options.declaration !== 'false' && options.declaration !== false;
+
+        if (includeReceipt) {
+            const receiptBytes = await generateReceiptPDF(booking);
+            const receiptDoc = await PDFDocument.load(receiptBytes);
+            const receiptPages = await mergedPdf.copyPages(receiptDoc, receiptDoc.getPageIndices());
+            receiptPages.forEach(page => mergedPdf.addPage(page));
+        }
+
+        if (includeLabel) {
+            const labelBytes = await generateLabelPDF(booking);
+            const labelDoc = await PDFDocument.load(labelBytes);
+            const labelPages = await mergedPdf.copyPages(labelDoc, labelDoc.getPageIndices());
+            labelPages.forEach(page => mergedPdf.addPage(page));
+        }
+
+        if (includeDecl) {
+            const declarationBytes = await generateDeclarationPDF(booking);
+            const declarationDoc = await PDFDocument.load(declarationBytes);
+            const declarationPages = await mergedPdf.copyPages(declarationDoc, declarationDoc.getPageIndices());
+            declarationPages.forEach(page => mergedPdf.addPage(page));
+        }
+
+        // If nothing was selected, add a blank page at least to avoid crash
+        if (mergedPdf.getPageCount() === 0) {
+            mergedPdf.addPage();
+        }
+
+        const finalBytes = await mergedPdf.save();
+        return Buffer.from(finalBytes);
+    } catch (error) {
+        console.error("Combined PDF Error:", error);
+        throw error;
+    }
+}
+
+module.exports = {
+    generateReceiptPDF,
+    generateLabelPDF,
+    generateDeclarationPDF,
+    generateCombinedPDF
+};
