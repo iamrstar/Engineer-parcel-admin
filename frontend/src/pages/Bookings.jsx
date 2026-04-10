@@ -53,6 +53,17 @@ const Bookings = () => {
     declaration: true
   })
 
+  // Reschedule State
+  const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false)
+  const [reschedulingBooking, setReschedulingBooking] = useState(null)
+  const [rescheduleData, setRescheduleData] = useState({
+    type: "pickup",
+    date: "",
+    slot: "Anytime",
+    source: "customer"
+  })
+  const [rescheduleLoading, setRescheduleLoading] = useState(false)
+
   useEffect(() => {
     fetchBookings()
   }, [currentPage, statusFilter, serviceFilter, searchTerm, vendorNotAssigned, dateFilter, customStartDate, customEndDate])
@@ -324,7 +335,7 @@ const Bookings = () => {
                             <Eye className="h-4 w-4" />
                             <span className="text-xs font-bold">VIEW</span>
                           </Link>
-                          {(booking.trackingId || booking.bookingId) && (
+                           {(booking.trackingId || booking.bookingId) && (
                             <button
                               onClick={() => {
                                 setPdfBooking(booking);
@@ -335,6 +346,25 @@ const Bookings = () => {
                             >
                               <FileText className="h-4 w-4" />
                               <span className="text-xs font-bold uppercase">PDF</span>
+                            </button>
+                          )}
+                          {booking.serviceType?.toLowerCase() === "campus-parcel" && (
+                            <button
+                              onClick={() => {
+                                setReschedulingBooking(booking);
+                                setRescheduleData({
+                                  type: "pickup",
+                                  date: new Date().toISOString().split('T')[0],
+                                  slot: "Anytime",
+                                  source: "customer"
+                                });
+                                setRescheduleModalOpen(true);
+                              }}
+                              className="p-1 px-2.5 text-orange-600 hover:bg-orange-50 rounded-lg flex items-center gap-1.5 border border-orange-100 transition-colors"
+                              title="Reschedule Pickup/Delivery"
+                            >
+                              <Calendar className="h-4 w-4" />
+                              <span className="text-xs font-bold uppercase">Reschedule</span>
                             </button>
                           )}
                         </div>
@@ -485,6 +515,173 @@ const Bookings = () => {
                   type="button"
                   onClick={() => setPdfModalOpen(false)}
                   className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reschedule Campus Modal */}
+      {rescheduleModalOpen && (
+        <div className="fixed inset-0 z-[60] overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true" onClick={() => setRescheduleModalOpen(false)}>
+              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+            </div>
+
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+            <div className="inline-block align-bottom bg-white rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full border border-gray-100">
+              <div className="bg-white px-6 pt-6 pb-4 sm:p-8 sm:pb-6">
+                <div className="sm:flex sm:items-start">
+                  <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-orange-100 sm:mx-0 sm:h-10 sm:w-10">
+                    <Calendar className="h-6 w-6 text-orange-600" aria-hidden="true" />
+                  </div>
+                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                    <h3 className="text-xl leading-6 font-bold text-gray-900">
+                      Reschedule Campus Parcel
+                    </h3>
+                    <div className="mt-2">
+                      <p className="text-sm text-gray-500">
+                        Update the pickup or delivery schedule for <span className="font-mono font-bold text-gray-700">{reschedulingBooking?.bookingId}</span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6 space-y-5 bg-gray-50 p-5 rounded-xl border border-gray-200">
+                  {/* Reschedule Type Selection */}
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Reschedule For:</label>
+                    <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => setRescheduleData({ ...rescheduleData, type: "pickup" })}
+                          className={`p-2.5 rounded-lg border text-sm font-bold transition-all ${rescheduleData.type === 'pickup' ? 'bg-orange-600 border-orange-600 text-white shadow-md' : 'bg-white border-gray-200 text-gray-600 hover:border-orange-300'}`}
+                        >
+                          Box Pickup
+                        </button>
+                        <button
+                          onClick={() => setRescheduleData({ ...rescheduleData, type: "delivery" })}
+                          className={`p-2.5 rounded-lg border text-sm font-bold transition-all ${rescheduleData.type === 'delivery' ? 'bg-orange-600 border-orange-600 text-white shadow-md' : 'bg-white border-gray-200 text-gray-600 hover:border-orange-300'}`}
+                        >
+                          Box Delivery
+                        </button>
+                    </div>
+                  </div>
+
+                  {/* Reschedule Source Selection */}
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Reschedule Initiated By:</label>
+                    <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => setRescheduleData({ ...rescheduleData, source: "admin" })}
+                          className={`p-3 rounded-lg border text-xs font-bold transition-all flex flex-col items-center gap-1.5 ${rescheduleData.source === 'admin' ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-gray-200 text-gray-600 hover:border-blue-300'}`}
+                        >
+                          <span className="text-center italic opacity-80 font-normal underline">Option 1</span>
+                          <span>Admin/Company</span>
+                        </button>
+                        <button
+                          onClick={() => setRescheduleData({ ...rescheduleData, source: "customer" })}
+                          className={`p-3 rounded-lg border text-xs font-bold transition-all flex flex-col items-center gap-1.5 ${rescheduleData.source === 'customer' ? 'bg-green-600 border-green-600 text-white shadow-md' : 'bg-white border-gray-200 text-gray-600 hover:border-green-300'}`}
+                        >
+                          <span className="text-center italic opacity-80 font-normal underline">Option 2</span>
+                          <span>Customer Side</span>
+                        </button>
+                    </div>
+                    <p className="mt-2 text-[10px] text-gray-400 italic leading-tight">
+                      * Selecting a source will trigger a personalized email notification to the customer.
+                    </p>
+                  </div>
+
+                  {/* Current Schedule Info */}
+                  <div className="p-3 bg-white rounded-lg border border-gray-200 shadow-sm">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Current Schedule Reference</span>
+                    </div>
+                    <div className="flex justify-between items-end">
+                      <div>
+                        <p className="text-sm font-bold text-gray-800">
+                          {rescheduleData.type === 'pickup' 
+                            ? (reschedulingBooking?.pickupDate ? new Date(reschedulingBooking.pickupDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Not set')
+                            : (reschedulingBooking?.boxDeliveryDate ? new Date(reschedulingBooking.boxDeliveryDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Not set')}
+                        </p>
+                        <p className="text-[10px] text-gray-500 font-medium">
+                          Slot: {rescheduleData.type === 'pickup' ? reschedulingBooking?.pickupSlot : (reschedulingBooking?.boxDeliverySlot || 'No slot selected')}
+                        </p>
+                      </div>
+                      <div className="bg-blue-50 px-2 py-0.5 rounded text-[9px] font-bold text-blue-600 border border-blue-100 uppercase">
+                        Live
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* New Date */}
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Select New Date:</label>
+                    <input
+                      type="date"
+                      value={rescheduleData.date}
+                      onChange={(e) => setRescheduleData({ ...rescheduleData, date: e.target.value })}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 font-medium"
+                    />
+                  </div>
+
+                  {/* Slot Selection */}
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Select Time Slot:</label>
+                    <select
+                      value={rescheduleData.slot}
+                      onChange={(e) => setRescheduleData({ ...rescheduleData, slot: e.target.value })}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 font-medium"
+                    >
+                      <option value="10:00 AM - 01:00 PM">10:00 AM - 01:00 PM</option>
+                      <option value="02:00 PM - 05:00 PM">02:00 PM - 05:00 PM</option>
+                      <option value="Anytime">Anytime</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 px-6 py-4 sm:px-8 sm:flex sm:flex-row-reverse gap-3">
+                <button
+                  type="button"
+                  disabled={rescheduleLoading || !rescheduleData.date}
+                  onClick={async () => {
+                    try {
+                      setRescheduleLoading(true)
+                      const t = localStorage.getItem("adminToken") || localStorage.getItem("token")
+                      await axios.put(
+                        `${import.meta.env.VITE_API_URL}/api/bookings/${reschedulingBooking?._id}/reschedule-campus`,
+                        {
+                          rescheduleType: rescheduleData.type,
+                          newDate: rescheduleData.date,
+                          newSlot: rescheduleData.slot,
+                          source: rescheduleData.source
+                        },
+                        { headers: { Authorization: `Bearer ${t}` } }
+                      )
+                      toast.success(`Rescheduled ${rescheduleData.type === 'pickup' ? 'Pickup' : 'Delivery'} successfully`)
+                      setRescheduleModalOpen(false)
+                      fetchBookings()
+                    } catch (error) {
+                      toast.error("Reschedule failed")
+                      console.error(error)
+                    } finally {
+                      setRescheduleLoading(false)
+                    }
+                  }}
+                  className="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-6 py-2.5 bg-orange-600 text-base font-bold text-white hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 sm:ml-3 sm:w-auto sm:text-sm transition-all active:scale-95 disabled:opacity-50"
+                >
+                  {rescheduleLoading ? 'Updating...' : 'Update Schedule'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRescheduleModalOpen(false)}
+                  className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2.5 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                 >
                   Cancel
                 </button>
