@@ -4,6 +4,7 @@ const authMiddleware = require("../middleware/auth");
 const adminAuth = require("../middleware/adminAuth");
 const Razorpay = require("razorpay");
 const { generateReceiptPDF } = require("../utils/pdfReceipt");
+const sendEmail = require("../utils/sendEmail");
 
 // Initialize Razorpay
 let razorpay;
@@ -529,6 +530,101 @@ router.put("/:id/reschedule", adminAuth, async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
+
+/** ------------------------
+ * 🔄 Reschedule/Recover Booking
+ * ------------------------ */
+router.put("/:id/reschedule-campus", adminAuth, async (req, res) => {
+  try {
+    const { rescheduleType, newDate, newSlot, source } = req.body;
+    const booking = await Booking.findById(req.params.id);
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    if (rescheduleType === "pickup") {
+      booking.pickupDate = new Date(newDate);
+      booking.pickupSlot = newSlot;
+    } else {
+      booking.boxDeliveryDate = new Date(newDate);
+      booking.boxDeliverySlot = newSlot;
+    }
+
+    const typeLabel = rescheduleType === "pickup" ? "Box Pickup" : "Box Delivery";
+    const sourceLabel = source === "admin" ? "Admin/Internal Reasons" : "Customer Request";
+    
+    booking.trackingHistory.push({
+      status: booking.status,
+      location: booking.currentLocation || "Hub",
+      timestamp: new Date(),
+      description: `${typeLabel} Rescheduled to ${new Date(newDate).toLocaleDateString()} (${newSlot}) due to ${sourceLabel}.`
+    });
+
+    const updated = await booking.save();
+
+    // Trigger Email Notification
+    if (booking.senderDetails?.email) {
+      let emailHtml = "";
+      let subject = "";
+
+      if (source === "admin") {
+        subject = `Schedule Update for your Booking ${booking.bookingId}`;
+        emailHtml = `
+          <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <h2 style="color: #ea580c;">Important Schedule Update</h2>
+            <p>Dear ${booking.senderDetails.name},</p>
+            <p>Due to unforeseen circumstances, we are unable to complete your <strong>${typeLabel}</strong> as scheduled.</p>
+            <p>We have rescheduled it for:</p>
+            <div style="background-color: #fff7ed; padding: 15px; border-radius: 8px; border: 1px solid #ffedd5; margin: 20px 0;">
+              <p style="margin: 0;"><strong>Date:</strong> ${new Date(newDate).toLocaleDateString()}</p>
+              <p style="margin: 5px 0 0 0;"><strong>Time Slot:</strong> ${newSlot}</p>
+            </div>
+            <p>We sincerely apologize for any inconvenience caused.</p>
+            <p>Best regards,<br><strong>Engineers Parcel Team</strong></p>
+          </div>
+        `;
+      } else {
+        subject = `Rescheduled: ${booking.bookingId}`;
+        emailHtml = `
+          <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+            <h2 style="color: #ea580c;">Schedule Confirmed</h2>
+            <p>Dear ${booking.senderDetails.name},</p>
+            <p>As per your request, your Campus Parcel <strong>${typeLabel}</strong> has been successfully rescheduled.</p>
+            <div style="background-color: #f0fdf4; padding: 15px; border-radius: 8px; border: 1px solid #dcfce7; margin: 20px 0;">
+              <p style="margin: 0;"><strong>New Date:</strong> ${new Date(newDate).toLocaleDateString()}</p>
+              <p style="margin: 5px 0 0 0;"><strong>New Time Slot:</strong> ${newSlot}</p>
+            </div>
+            <p>Thank you for choosing Engineers Parcel.</p>
+            <p>Best regards,<br><strong>Engineers Parcel Team</strong></p>
+          </div>
+        `;
+      }
+
+      try {
+        await sendEmail({
+          to: booking.senderDetails.email,
+          subject,
+          html: emailHtml,
+          bookingId: booking.bookingId
+        });
+        console.log(`✅ Reschedule email sent for ${booking.bookingId}`);
+      } catch (emailErr) {
+        console.error("❌ Failed to send reschedule email:", emailErr);
+      }
+    }
+
+    res.json(enrichedBooking(updated));
+  } catch (error) {
+    console.error("Error rescheduling campus booking:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+// Helper to return standardized booking response if needed
+const enrichedBooking = (b) => {
+  return b; // Adjust if you have a specific mapping
+};
 
 /** ------------------------
  * 🗓️ Tomorrow's Tasks (Pickups/Deliveries)
