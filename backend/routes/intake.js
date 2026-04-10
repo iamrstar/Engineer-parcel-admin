@@ -43,8 +43,19 @@ router.get("/", adminAuth, async (req, res) => {
             ];
         }
 
-        const bookings = await IntakeBooking.find(query).sort({ createdAt: -1 });
-        res.json(bookings);
+        const bookings = await IntakeBooking.find(query).sort({ createdAt: -1 }).lean();
+
+        // Check which of these are already in the main Booking collection
+        const trackingIds = bookings.map(b => b.trackingId).filter(Boolean);
+        const existingTrackings = await Booking.find({ trackingId: { $in: trackingIds } }, { trackingId: 1 }).lean();
+        const existingSet = new Set(existingTrackings.map(b => b.trackingId));
+
+        const enrichedBookings = bookings.map(b => ({
+            ...b,
+            presentInMainDashboard: existingSet.has(b.trackingId)
+        }));
+
+        res.json(enrichedBookings);
     } catch (error) {
         console.error("Error fetching intake bookings:", error);
         res.status(500).json({ message: "Server error" });
@@ -172,9 +183,13 @@ router.post("/verify", adminAuth, async (req, res) => {
 router.post("/seed", adminAuth, async (req, res) => {
     try {
         const { date } = req.query;
-        let query = { adminVerified: true, seededToMainDashboard: false };
+        const { ids } = req.body;
 
-        if (date) {
+        let query = { adminVerified: true };
+
+        if (ids && Array.isArray(ids) && ids.length > 0) {
+            query.bookingId = { $in: ids };
+        } else if (date) {
             const start = new Date(date);
             start.setHours(0, 0, 0, 0);
             const safeStart = new Date(start);
@@ -184,12 +199,21 @@ router.post("/seed", adminAuth, async (req, res) => {
             end.setHours(23, 59, 59, 999);
 
             query.createdAt = { $gte: safeStart, $lte: end };
+        } else {
+            return res.status(400).json({ message: "No selection or date provided for sync." });
         }
 
-        const toSeed = await IntakeBooking.find(query);
+        const candidates = await IntakeBooking.find(query);
+        
+        // Filter out candidates that are already present in the main Booking collection
+        const candTrackingIds = candidates.map(c => c.trackingId).filter(Boolean);
+        const existingTrackings = await Booking.find({ trackingId: { $in: candTrackingIds } }, { trackingId: 1 }).lean();
+        const existingSet = new Set(existingTrackings.map(b => b.trackingId));
+
+        const toSeed = candidates.filter(c => !existingSet.has(c.trackingId));
 
         if (toSeed.length === 0) {
-            return res.json({ message: "No new verified bookings to seed for this date.", count: 0 });
+            return res.json({ message: "No new or missing verified bookings to sync.", count: 0 });
         }
 
         let count = 0;
@@ -199,10 +223,26 @@ router.post("/seed", adminAuth, async (req, res) => {
             const senderAddr = doc.senderDetails.address || [doc.senderDetails.address1, doc.senderDetails.address2].filter(Boolean).join(", ");
             const receiverAddr = doc.receiverDetails.address || [doc.receiverDetails.address1, doc.receiverDetails.address2].filter(Boolean).join(", ");
 
+            // Look up EDL and KM for the delivery pincode
+            let edl = 0;
+            let km = 0;
+            try {
+                const Pincode = require("../models/Pincode");
+                const pinData = await Pincode.findOne({ pincode: doc.receiverDetails.pincode });
+                if (pinData) {
+                    edl = pinData.edl || 0;
+                    km = pinData.km || 0;
+                }
+            } catch (pinErr) {
+                console.error("Error fetching pincode data during seeding:", pinErr);
+            }
+
             const payload = {
                 bookingId: doc.trackingId,
                 trackingId: doc.trackingId,
                 serviceType: doc.serviceType.toLowerCase(),
+                edl,
+                km,
                 senderDetails: {
                     name: doc.senderDetails.name,
                     phone: doc.senderDetails.phone,
@@ -233,11 +273,19 @@ router.post("/seed", adminAuth, async (req, res) => {
                     description: doc.packageDetails.description || "N/A",
                     value: doc.packageDetails.value || 0,
                     fragile: doc.packageDetails.fragile,
+                    isEdl: doc.packageDetails.isEdl,
+                    edlItems: doc.packageDetails.edlItems,
+                    edlContents: doc.packageDetails.edlContents,
+                    otherContentText: doc.packageDetails.otherContentText,
                 },
                 pickupPincode: doc.senderDetails.pincode,
                 deliveryPincode: doc.receiverDetails.pincode,
+                pickupMethod: doc.pickupMethod || "hub",
                 pickupDate: doc.pickupDate || new Date(),
                 pickupSlot: doc.pickupSlot || "Anytime",
+                boxDeliveryType: doc.boxDeliveryType || "self",
+                boxDeliveryDate: doc.boxDeliveryDate,
+                boxDeliverySlot: doc.boxDeliverySlot,
                 deliveryDate: doc.deliveryDate,
                 estimatedDelivery: doc.estimatedDelivery,
                 status: "confirmed",
@@ -250,10 +298,10 @@ router.post("/seed", adminAuth, async (req, res) => {
                 paymentStatus: doc.paymentStatus,
                 paymentMethod: doc.paymentMethod,
                 notes: doc.notes || "Imported from Agent Intake",
-                currentLocation: doc.senderDetails.city || "Hub",
+                currentLocation: `${doc.senderDetails.address1 || doc.senderDetails.address || "Hub"}${doc.senderDetails.landmark ? ', ' + doc.senderDetails.landmark : ''}`,
                 trackingHistory: [{
                     status: "confirmed",
-                    location: doc.senderDetails.city || "Hub",
+                    location: `${doc.senderDetails.address1 || doc.senderDetails.address || "Hub"}${doc.senderDetails.landmark ? ', ' + doc.senderDetails.landmark : ''}`,
                     timestamp: new Date(),
                     description: "Booking Verified and Shipment Booked Successfully"
                 }],
@@ -412,10 +460,12 @@ router.get("/receipt", adminAuth, async (req, res) => {
             }
         }
 
-        const pdfBuffer = await generateReceiptPDF(booking);
+        const { receipt, label, declaration } = req.query;
+        const { generateCombinedPDF } = require("../utils/pdfReceipt");
+        const pdfBuffer = await generateCombinedPDF(booking, { receipt, label, declaration });
 
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename="Receipt_${id}.pdf"`);
+        res.setHeader('Content-Disposition', `attachment; filename="Booking_${id}.pdf"`);
         res.send(pdfBuffer);
     } catch (error) {
         console.error("Failed to generate receipt:", error);
