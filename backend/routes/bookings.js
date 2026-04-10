@@ -272,11 +272,13 @@ router.get("/:id/receipt", authMiddleware, async (req, res) => {
     }
 
     // Generate PDF
-    const pdfBuffer = await generateReceiptPDF(booking);
+    const { receipt, label, declaration } = req.query;
+    const { generateCombinedPDF } = require("../utils/pdfReceipt");
+    const pdfBuffer = await generateCombinedPDF(booking, { receipt, label, declaration });
 
     res.set({
       "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename=Receipt-${booking.bookingId || 'Booking'}.pdf`,
+      "Content-Disposition": `attachment; filename=Booking-${booking.bookingId || 'Shipment'}.pdf`,
       "Content-Length": pdfBuffer.length,
     });
 
