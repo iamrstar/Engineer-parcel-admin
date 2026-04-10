@@ -44,6 +44,23 @@ export default function EDocket() {
     });
     const [vendorNotAssigned, setVendorNotAssigned] = useState(false);
     const [otherVendor, setOtherVendor] = useState(false);
+    const [selectedIds, setSelectedIds] = useState([]);
+
+    // Selection Handlers
+    const toggleSelectAll = () => {
+        const seedable = bookings.filter(b => b.adminVerified && !b.presentInMainDashboard);
+        if (selectedIds.length === seedable.length && seedable.length > 0) {
+            setSelectedIds([]);
+        } else {
+            setSelectedIds(seedable.map(b => b.bookingId));
+        }
+    };
+
+    const toggleSelect = (id) => {
+        setSelectedIds(prev =>
+            prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+        );
+    };
 
     // Pricing State
     const [pricing, setPricing] = useState({
@@ -69,6 +86,15 @@ export default function EDocket() {
 
     const [editForm, setEditForm] = useState({});
     const [verifySuccess, setVerifySuccess] = useState(false);
+
+    // PDF Selection State
+    const [pdfModalOpen, setPdfModalOpen] = useState(false);
+    const [pdfBooking, setPdfBooking] = useState(null);
+    const [pdfOptions, setPdfOptions] = useState({
+        receipt: true,
+        label: true,
+        declaration: true
+    });
 
     const fetchBookings = async () => {
         setLoading(true);
@@ -115,24 +141,24 @@ export default function EDocket() {
     };
 
     const handleSeed = async () => {
-        const bookingsToSeed = bookings.filter((b) => b.adminVerified && !b.seededToMainDashboard);
-        if (bookingsToSeed.length === 0) {
-            toast.error("No verified bookings to seed for this date.");
+        if (selectedIds.length === 0) {
+            toast.error("Please select at least one verified booking to sync.");
             return;
         }
-        if (!window.confirm(`Seed ${bookingsToSeed.length} verified bookings for ${filterDate}?`)) return;
+        if (!window.confirm(`Finalize & Sync ${selectedIds.length} selected bookings?`)) return;
 
         try {
             const currentToken = token || localStorage.getItem("adminToken") || localStorage.getItem("token");
             const res = await axios.post(
-                `${import.meta.env.VITE_API_URL}/api/intake/seed?date=${filterDate}`,
-                {},
+                `${import.meta.env.VITE_API_URL}/api/intake/seed`,
+                { ids: selectedIds },
                 { headers: { Authorization: `Bearer ${currentToken}` } }
             );
-            toast.success(`Seeded ${res.data.count} bookings to main dashboard.`);
+            toast.success(`Successfully synced ${res.data.count} bookings to main dashboard.`);
+            setSelectedIds([]); // Clear selection
             fetchBookings();
         } catch (error) {
-            toast.error("Seeding failed");
+            toast.error("Sync failed");
         }
     };
 
@@ -299,9 +325,11 @@ export default function EDocket() {
                         </button>
                         <button
                             onClick={handleSeed}
-                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                            disabled={selectedIds.length === 0}
+                            className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-lg shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-all ${selectedIds.length > 0 ? 'scale-105 shadow-md' : 'opacity-50 cursor-not-allowed'}`}
                         >
-                            <UploadCloud className="w-4 h-4 mr-2" /> Seed to Main
+                            <UploadCloud className="w-4 h-4 mr-2" /> 
+                            {selectedIds.length > 0 ? `Finalize & Sync (${selectedIds.length})` : 'Finalize & Sync'}
                         </button>
                     </div>
                 )}
@@ -328,6 +356,14 @@ export default function EDocket() {
                         <table className="min-w-full divide-y divide-gray-200">
                             <thead className="bg-gray-50">
                                 <tr>
+                                    <th className="px-6 py-3 text-left w-10">
+                                        <input
+                                            type="checkbox"
+                                            className="h-4 w-4 text-primary-600 border-gray-300 rounded cursor-pointer"
+                                            checked={selectedIds.length === bookings.filter(b => b.adminVerified && !b.presentInMainDashboard).length && bookings.filter(b => b.adminVerified && !b.presentInMainDashboard).length > 0}
+                                            onChange={toggleSelectAll}
+                                        />
+                                    </th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">EP ID</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Agent</th>
                                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sender</th>
@@ -343,7 +379,16 @@ export default function EDocket() {
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-200">
                                 {bookings.map((booking) => (
-                                    <tr key={booking._id} className="hover:bg-primary-50/50">
+                                    <tr key={booking._id} className={`${selectedIds.includes(booking.bookingId) ? 'bg-orange-50' : 'hover:bg-primary-50/50'} transition-colors`}>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <input
+                                                type="checkbox"
+                                                className="h-4 w-4 text-primary-600 border-gray-300 rounded cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                                                checked={selectedIds.includes(booking.bookingId)}
+                                                onChange={() => toggleSelect(booking.bookingId)}
+                                                disabled={!booking.adminVerified || booking.presentInMainDashboard}
+                                            />
+                                        </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-primary-600 font-mono">{booking.trackingId}</td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{booking.agentUsername || "System"}</td>
                                         <td className="px-6 py-4 whitespace-nowrap">
@@ -376,9 +421,18 @@ export default function EDocket() {
                                             )}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                            {booking.seededToMainDashboard ? (
-                                                <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">Yes</span>
-                                            ) : "-"}
+                                            {booking.presentInMainDashboard ? (
+                                                <span className="inline-flex items-center px-2.5 py-1 text-xs font-bold rounded-full bg-green-100 text-green-700 border border-green-200 shadow-sm" title="Already in Main Dashboard">
+                                                    <CheckCircle className="w-3 h-3 mr-1" />
+                                                    Synced
+                                                </span>
+                                            ) : booking.adminVerified ? (
+                                                <span className="inline-flex items-center px-2.5 py-1 text-xs font-bold rounded-full bg-blue-50 text-blue-600 border border-blue-100" title="Ready to Sync">
+                                                    Ready
+                                                </span>
+                                            ) : (
+                                                <span className="text-gray-400 text-xs italic">Pending Verify</span>
+                                            )}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                             <button
@@ -409,40 +463,24 @@ export default function EDocket() {
                                                 Verify/Edit
                                             </button>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-center">
                                             <button
-                                                onClick={async () => {
-                                                    try {
-                                                        const currentToken = token || localStorage.getItem("adminToken") || localStorage.getItem("token");
-                                                        const response = await axios.get(
-                                                            `${import.meta.env.VITE_API_URL}/api/intake/receipt?id=${booking.trackingId}`,
-                                                            {
-                                                                headers: { Authorization: `Bearer ${currentToken}` },
-                                                                responseType: 'blob'
-                                                            }
-                                                        );
-                                                        const url = window.URL.createObjectURL(new Blob([response.data]));
-                                                        const link = document.createElement('a');
-                                                        link.href = url;
-                                                        link.setAttribute('download', `Receipt_${booking.trackingId}.pdf`);
-                                                        document.body.appendChild(link);
-                                                        link.click();
-                                                        link.remove();
-                                                    } catch (error) {
-                                                        toast.error("Failed to download receipt");
-                                                    }
+                                                onClick={() => {
+                                                    setPdfBooking(booking);
+                                                    setPdfModalOpen(true);
                                                 }}
-                                                className="text-red-600 hover:text-red-900 font-medium px-3 py-1.5 rounded-lg border border-red-100 hover:bg-red-50 transition-colors flex items-center gap-1"
+                                                className="inline-flex items-center text-red-600 hover:text-red-900 font-bold px-3 py-1.5 rounded-lg border border-red-100 hover:bg-red-50 transition-all bg-red-50/30"
+                                                title="Print Records"
                                             >
-                                                <Download className="w-4 h-4" />
-                                                <span>PDF</span>
+                                                <Download className="w-4 h-4 mr-1.5" />
+                                                PDF
                                             </button>
                                         </td>
                                     </tr>
                                 ))}
                                 {bookings.length === 0 && !loading && (
                                     <tr>
-                                        <td colSpan="8" className="px-6 py-12 text-center text-gray-500 text-sm">No intake bookings found for this date.</td>
+                                        <td colSpan="12" className="px-6 py-12 text-center text-gray-500 text-sm">No intake bookings found for this date.</td>
                                     </tr>
                                 )}
                             </tbody>
@@ -687,6 +725,122 @@ export default function EDocket() {
                             </div>
                         </div>
                     )}
+                </div>
+            )}
+            {/* PDF Options Modal */}
+            {pdfModalOpen && (
+                <div className="fixed inset-0 z-[60] overflow-y-auto">
+                    <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+                        <div className="fixed inset-0 transition-opacity" aria-hidden="true" onClick={() => setPdfModalOpen(false)}>
+                            <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+                        </div>
+
+                        <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+                        <div className="inline-block align-bottom bg-white rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full border border-gray-100">
+                            <div className="bg-white px-6 pt-6 pb-4 sm:p-8 sm:pb-6">
+                                <div className="sm:flex sm:items-start">
+                                    <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                                        <Download className="h-6 w-6 text-red-600" aria-hidden="true" />
+                                    </div>
+                                    <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                                        <h3 className="text-xl leading-6 font-bold text-gray-900">
+                                            Print Options
+                                        </h3>
+                                        <div className="mt-2">
+                                            <p className="text-sm text-gray-500">
+                                                Select which documents you want to include in the generated PDF for <span className="font-mono font-bold text-gray-700">{pdfBooking?.trackingId}</span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="mt-6 space-y-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                                    <label className="flex items-center p-3 bg-white rounded-lg border border-gray-200 hover:border-red-300 transition-colors cursor-pointer group">
+                                        <input
+                                            type="checkbox"
+                                            checked={pdfOptions.receipt}
+                                            onChange={(e) => setPdfOptions({ ...pdfOptions, receipt: e.target.checked })}
+                                            className="h-5 w-5 text-red-600 border-gray-300 rounded focus:ring-red-500 cursor-pointer"
+                                        />
+                                        <div className="ml-3">
+                                            <span className="block text-sm font-bold text-gray-900 group-hover:text-red-700">Booking Receipt</span>
+                                            <span className="block text-xs text-gray-500">Official proof of booking and charges</span>
+                                        </div>
+                                    </label>
+
+                                    <label className="flex items-center p-3 bg-white rounded-lg border border-gray-200 hover:border-red-300 transition-colors cursor-pointer group">
+                                        <input
+                                            type="checkbox"
+                                            checked={pdfOptions.label}
+                                            onChange={(e) => setPdfOptions({ ...pdfOptions, label: e.target.checked })}
+                                            className="h-5 w-5 text-red-600 border-gray-300 rounded focus:ring-red-500 cursor-pointer"
+                                        />
+                                        <div className="ml-3">
+                                            <span className="block text-sm font-bold text-gray-900 group-hover:text-red-700">Shipping Label (A6)</span>
+                                            <span className="block text-xs text-gray-500">Compact label with QR code for the box</span>
+                                        </div>
+                                    </label>
+
+                                    <label className="flex items-center p-3 bg-white rounded-lg border border-gray-200 hover:border-red-300 transition-colors cursor-pointer group">
+                                        <input
+                                            type="checkbox"
+                                            checked={pdfOptions.declaration}
+                                            onChange={(e) => setPdfOptions({ ...pdfOptions, declaration: e.target.checked })}
+                                            className="h-5 w-5 text-red-600 border-gray-300 rounded focus:ring-red-500 cursor-pointer"
+                                        />
+                                        <div className="ml-3">
+                                            <span className="block text-sm font-bold text-gray-900 group-hover:text-red-700">Self-Declaration Form</span>
+                                            <span className="block text-xs text-gray-500">Legal declaration signed by sender</span>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div className="bg-gray-50 px-6 py-4 sm:px-8 sm:flex sm:flex-row-reverse gap-3">
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        if (!pdfOptions.receipt && !pdfOptions.label && !pdfOptions.declaration) {
+                                            toast.error("Please select at least one document");
+                                            return;
+                                        }
+                                        try {
+                                            const currentToken = token || localStorage.getItem("adminToken") || localStorage.getItem("token");
+                                            const response = await axios.get(
+                                                `${import.meta.env.VITE_API_URL}/api/intake/receipt?id=${pdfBooking?.trackingId}&receipt=${pdfOptions.receipt}&label=${pdfOptions.label}&declaration=${pdfOptions.declaration}`,
+                                                {
+                                                    headers: { Authorization: `Bearer ${currentToken}` },
+                                                    responseType: 'blob'
+                                                }
+                                            );
+                                            const url = window.URL.createObjectURL(new Blob([response.data]));
+                                            const link = document.createElement('a');
+                                            link.href = url;
+                                            link.setAttribute('download', `Booking_${pdfBooking?.trackingId}.pdf`);
+                                            document.body.appendChild(link);
+                                            link.click();
+                                            link.remove();
+                                            setPdfModalOpen(false);
+                                            toast.success("PDF generated successfully");
+                                        } catch (error) {
+                                            toast.error("Failed to download PDF");
+                                        }
+                                    }}
+                                    className="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm transition-all hover:scale-105"
+                                >
+                                    Download PDF
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setPdfModalOpen(false)}
+                                    className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                                >
+                                    Cancel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
