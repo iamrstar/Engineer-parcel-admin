@@ -185,9 +185,11 @@ const Tasks = () => {
                         <div className="flex items-start gap-2">
                             <MapPin className={`h-4 w-4 mt-0.5 ${isCompleted ? 'text-green-400' : 'text-gray-400'}`} />
                             <div>
-                                <p className={`text-[10px] uppercase font-bold tracking-wider ${isCompleted ? 'text-green-500' : 'text-gray-400'}`}>Hostel</p>
+                                <p className={`text-[10px] uppercase font-bold tracking-wider ${isCompleted ? 'text-green-500' : 'text-gray-400'}`}>
+                                    {booking.serviceType === 'campus-parcel' ? 'Sender Hostel' : (type === 'pickup' ? 'Pickup' : 'Delivery')}
+                                </p>
                                 <p className={`text-sm font-semibold leading-tight ${isCompleted ? 'text-green-900' : 'text-gray-900'}`}>
-                                    {type === 'pickup' 
+                                    {type === 'pickup' || booking.serviceType === 'campus-parcel'
                                         ? `${booking.senderDetails?.address}${booking.senderDetails?.landmark ? ', ' + booking.senderDetails.landmark : ''}`
                                         : `${booking.receiverDetails?.address}${booking.receiverDetails?.landmark ? ', ' + booking.receiverDetails.landmark : ''}`
                                     }
