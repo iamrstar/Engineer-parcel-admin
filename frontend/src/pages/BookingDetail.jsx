@@ -41,6 +41,10 @@ const BookingDetail = () => {
     source: "customer"
   })
   const [rescheduleLoading, setRescheduleLoading] = useState(false)
+  const [assignmentData, setAssignmentData] = useState({
+    riderId: "",
+    assignedFor: "pickup"
+  })
 
   useEffect(() => {
     if (id) fetchBooking()
@@ -92,8 +96,12 @@ const BookingDetail = () => {
   const fetchBooking = async () => {
     try {
       const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/${id}`)
-      // const response = await axios.get(`http://localhost:8000/api/bookings/${id}`)
       setBooking(response.data)
+      // Initialize assignment state
+      setAssignmentData({
+        riderId: response.data.assignedRider?._id || response.data.assignedRider || "",
+        assignedFor: response.data.assignedFor || "pickup"
+      })
     } catch (error) {
       toast.error("Error fetching booking details")
       console.error("Error:", error)
@@ -307,8 +315,8 @@ const BookingDetail = () => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Assign Rider</label>
                 <select
-                  value={booking.assignedRider?._id || booking.assignedRider || ""}
-                  onChange={(e) => handleAssignRider(e.target.value, booking.assignedFor || "pickup")}
+                  value={assignmentData.riderId}
+                  onChange={(e) => setAssignmentData({ ...assignmentData, riderId: e.target.value })}
                   className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white"
                 >
                   <option value="">Unassigned</option>
@@ -317,17 +325,25 @@ const BookingDetail = () => {
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Assigned For</label>
-                <select
-                  value={booking.assignedFor || "pickup"}
-                  onChange={(e) => handleAssignRider(booking.assignedRider?._id || booking.assignedRider, e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white"
+              <div className="flex items-end gap-2">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Assigned For</label>
+                  <select
+                    value={assignmentData.assignedFor}
+                    onChange={(e) => setAssignmentData({ ...assignmentData, assignedFor: e.target.value })}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white"
+                  >
+                    <option value="pickup">Pickup</option>
+                    <option value="delivery">Delivery</option>
+                    <option value="both">Both (Pickup & Delivery)</option>
+                  </select>
+                </div>
+                <button
+                  onClick={() => handleAssignRider(assignmentData.riderId, assignmentData.assignedFor)}
+                  className="px-4 py-2 bg-primary-600 text-white text-sm font-bold rounded-lg hover:bg-primary-700 transition-all shadow-sm active:scale-95"
                 >
-                  <option value="pickup">Pickup</option>
-                  <option value="delivery">Delivery</option>
-                  <option value="both">Both (Pickup & Delivery)</option>
-                </select>
+                  Confirm
+                </button>
               </div>
             </>
           ) : (
@@ -802,6 +818,7 @@ const BookingDetail = () => {
                     <option value="air">Air</option>
                     <option value="express">Express</option>
                     <option value="premium">Premium</option>
+                    <option value="campus-parcel">Campus Parcel</option>
                   </select>
                 ) : (
                   <p className="text-sm sm:text-base text-gray-900 capitalize">{booking.serviceType}</p>
