@@ -196,8 +196,11 @@ async function generateReceiptPDF(booking) {
         if (isEdl && booking.packageDetails?.edlItems) {
             ds = booking.packageDetails.edlItems.map(item => item.dims).join(', ');
         } else {
-            const dims = booking.packageDetails?.dimensions || {};
-            if (dims.length) ds = `${dims.length}x${dims.width}x${dims.height}`;
+            const dimensions = booking.packageDetails?.dimensions;
+            let d = Array.isArray(dimensions) ? dimensions[0] : (dimensions || {});
+            if (d && (d.length || d.width || d.height)) {
+                ds = `${d.length || 0}x${d.width || 0}x${d.height || 0}`;
+            }
         }
         if (ds.length > 30) ds = ds.substring(0, 27) + '...';
         drawCell(ds, isEdl ? cx2 + 80 : cx2, globalY, tableWidth - 330, r7H, fonts.regular, 7.5, 'center');
@@ -430,9 +433,10 @@ async function generateLabelPDF(booking) {
             ds = booking.packageDetails.edlItems.map(item => item.dims).join(', ') + ' cm';
             drawText(`Dimensions: ${ds}`, margin, globalY, 9, fonts.regular);
         } else {
-            const dims = booking.packageDetails?.dimensions || {};
-            if (dims.length) {
-                drawText(`Dimensions: ${dims.length}x${dims.width}x${dims.height} cm`, margin, globalY, 9, fonts.regular);
+            const dimensions = booking.packageDetails?.dimensions;
+            let d = Array.isArray(dimensions) ? dimensions[0] : (dimensions || {});
+            if (d && (d.length || d.width || d.height)) {
+                drawText(`Dimensions: ${d.length || 0}x${d.width || 0}x${d.height || 0} cm`, margin, globalY, 9, fonts.regular);
             }
         }
 
