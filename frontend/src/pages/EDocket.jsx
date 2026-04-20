@@ -280,7 +280,7 @@ export default function EDocket() {
     };
 
     const calculateSuggestedPrice = () => {
-        const dims = editForm.packageDetails?.dimensions || { length: 0, width: 0, height: 0 };
+        const dims = editForm.packageDetails?.dimensions?.[0] || { length: 0, width: 0, height: 0 };
         const volWeight = (Number(dims.length) * Number(dims.width) * Number(dims.height)) / 2700;
         return Math.round(volWeight * 100) / 100;
     };
@@ -294,7 +294,7 @@ export default function EDocket() {
         }
     }, [
         editForm.packageDetails?.weight,
-        editForm.packageDetails?.dimensions,
+        editForm.packageDetails?.dimensions?.[0], // Fixed for array
         editForm.receiverDetails?.city,
         editForm.receiverDetails?.state,
         editForm.serviceType,
@@ -448,13 +448,20 @@ export default function EDocket() {
                                                     setEditForm({
                                                         senderDetails: booking.senderDetails,
                                                         receiverDetails: booking.receiverDetails,
-                                                        packageDetails: booking.packageDetails,
+                                                        packageDetails: {
+                                                            ...booking.packageDetails,
+                                                            dimensions: Array.isArray(booking.packageDetails?.dimensions) 
+                                                                ? booking.packageDetails.dimensions 
+                                                                : [booking.packageDetails?.dimensions || {length: 0, width: 0, height: 0}]
+                                                        },
                                                         serviceType: booking.serviceType,
                                                         premiumItemType: booking.premiumItemType || "",
                                                         trackingId: booking.trackingId,
                                                         vendorName: booking.vendorName || "",
                                                         vendorTrackingId: booking.vendorTrackingId || "",
                                                         estimatedDelivery: booking.estimatedDelivery || "",
+                                                        insuranceRequired: booking.insuranceRequired || false,
+                                                        notes: booking.notes || "",
                                                     });
                                                     setOtherVendor(false);
                                                 }}
@@ -615,12 +622,65 @@ export default function EDocket() {
                                 </div>
 
                                 <div className="pt-2">
-                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Dimensions (L x W x H cm)</label>
+                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 flex justify-between">
+                                        Dimensions (L x W x H cm)
+                                        {(editForm.packageDetails?.dimensions?.length > 1) && (
+                                            <span className="text-primary-600 bg-primary-50 px-2 py-0.5 rounded-full border border-primary-100 normal-case">
+                                                +{editForm.packageDetails.dimensions.length - 1} more boxes
+                                            </span>
+                                        )}
+                                    </label>
                                     <div className="flex gap-2">
-                                        <input type="number" placeholder="L" value={editForm.packageDetails?.dimensions?.length || ''} onChange={(e) => setEditForm({ ...editForm, packageDetails: { ...editForm.packageDetails, dimensions: { ...editForm.packageDetails.dimensions, length: e.target.value } } })} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-                                        <input type="number" placeholder="W" value={editForm.packageDetails?.dimensions?.width || ''} onChange={(e) => setEditForm({ ...editForm, packageDetails: { ...editForm.packageDetails, dimensions: { ...editForm.packageDetails.dimensions, width: e.target.value } } })} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
-                                        <input type="number" placeholder="H" value={editForm.packageDetails?.dimensions?.height || ''} onChange={(e) => setEditForm({ ...editForm, packageDetails: { ...editForm.packageDetails, dimensions: { ...editForm.packageDetails.dimensions, height: e.target.value } } })} className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+                                        <input type="number" placeholder="L" value={editForm.packageDetails?.dimensions?.[0]?.length || ''} onChange={(e) => {
+                                            const newDims = [...(editForm.packageDetails?.dimensions || [{length: 0, width: 0, height: 0}])];
+                                            newDims[0] = { ...newDims[0], length: Number(e.target.value) || 0 };
+                                            setEditForm({ ...editForm, packageDetails: { ...editForm.packageDetails, dimensions: newDims } });
+                                        }} className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-1 focus:ring-primary-500" />
+                                        
+                                        <input type="number" placeholder="W" value={editForm.packageDetails?.dimensions?.[0]?.width || ''} onChange={(e) => {
+                                            const newDims = [...(editForm.packageDetails?.dimensions || [{length: 0, width: 0, height: 0}])];
+                                            newDims[0] = { ...newDims[0], width: Number(e.target.value) || 0 };
+                                            setEditForm({ ...editForm, packageDetails: { ...editForm.packageDetails, dimensions: newDims } });
+                                        }} className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-1 focus:ring-primary-500" />
+                                        
+                                        <input type="number" placeholder="H" value={editForm.packageDetails?.dimensions?.[0]?.height || ''} onChange={(e) => {
+                                            const newDims = [...(editForm.packageDetails?.dimensions || [{length: 0, width: 0, height: 0}])];
+                                            newDims[0] = { ...newDims[0], height: Number(e.target.value) || 0 };
+                                            setEditForm({ ...editForm, packageDetails: { ...editForm.packageDetails, dimensions: newDims } });
+                                        }} className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-1 focus:ring-primary-500" />
                                     </div>
+                                </div>
+
+                                <div className="pt-4 border-t border-gray-100 grid grid-cols-2 gap-4">
+                                    <label className="flex items-center gap-2 cursor-pointer group p-2 bg-gray-50 rounded-lg border border-gray-200 hover:bg-white transition-all">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={editForm.packageDetails?.fragile || false} 
+                                            onChange={(e) => setEditForm({...editForm, packageDetails: {...editForm.packageDetails, fragile: e.target.checked}})}
+                                            className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" 
+                                        />
+                                        <span className="text-sm font-bold text-gray-700 group-hover:text-primary-600 transition-colors">Fragile Item</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer group p-2 bg-gray-50 rounded-lg border border-gray-200 hover:bg-white transition-all">
+                                        <input 
+                                            type="checkbox" 
+                                            checked={editForm.insuranceRequired || false} 
+                                            onChange={(e) => setEditForm({...editForm, insuranceRequired: e.target.checked})}
+                                            className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" 
+                                        />
+                                        <span className="text-sm font-bold text-gray-700 group-hover:text-primary-600 transition-colors">Insurance</span>
+                                    </label>
+                                </div>
+
+                                <div className="pt-2">
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">Goods Description</label>
+                                    <textarea 
+                                        value={editForm.packageDetails?.description || ''} 
+                                        onChange={(e) => setEditForm({...editForm, packageDetails: {...editForm.packageDetails, description: e.target.value}})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 text-sm"
+                                        rows="2"
+                                        placeholder="e.g. Clothes, Electronics, Documents..."
+                                    />
                                 </div>
                                 <div className="mt-4 p-3 bg-primary-50 rounded-lg border border-primary-100 flex justify-between items-center text-sm">
                                     <span className="font-semibold text-primary-800">Shipment Category</span>
@@ -681,6 +741,16 @@ export default function EDocket() {
                                         className="w-full px-3 py-2.5 border border-primary-200 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500 bg-primary-50/30 text-primary-900 font-medium"
                                     />
                                     <p className="text-[10px] text-gray-400 mt-1 italic">This will be shared with the customer via email.</p>
+                                </div>
+                                <div className="pt-4 border-t border-gray-100">
+                                    <label className="block text-sm font-bold text-gray-700 mb-1">Internal Notes</label>
+                                    <textarea 
+                                        value={editForm.notes || ''} 
+                                        onChange={(e) => setEditForm({...editForm, notes: e.target.value})}
+                                        className="w-full px-3 py-2 border border-orange-200 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500 bg-orange-50/20 text-sm"
+                                        rows="2"
+                                        placeholder="Special handling instructions, gate codes, etc..."
+                                    />
                                 </div>
                             </div>
 
