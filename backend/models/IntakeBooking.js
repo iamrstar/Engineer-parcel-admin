@@ -18,15 +18,19 @@ const PackageSchema = new mongoose.Schema({
     weightUnit: { type: String, enum: ['g', 'kg'], default: 'g' },
     volumetricWeight: Number,
     chargeableWeight: Number,
-    dimensions: {
+    dimensions: [{
         length: Number,
         width: Number,
         height: Number
-    },
+    }],
     boxQuantity: { type: Number, default: 1 },
     description: String,
     value: Number,
-    fragile: { type: Boolean, default: false }
+    fragile: { type: Boolean, default: false },
+    isEdl: { type: Boolean, default: false },
+    edlItems: [mongoose.Schema.Types.Mixed],
+    edlContents: [String],
+    otherContentText: String,
 }, { _id: false });
 
 const PricingSchema = new mongoose.Schema({
@@ -53,8 +57,20 @@ const IntakeBookingSchema = new mongoose.Schema({
     // Logistics
     pickupPincode: String,
     deliveryPincode: String,
+    pickupMethod: {
+        type: String,
+        enum: ["hub", "doorstep"],
+        default: "hub",
+    },
     pickupDate: Date,
     pickupSlot: String,
+    boxDeliveryType: {
+        type: String,
+        enum: ["self", "delivered"],
+        default: "self",
+    },
+    boxDeliveryDate: Date,
+    boxDeliverySlot: String,
     deliveryDate: Date,
 
     // Status & Tracking
