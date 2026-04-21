@@ -475,8 +475,9 @@ async function generateDeclarationPDF(booking) {
         drawText('SELF DECLARATION FORM', width / 2 - 100, globalY, 16, fonts.bold);
         globalY -= 40;
 
+        const tid = booking.trackingId || booking.bookingId || 'EP-PENDING';
         drawText(`Date: ${new Date().toLocaleDateString('en-IN')}`, margin, globalY, 11, fonts.regular);
-        drawText(`Tracking ID: ${booking.bookingId || 'PENDING'}`, width - margin - 150, globalY, 11, fonts.bold);
+        drawText(`Tracking ID: ${tid}`, width - margin - 150, globalY, 11, fonts.bold);
         globalY -= 40;
 
         // Content
@@ -521,17 +522,38 @@ async function generateDeclarationPDF(booking) {
             globalY -= 15;
         });
 
-        globalY -= 40;
+        globalY -= 30;
         drawText('SENDER DETAILS:', margin, globalY, 12, fonts.bold);
         globalY -= 15;
         drawText(`Name: ${booking.senderDetails?.name || 'N/A'}`, margin, globalY, 11, fonts.regular);
         globalY -= 15;
-        drawText(`Phone: ${booking.senderDetails?.phone || 'N/A'}`, margin, globalY, 11, fonts.regular);
+        let sAddr = booking.senderDetails?.address || '';
+        if (booking.senderDetails?.address1) sAddr = `${booking.senderDetails.address1}, ${booking.senderDetails.address2 || ''}`.trim();
+        drawText(`Address: ${sAddr}, ${booking.senderDetails?.city || 'N/A'} - ${booking.senderDetails?.pincode || 'N/A'}`, margin, globalY, 11, fonts.regular);
         globalY -= 15;
-        drawText(`Address: ${booking.senderDetails?.address || 'N/A'}, ${booking.senderDetails?.city || 'N/A'} - ${booking.senderDetails?.pincode || 'N/A'}`, margin, globalY, 11, fonts.regular);
+        drawText(`Phone: ${booking.senderDetails?.phone || 'N/A'}`, margin, globalY, 11, fonts.regular);
+
+        globalY -= 25;
+        drawText('RECEIVER DETAILS:', margin, globalY, 12, fonts.bold);
+        globalY -= 15;
+        drawText(`Name: ${booking.receiverDetails?.name || 'N/A'}`, margin, globalY, 11, fonts.regular);
+        globalY -= 15;
+        let rAddr = booking.receiverDetails?.address || '';
+        if (booking.receiverDetails?.address1) rAddr = `${booking.receiverDetails.address1}, ${booking.receiverDetails.address2 || ''}`.trim();
+        drawText(`Address: ${rAddr}, ${booking.receiverDetails?.city || 'N/A'} - ${booking.receiverDetails?.pincode || 'N/A'}`, margin, globalY, 11, fonts.regular);
+        globalY -= 15;
+        drawText(`Phone: ${booking.receiverDetails?.phone || 'N/A'}`, margin, globalY, 11, fonts.regular);
+
+        globalY -= 25;
+        drawText('PARCEL INFORMATION:', margin, globalY, 12, fonts.bold);
+        globalY -= 15;
+        const itemDesc = booking.packageDetails?.description || booking.packageDetails?.otherContentText || 'N/A';
+        drawText(`Declared Item(s): ${itemDesc}`, margin, globalY, 11, fonts.regular);
+        globalY -= 15;
+        drawText(`Declared Value: Rs. ${booking.packageDetails?.value || 0}`, margin, globalY, 11, fonts.bold);
 
         // Signature block
-        globalY -= 80;
+        globalY -= 70;
         page.drawLine({ start: { x: margin, y: globalY }, end: { x: margin + 150, y: globalY }, thickness: 1 });
         drawText(`Signature of the Sender`, margin, globalY - 15, 10, fonts.bold);
         drawText(`Digitally accepted by ${booking.senderDetails?.name || 'Sender'}`, margin, globalY - 30, 9, fonts.oblique);
