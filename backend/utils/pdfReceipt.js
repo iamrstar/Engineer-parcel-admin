@@ -163,9 +163,16 @@ async function generateReceiptPDF(booking) {
         const itH = 18;
         const itY = globalY - itH;
         page.drawRectangle({ x: startX, y: itY, width: tableWidth, height: itH, color: headerBg });
-        const cols = [{ l: 'Sno.', w: 30 }, { l: 'Description of Goods', w: isEdl ? 180 : 260 }, { l: 'Qty', w: 40 }];
-        if (isEdl) cols.push({ l: 'Weight', w: 80 });
-        cols.push({ l: 'Dimensions', w: tableWidth - 330 });
+        
+        // Define columns: Sno (30), Desc (220), Qty (40), Weight (60), Dims (remainder)
+        const cols = [
+            { l: 'Sno.', w: 30 }, 
+            { l: 'Description of Goods', w: 220 }, 
+            { l: 'Qty', w: 40 },
+            { l: 'Weight', w: 60 },
+            { l: 'Dimensions', w: tableWidth - 350 }
+        ];
+
         let cx = startX;
         cols.forEach((c, i) => {
             drawCell(c.l, cx, globalY, c.w, itH, fonts.bold, 8, 'center');
@@ -177,20 +184,25 @@ async function generateReceiptPDF(booking) {
 
         // --- 7. Item Content (Dynamic) ---
         const startItemY = globalY - 12;
-        const descText = [booking.packageDetails?.description, booking.notes].filter(Boolean).join(' | ') || 'Shipment Content';
-        const lastDescY = wrapText(descText, startX + 35, startItemY, isEdl ? 170 : 250, fonts.regular, 7.5);
+        // Use packageDetails.description as requested (labeled 'Goods Description' in UI)
+        const descText = booking.packageDetails?.description || 'Shipment Content';
+        const lastDescY = wrapText(descText, startX + 35, startItemY, 210, fonts.regular, 7.5);
 
         const rowBot = Math.min(lastDescY, startItemY - 20) - 8;
         const r7H = globalY - rowBot;
 
         let cx2 = startX;
+        // Sno
         drawCell('1', cx2, globalY, cols[0].w, r7H, fonts.regular, 8, 'center');
-        cx2 += cols[0].w + cols[1].w;
+        cx2 += cols[0].w;
+        // Description (Already wrapped above)
+        cx2 += cols[1].w;
+        // Qty
         drawCell(String(booking.packageDetails?.boxQuantity || 1), cx2, globalY, cols[2].w, r7H, fonts.regular, 8, 'center');
         cx2 += cols[2].w;
-        if (isEdl) {
-            drawCell(`${booking.packageDetails?.weight || 0}${booking.packageDetails?.weightUnit || 'kg'}`, cx2, globalY, 80, r7H, fonts.bold, 8, 'center');
-        }
+        // Weight
+        drawCell(`${booking.packageDetails?.weight || 0}${booking.packageDetails?.weightUnit || 'kg'}`, cx2, globalY, cols[3].w, r7H, fonts.bold, 8, 'center');
+        cx2 += cols[3].w;
 
         let ds = 'N/A';
         if (isEdl && booking.packageDetails?.edlItems) {
@@ -203,7 +215,7 @@ async function generateReceiptPDF(booking) {
             }
         }
         if (ds.length > 30) ds = ds.substring(0, 27) + '...';
-        drawCell(ds, isEdl ? cx2 + 80 : cx2, globalY, tableWidth - 330, r7H, fonts.regular, 7.5, 'center');
+        drawCell(ds, cx2, globalY, cols[4].w, r7H, fonts.regular, 7.5, 'center');
 
         cx = startX;
         cols.forEach(c => { cx += c.w; if (cx < endX) drawVLine(cx, globalY, rowBot); });
@@ -421,12 +433,10 @@ async function generateLabelPDF(booking) {
         globalY -= 15;
 
         // Package Box Details
-        const isEdl = booking.edl > 0 || booking.packageDetails?.isEdl || (booking.packageDetails?.description && booking.packageDetails.description.toUpperCase().includes('EDL'));
-        if (isEdl) {
-            drawText(`Weight: ${booking.packageDetails?.weight || ''} ${booking.packageDetails?.weightUnit || 'kg'}`, margin, globalY, 10, fonts.bold);
-        } else {
-            drawText(`Package: ${booking.packageDetails?.description || 'Standard Box'}`, margin, globalY, 10, fonts.bold);
-        }
+        drawText(`Weight: ${booking.packageDetails?.weight || ''} ${booking.packageDetails?.weightUnit || 'kg'}`, margin, globalY, 10, fonts.bold);
+        globalY -= 12;
+        const labelDesc = booking.packageDetails?.description || 'Standard Box';
+        drawText(`Package: ${labelDesc}`, margin, globalY, 9, fonts.regular);
         globalY -= 12;
         let ds = 'N/A';
         if (isEdl && booking.packageDetails?.edlItems) {
@@ -549,6 +559,8 @@ async function generateDeclarationPDF(booking) {
         globalY -= 15;
         const itemDesc = booking.packageDetails?.description || booking.packageDetails?.otherContentText || 'N/A';
         drawText(`Declared Item(s): ${itemDesc}`, margin, globalY, 11, fonts.regular);
+        globalY -= 15;
+        drawText(`Declared Weight: ${booking.packageDetails?.weight || 0} ${booking.packageDetails?.weightUnit || 'kg'}`, margin, globalY, 11, fonts.regular);
         globalY -= 15;
         drawText(`Declared Value: Rs. ${booking.packageDetails?.value || 0}`, margin, globalY, 11, fonts.bold);
 
