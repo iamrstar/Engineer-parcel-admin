@@ -742,16 +742,6 @@ export default function EDocket() {
                                     />
                                     <p className="text-[10px] text-gray-400 mt-1 italic">This will be shared with the customer via email.</p>
                                 </div>
-                                <div className="pt-4 border-t border-gray-100">
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">Internal Notes</label>
-                                    <textarea 
-                                        value={editForm.notes || ''} 
-                                        onChange={(e) => setEditForm({...editForm, notes: e.target.value})}
-                                        className="w-full px-3 py-2 border border-orange-200 rounded-lg shadow-sm focus:ring-2 focus:ring-primary-500 bg-orange-50/20 text-sm"
-                                        rows="2"
-                                        placeholder="Special handling instructions, gate codes, etc..."
-                                    />
-                                </div>
                             </div>
 
                             {/* Pricing Card */}
