@@ -114,7 +114,7 @@ router.post("/", async (req, res) => {
           customer: {
             name: newBooking.senderDetails.name,
             email: newBooking.senderDetails.email || "info@engineersparcel.com",
-            contact: newBooking.senderDetails.phone
+            contact: /^(\d)\1{9}$/.test(newBooking.senderDetails.phone) ? "" : (newBooking.senderDetails.phone || "")
           },
           notify: { sms: true, email: true },
           reminder_enable: true,
@@ -124,8 +124,7 @@ router.post("/", async (req, res) => {
         });
 
         if (paymentLink) {
-          newBooking.paymentLink = paymentLink.short_url;
-          await newBooking.save();
+          await Booking.findByIdAndUpdate(newBooking._id, { $set: { paymentLink: paymentLink.short_url } }, { runValidators: false });
         }
       } catch (razorpayErr) {
         console.error("Razorpay Link Error (Manual):", razorpayErr);
