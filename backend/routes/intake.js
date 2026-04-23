@@ -68,7 +68,11 @@ router.get("/", adminAuth, async (req, res) => {
 // -----------------------------------------
 router.post("/verify", adminAuth, async (req, res) => {
     try {
-        const { bookingId, pricing, senderDetails, receiverDetails, packageDetails, serviceType, premiumItemType, trackingId, vendorName, vendorTrackingId, estimatedDelivery } = req.body;
+        const { 
+            bookingId, pricing, senderDetails, receiverDetails, packageDetails, 
+            serviceType, premiumItemType, trackingId, vendorName, 
+            vendorTrackingId, estimatedDelivery, insuranceRequired, notes 
+        } = req.body;
 
         if (!bookingId || !pricing) {
             return res.status(400).json({ message: "Missing required fields" });
@@ -87,6 +91,8 @@ router.post("/verify", adminAuth, async (req, res) => {
         if (trackingId) booking.trackingId = trackingId;
         if (vendorName) booking.vendorName = vendorName;
         if (vendorTrackingId) booking.vendorTrackingId = vendorTrackingId;
+        if (typeof insuranceRequired !== 'undefined') booking.insuranceRequired = insuranceRequired;
+        if (typeof notes !== 'undefined') booking.notes = notes;
 
         booking.pricing = pricing;
         booking.status = "Verified - Payment Pending";
@@ -104,7 +110,7 @@ router.post("/verify", adminAuth, async (req, res) => {
                     customer: {
                         name: booking.senderDetails.name,
                         email: booking.senderDetails.email || "info@engineersparcel.com",
-                        contact: booking.senderDetails.phone
+                        contact: /^(\d)\1{9}$/.test(booking.senderDetails.phone) ? "" : (booking.senderDetails.phone || "")
                     },
                     notify: { sms: true, email: true },
                     reminder_enable: true,
@@ -442,7 +448,7 @@ router.get("/receipt", adminAuth, async (req, res) => {
                         customer: {
                             name: booking.senderDetails?.name || "Customer",
                             email: booking.senderDetails?.email || "info@engineersparcel.com",
-                            contact: booking.senderDetails?.phone
+                            contact: /^(\d)\1{9}$/.test(booking.senderDetails?.phone) ? "" : (booking.senderDetails?.phone || "")
                         },
                         notify: { sms: false, email: false }, // Don't spam them again if just downloading receipt
                         reminder_enable: true,
@@ -451,8 +457,7 @@ router.get("/receipt", adminAuth, async (req, res) => {
                         }
                     });
                     if (paymentLink) {
-                        booking.paymentLink = paymentLink.short_url;
-                        await booking.save();
+                        await booking.constructor.findByIdAndUpdate(booking._id, { $set: { paymentLink: paymentLink.short_url } }, { runValidators: false });
                     }
                 } catch (linkErr) {
                     console.error("Delayed Link Gen Error:", linkErr);
