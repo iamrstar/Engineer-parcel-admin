@@ -36,7 +36,7 @@ const bookingSchema = new mongoose.Schema(
       landmark: String,
     },
     packageDetails: {
-      weight: { type: Number, required: true },
+      weight: { type: Number, required: true, default: 0 },
       weightUnit: { type: String, enum: ["g", "kg"], default: "g" },
       volumetricWeight: { type: Number },
       chargeableWeight: { type: Number },
