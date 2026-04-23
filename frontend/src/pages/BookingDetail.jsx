@@ -4,18 +4,7 @@ import { useState, useEffect } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import axios from "axios"
 import toast from "react-hot-toast"
-import {
-  ArrowLeft,
-  Save,
-  Package,
-  User,
-  MapPin,
-  CreditCard,
-  Truck,
-  Bike,
-  RefreshCw,
-  Calendar
-} from "lucide-react"
+import { Package, Truck, MapPin, Calendar, Clock, User, Phone, Mail, ChevronRight, Edit2, Save, Trash2, ArrowLeft, CreditCard, XCircle, Tag, Printer, Bike, RefreshCw } from "lucide-react"
 
 
 
@@ -41,6 +30,13 @@ const BookingDetail = () => {
     source: "customer"
   })
   const [rescheduleLoading, setRescheduleLoading] = useState(false)
+  
+  // Cancellation State
+  const [cancelModalOpen, setCancelModalOpen] = useState(false)
+  const [cancelReason, setCancelReason] = useState("")
+  const [cancelSource, setCancelSource] = useState("admin") // admin or customer
+  const [cancelling, setCancelling] = useState(false)
+
   const [assignmentData, setAssignmentData] = useState({
     riderId: "",
     assignedFor: "pickup"
@@ -81,15 +77,63 @@ const BookingDetail = () => {
 
   const handleReschedule = async () => {
     try {
+      setSaving(true)
       const t = localStorage.getItem("adminToken") || localStorage.getItem("token")
-      const res = await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/${id}/reschedule`, {}, {
+      const response = await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/${id}/reschedule`, {}, {
         headers: { Authorization: `Bearer ${t}` }
       })
-      setBooking(res.data)
-      toast.success("Order rescheduled successfully. You can now reassign a rider.")
+      toast.success("Booking rescheduled successfully")
+      setBooking(response.data)
+      setEditMode(false)
     } catch (error) {
-      toast.error("Failed to reschedule order")
+      toast.error("Failed to reschedule booking")
       console.error(error)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleCancelBooking = async () => {
+    if (!cancelReason) return toast.error("Please provide a reason")
+    try {
+      setCancelling(true)
+      const t = localStorage.getItem("adminToken") || localStorage.getItem("token")
+      const response = await axios.put(
+        `${import.meta.env.VITE_API_URL}/api/bookings/${id}/cancel`,
+        { reason: cancelReason, initiatedBy: cancelSource },
+        { headers: { Authorization: `Bearer ${t}` } }
+      )
+      toast.success("Booking cancelled successfully")
+      setBooking(response.data)
+      setCancelModalOpen(false)
+    } catch (error) {
+      toast.error("Failed to cancel booking")
+      console.error(error)
+    } finally {
+      setCancelling(false)
+    }
+  }
+
+  const handleDownloadOfficeLabel = async () => {
+    try {
+      const t = localStorage.getItem("adminToken") || localStorage.getItem("token")
+      const response = await axios.get(
+        `${import.meta.env.VITE_API_URL}/api/bookings/${id}/office-label`,
+        {
+          headers: { Authorization: `Bearer ${t}` },
+          responseType: "blob"
+        }
+      );
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `Office_Label_${booking?.bookingId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      toast.success("Office label downloaded");
+    } catch (error) {
+      toast.error("Failed to download office label");
     }
   }
 
@@ -262,19 +306,46 @@ const BookingDetail = () => {
             </>
           ) : (
             <>
-              <button
-                onClick={() => {
-                  if (!booking.estimatedDelivery) {
-                    setShowETDPopup(true);
-                  } else {
-                    setEditMode(true);
-                    setOtherVendor(false);
-                  }
-                }}
-                className="w-full sm:w-auto px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 text-sm sm:text-base"
-              >
-                Edit Booking
-              </button>
+              {/* Action Buttons */}
+              <div className="flex flex-wrap items-center gap-2">
+                {!editMode ? (
+                  <>
+                    <button
+                      onClick={handleDownloadOfficeLabel}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 border border-blue-200 transition-all font-bold text-xs"
+                    >
+                      <Tag className="h-4 w-4" />
+                      Office Label
+                    </button>
+
+                    {booking.status !== 'cancelled' && (
+                      <button
+                        onClick={() => setCancelModalOpen(true)}
+                        className="flex items-center gap-2 px-3 py-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 border border-red-200 transition-all font-bold text-xs"
+                      >
+                        <XCircle className="h-4 w-4" />
+                        Cancel Order
+                      </button>
+                    )}
+
+                    <button
+                      onClick={() => {
+                        if (!booking.estimatedDelivery) {
+                          setShowETDPopup(true);
+                          return;
+                        }
+                        setEditMode(true);
+                      }}
+                      className="flex items-center gap-2 px-3 py-1.5 bg-primary-50 text-primary-600 rounded-lg hover:bg-primary-100 border border-primary-200 transition-all font-bold text-xs"
+                    >
+                      <Edit2 className="h-4 w-4" />
+                      Edit Order
+                    </button>
+                  </>
+                ) : (
+                  <></>
+                )}
+              </div>
               <button
                 onClick={handleDelete}
                 className="w-full sm:w-auto px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 text-sm sm:text-base"
@@ -1535,6 +1606,7 @@ const BookingDetail = () => {
       {/* Reschedule Campus Modal */}
       {rescheduleModalOpen && (
         <div className="fixed inset-0 z-[60] overflow-y-auto">
+          {/* ... existing reschedule modal content ... */}
           <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 transition-opacity" aria-hidden="true" onClick={() => setRescheduleModalOpen(false)}>
               <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
@@ -1692,6 +1764,107 @@ const BookingDetail = () => {
                   className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2.5 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                 >
                   Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancellation Modal */}
+      {cancelModalOpen && (
+        <div className="fixed inset-0 z-[60] overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true" onClick={() => setCancelModalOpen(false)}>
+              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+            </div>
+
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+            <div className="inline-block align-bottom bg-white rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full border border-gray-100">
+              <div className="bg-white px-6 pt-6 pb-4 sm:p-8 sm:pb-6">
+                <div className="sm:flex sm:items-start">
+                  <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                    <XCircle className="h-6 w-6 text-red-600" aria-hidden="true" />
+                  </div>
+                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                    <h3 className="text-xl leading-6 font-bold text-gray-900">
+                      Cancel Booking
+                    </h3>
+                    <div className="mt-2">
+                      <p className="text-sm text-gray-500">
+                        Are you sure you want to cancel booking <span className="font-mono font-bold text-gray-700">{booking?.bookingId}</span>? This action cannot be undone.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6 space-y-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Cancellation Initiated By:</label>
+                    <div className="grid grid-cols-2 gap-2">
+                        <button
+                          onClick={() => setCancelSource("admin")}
+                          className={`p-2.5 rounded-lg border text-sm font-bold transition-all ${cancelSource === 'admin' ? 'bg-red-600 border-red-600 text-white shadow-md' : 'bg-white border-gray-200 text-gray-600 hover:border-red-300'}`}
+                        >
+                          Admin / Company
+                        </button>
+                        <button
+                          onClick={() => setCancelSource("customer")}
+                          className={`p-2.5 rounded-lg border text-sm font-bold transition-all ${cancelSource === 'customer' ? 'bg-red-600 border-red-600 text-white shadow-md' : 'bg-white border-gray-200 text-gray-600 hover:border-red-300'}`}
+                        >
+                          Customer Side
+                        </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Reason for Cancellation:</label>
+                    <select
+                      value={cancelReason}
+                      onChange={(e) => setCancelReason(e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 font-medium bg-white"
+                    >
+                      <option value="">Select a reason...</option>
+                      <option value="Customer requested cancellation">Customer requested cancellation</option>
+                      <option value="Incorrect address provided">Incorrect address provided</option>
+                      <option value="Duplicate booking">Duplicate booking</option>
+                      <option value="Service unavailable in this area">Service unavailable in this area</option>
+                      <option value="Packaging requirements not met">Packaging requirements not met</option>
+                      <option value="Unforeseen operational issues">Unforeseen operational issues</option>
+                      <option value="Others (Add to notes)">Others</option>
+                    </select>
+                  </div>
+
+                  {cancelReason === "Others (Add to notes)" && (
+                    <div className="mt-2 text-xs text-red-500 italic">
+                      * Please ensure you provide details in the booking notes if selecting "Others".
+                    </div>
+                  )}
+
+                  <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
+                    <p className="text-[11px] text-blue-700 leading-tight">
+                      <strong>Note:</strong> An email will be sent to the sender confirming cancellation and stating that any payments will be refunded within <strong>7 working days</strong>.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 px-6 py-4 sm:px-8 sm:flex sm:flex-row-reverse gap-3">
+                <button
+                  type="button"
+                  disabled={cancelling || !cancelReason}
+                  onClick={handleCancelBooking}
+                  className="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-6 py-2.5 bg-red-600 text-base font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm transition-all active:scale-95 disabled:opacity-50"
+                >
+                  {cancelling ? 'Processing...' : 'Confirm Cancellation'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCancelModalOpen(false)}
+                  className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2.5 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                >
+                  Keep Order
                 </button>
               </div>
             </div>
