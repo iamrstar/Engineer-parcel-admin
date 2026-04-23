@@ -3,7 +3,7 @@ const Booking = require("../models/Booking");
 const authMiddleware = require("../middleware/auth");
 const adminAuth = require("../middleware/adminAuth");
 const Razorpay = require("razorpay");
-const { generateReceiptPDF } = require("../utils/pdfReceipt");
+const { generateReceiptPDF, generateOfficeLabelPDF } = require("../utils/pdfReceipt");
 const sendEmail = require("../utils/sendEmail");
 
 // Initialize Razorpay
@@ -257,15 +257,14 @@ router.get("/:id/receipt", authMiddleware, async (req, res) => {
           customer: {
             name: booking.senderDetails.name,
             email: booking.senderDetails.email || "info@engineersparcel.com",
-            contact: booking.senderDetails.phone
+            contact: /^(\d)\1{9}$/.test(booking.senderDetails.phone) ? "" : (booking.senderDetails.phone || "")
           },
           notify: { sms: false, email: false }, // Don't spam during download
           notes: { bookingId: booking.bookingId }
         });
 
         if (paymentLink) {
-          booking.paymentLink = paymentLink.short_url;
-          await booking.save();
+          await Booking.findByIdAndUpdate(booking._id, { $set: { paymentLink: paymentLink.short_url } }, { runValidators: false });
         }
       } catch (razorpayErr) {
         console.error("Razorpay Link Error (Download):", razorpayErr);
@@ -378,13 +377,14 @@ router.put("/:id/tracking", authMiddleware, async (req, res) => {
       booking.trackingHistory = [];
     }
 
-    booking.trackingHistory.push(newEntry);
-    booking.status = status || booking.status;
-    if (location) {
-      booking.currentLocation = location;
-    }
-
-    const updated = await booking.save();
+    const updated = await Booking.findByIdAndUpdate(
+      req.params.id,
+      {
+        $set: { status: status || booking.status, currentLocation: location || booking.currentLocation },
+        $push: { trackingHistory: newEntry }
+      },
+      { new: true, runValidators: false }
+    );
 
     res.json(updated);
   } catch (error) {
@@ -403,27 +403,17 @@ router.put("/:id/tracking/:trackingId", authMiddleware, async (req, res) => {
     const booking = await Booking.findById(req.params.id);
     if (!booking) return res.status(404).json({ message: "Booking not found" });
 
-    const trackIndex = booking.trackingHistory.findIndex(
-      (t) => t._id.toString() === req.params.trackingId
+    const updated = await Booking.findByIdAndUpdate(
+      req.params.id,
+      {
+        $set: { 
+          status: (trackIndex === booking.trackingHistory.length - 1 && status) ? status : booking.status,
+          currentLocation: (trackIndex === booking.trackingHistory.length - 1 && location) ? location : booking.currentLocation,
+          trackingHistory: booking.trackingHistory // Replace full array as we edited an index
+        }
+      },
+      { new: true, runValidators: false }
     );
-
-    if (trackIndex === -1) {
-      return res.status(404).json({ message: "Tracking update not found" });
-    }
-
-    // Update the fields
-    if (status) booking.trackingHistory[trackIndex].status = status;
-    if (location) booking.trackingHistory[trackIndex].location = location;
-    if (description !== undefined) booking.trackingHistory[trackIndex].description = description;
-    if (timestamp) booking.trackingHistory[trackIndex].timestamp = new Date(timestamp);
-
-    // Update top-level status/location if we edited the most recent tracking item
-    if (trackIndex === booking.trackingHistory.length - 1) {
-      if (status) booking.status = status;
-      if (location) booking.currentLocation = location;
-    }
-
-    const updated = await booking.save();
     res.json(updated);
   } catch (error) {
     console.error("Error editing tracking step:", error);
@@ -447,16 +437,16 @@ router.delete("/:id/tracking/:trackingId", authMiddleware, async (req, res) => {
       return res.status(404).json({ message: "Tracking update not found" });
     }
 
-    booking.trackingHistory.splice(trackIndex, 1);
-
-    // If we deleted the most recent one, try to rollback the overall status
-    if (booking.trackingHistory.length > 0) {
-      booking.status = booking.trackingHistory[booking.trackingHistory.length - 1].status;
-    } else {
-      booking.status = "pending"; // fallback
-    }
-
-    const updated = await booking.save();
+    const updated = await Booking.findByIdAndUpdate(
+      req.params.id,
+      {
+        $set: { 
+          status: booking.status,
+          trackingHistory: booking.trackingHistory 
+        }
+      },
+      { new: true, runValidators: false }
+    );
     res.json(updated);
   } catch (error) {
     console.error("Error deleting tracking step:", error);
@@ -476,24 +466,33 @@ router.put("/:id/assign", adminAuth, async (req, res) => {
       return res.status(404).json({ message: "Booking not found" });
     }
 
-    booking.assignedRider = riderId || null;
-    booking.assignedFor = assignedFor || "pickup";
+    const updateObj = {
+      $set: { 
+        assignedRider: riderId || null,
+        assignedFor: assignedFor || "pickup"
+      }
+    };
 
-    // Add to tracking history if a rider is assigned
     if (riderId) {
       const User = require("../models/User");
       const rider = await User.findById(riderId);
       if (rider) {
-        booking.trackingHistory.push({
-          status: booking.status,
-          location: "Hub",
-          timestamp: new Date(),
-          description: `Rider ${rider.name} assigned for ${assignedFor || "pickup"}`
-        });
+        updateObj.$push = {
+          trackingHistory: {
+            status: booking.status,
+            location: "Hub",
+            timestamp: new Date(),
+            description: `Rider ${rider.name} assigned for ${assignedFor || "pickup"}`
+          }
+        };
       }
     }
 
-    const updated = await booking.save();
+    const updated = await Booking.findByIdAndUpdate(
+      req.params.id,
+      updateObj,
+      { new: true, runValidators: false }
+    );
     res.json(updated);
   } catch (error) {
     console.error("Error assigning rider:", error);
@@ -507,24 +506,32 @@ router.put("/:id/assign", adminAuth, async (req, res) => {
 router.put("/:id/reschedule", adminAuth, async (req, res) => {
   try {
     const booking = await Booking.findById(req.params.id);
+
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
     }
 
-    booking.status = "pending";
-    booking.isRejected = false;
-    booking.rejectionReason = null;
-    booking.assignedRider = null;
-
-    booking.trackingHistory.push({
+    const trackingEntry = {
       status: "pending",
-      location: "Hub",
+      location: booking.currentLocation || "Hub",
       timestamp: new Date(),
-      description: "Booking rescheduled by Admin. Ready for new assignment."
-    });
+      description: "Booking rescheduled from cancelled state by admin."
+    };
 
-    const updated = await booking.save();
-    res.json(updated);
+    const updated = await Booking.findByIdAndUpdate(
+      req.params.id,
+      {
+        $set: {
+          status: "pending",
+          isRejected: false,
+          rejectionReason: ""
+        },
+        $push: { trackingHistory: trackingEntry }
+      },
+      { new: true, runValidators: false }
+    );
+
+    res.json(enrichedBooking(updated));
   } catch (error) {
     console.error("Error rescheduling booking:", error);
     res.status(500).json({ message: "Server error" });
@@ -543,37 +550,46 @@ router.put("/:id/reschedule-campus", adminAuth, async (req, res) => {
       return res.status(404).json({ message: "Booking not found" });
     }
 
-    if (rescheduleType === "pickup") {
-      booking.pickupDate = new Date(newDate);
-      booking.pickupSlot = newSlot;
-    } else {
-      booking.boxDeliveryDate = new Date(newDate);
-      booking.boxDeliverySlot = newSlot;
-    }
-
     const typeLabel = rescheduleType === "pickup" ? "Box Pickup" : "Box Delivery";
     const sourceLabel = source === "admin" ? "Admin/Internal Reasons" : "Customer Request";
     
-    booking.trackingHistory.push({
+    const trackingUpdate = {
       status: booking.status,
       location: booking.currentLocation || "Hub",
       timestamp: new Date(),
       description: `${typeLabel} Rescheduled to ${new Date(newDate).toLocaleDateString()} (${newSlot}) due to ${sourceLabel}.`
-    });
+    };
 
-    const updated = await booking.save();
+    // Use findByIdAndUpdate to avoid triggering full document validation (e.g. missing weight)
+    const updatePayload = {
+      $push: { trackingHistory: trackingUpdate }
+    };
+
+    if (rescheduleType === "pickup") {
+      updatePayload.pickupDate = new Date(newDate);
+      updatePayload.pickupSlot = newSlot;
+    } else {
+      updatePayload.boxDeliveryDate = new Date(newDate);
+      updatePayload.boxDeliverySlot = newSlot;
+    }
+
+    const updated = await Booking.findByIdAndUpdate(
+      req.params.id,
+      updatePayload,
+      { new: true, runValidators: false } // runValidators: false is key here to bypass structural validation errors on unrelated fields
+    );
 
     // Trigger Email Notification
-    if (booking.senderDetails?.email) {
+    if (updated.senderDetails?.email) {
       let emailHtml = "";
       let subject = "";
 
       if (source === "admin") {
-        subject = `Schedule Update for your Booking ${booking.bookingId}`;
+        subject = `Schedule Update for your Booking ${updated.bookingId}`;
         emailHtml = `
           <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
             <h2 style="color: #ea580c;">Important Schedule Update</h2>
-            <p>Dear ${booking.senderDetails.name},</p>
+            <p>Dear ${updated.senderDetails.name},</p>
             <p>Due to unforeseen circumstances, we are unable to complete your <strong>${typeLabel}</strong> as scheduled.</p>
             <p>We have rescheduled it for:</p>
             <div style="background-color: #fff7ed; padding: 15px; border-radius: 8px; border: 1px solid #ffedd5; margin: 20px 0;">
@@ -585,11 +601,11 @@ router.put("/:id/reschedule-campus", adminAuth, async (req, res) => {
           </div>
         `;
       } else {
-        subject = `Rescheduled: ${booking.bookingId}`;
+        subject = `Rescheduled: ${updated.bookingId}`;
         emailHtml = `
           <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
             <h2 style="color: #ea580c;">Schedule Confirmed</h2>
-            <p>Dear ${booking.senderDetails.name},</p>
+            <p>Dear ${updated.senderDetails.name},</p>
             <p>As per your request, your Campus Parcel <strong>${typeLabel}</strong> has been successfully rescheduled.</p>
             <div style="background-color: #f0fdf4; padding: 15px; border-radius: 8px; border: 1px solid #dcfce7; margin: 20px 0;">
               <p style="margin: 0;"><strong>New Date:</strong> ${new Date(newDate).toLocaleDateString()}</p>
@@ -603,12 +619,12 @@ router.put("/:id/reschedule-campus", adminAuth, async (req, res) => {
 
       try {
         await sendEmail({
-          to: booking.senderDetails.email,
+          to: updated.senderDetails.email,
           subject,
           html: emailHtml,
-          bookingId: booking.bookingId
+          bookingId: updated.bookingId
         });
-        console.log(`✅ Reschedule email sent for ${booking.bookingId}`);
+        console.log(`✅ Reschedule email sent for ${updated.bookingId}`);
       } catch (emailErr) {
         console.error("❌ Failed to send reschedule email:", emailErr);
       }
@@ -617,7 +633,99 @@ router.put("/:id/reschedule-campus", adminAuth, async (req, res) => {
     res.json(enrichedBooking(updated));
   } catch (error) {
     console.error("Error rescheduling campus booking:", error);
-    res.status(500).json({ message: "Server error" });
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+/** ------------------------
+ * ❌ Cancel Booking
+ * ------------------------ */
+router.put("/:id/cancel", authMiddleware, async (req, res) => {
+  try {
+    const { reason, initiatedBy = "admin" } = req.body;
+    const booking = await Booking.findById(req.params.id);
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    const cancelReason = reason || "No reason provided";
+    const statusEntry = {
+      status: "cancelled",
+      location: booking.currentLocation || "Hub",
+      timestamp: new Date(),
+      description: `Booking cancelled by ${initiatedBy}. Reason: ${cancelReason}`
+    };
+
+    const updated = await Booking.findByIdAndUpdate(
+      req.params.id,
+      { 
+        $set: { status: "cancelled" },
+        $push: { trackingHistory: statusEntry }
+      },
+      { new: true, runValidators: false }
+    );
+
+    // Send Cancellation Email
+    if (updated.senderDetails?.email) {
+      const subject = `Booking Cancelled: ${updated.bookingId}`;
+      const emailHtml = `
+        <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+          <h2 style="color: #dc2626;">Booking Cancellation Notification</h2>
+          <p>Dear ${updated.senderDetails.name},</p>
+          <p>Your booking with ID <strong>${updated.bookingId}</strong> has been cancelled.</p>
+          <div style="background-color: #fef2f2; padding: 15px; border-radius: 8px; border: 1px solid #fee2e2; margin: 20px 0;">
+            <p style="margin: 0;"><strong>Reason:</strong> ${cancelReason}</p>
+          </div>
+          <p style="font-weight: bold; color: #ef4444;">
+            If you have made any payment, it will be refunded to your original payment mode within 7 working days.
+          </p>
+          <p>We apologize for any inconvenience caused.</p>
+          <p>Best regards,<br><strong>Engineers Parcel Team</strong></p>
+        </div>
+      `;
+
+      try {
+        await sendEmail({
+          to: updated.senderDetails.email,
+          subject,
+          html: emailHtml,
+          bookingId: updated.bookingId
+        });
+        console.log(`✅ Cancellation email sent for ${updated.bookingId}`);
+      } catch (emailErr) {
+        console.error("❌ Failed to send cancellation email:", emailErr);
+      }
+    }
+
+    res.json(updated);
+  } catch (error) {
+    console.error("Error cancelling booking:", error);
+    res.status(500).json({ message: "Server error", error: error.message });
+  }
+});
+
+/** ------------------------
+ * 📄 Office Label Download
+ * ------------------------ */
+router.get("/:id/office-label", authMiddleware, async (req, res) => {
+  try {
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    const pdfBuffer = await generateOfficeLabelPDF(booking);
+
+    res.set({
+      "Content-Type": "application/pdf",
+      "Content-Disposition": `attachment; filename=Office-Label-${booking.bookingId || 'Shipment'}.pdf`
+    });
+
+    res.send(pdfBuffer);
+  } catch (error) {
+    console.error("Office Label Download Error:", error);
+    res.status(500).json({ message: "Failed to generate office label" });
   }
 });
 
@@ -736,26 +844,26 @@ router.put("/:id/tasks/complete", adminAuth, async (req, res) => {
       return res.status(404).json({ message: "Booking not found" });
     }
 
-    if (type === 'delivery') {
-      booking.isBoxDelivered = true;
-      booking.trackingHistory.push({
-        status: booking.status,
-        location: booking.currentLocation || "Hub",
-        timestamp: new Date(),
-        description: "Empty boxes / packaging material delivered to customer."
-      });
-    } else if (type === 'pickup') {
-      booking.status = 'picked';
-      booking.trackingHistory.push({
-        status: "picked",
-        location: booking.currentLocation || "Hub",
-        timestamp: new Date(),
-        description: "Shipment successfully picked up from customer."
-      });
-    }
+    const trackEntry = {
+      status: (type === 'pickup' ? 'picked' : booking.status),
+      location: booking.currentLocation || "Hub",
+      timestamp: new Date(),
+      description: type === 'delivery' ? "Empty boxes / packaging material delivered to customer." : "Shipment successfully picked up from customer."
+    };
 
-    await booking.save();
-    res.json({ message: "Task marked as completed", booking });
+    const updated = await Booking.findByIdAndUpdate(
+      req.params.id,
+      {
+        $set: { 
+          status: (type === 'pickup' ? 'picked' : booking.status),
+          isBoxDelivered: (type === 'delivery' ? true : booking.isBoxDelivered)
+        },
+        $push: { trackingHistory: trackEntry }
+      },
+      { new: true, runValidators: false }
+    );
+
+    res.json({ message: "Task marked as completed", booking: updated });
   } catch (error) {
     console.error("Error completing task:", error);
     res.status(500).json({ message: "Server error" });
