@@ -876,23 +876,61 @@ const BookingDetail = () => {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Service Type</label>
                 {editMode ? (
-                  <select
-                    value={booking.serviceType}
-                    onChange={(e) => handleInputChange("serviceType", e.target.value)}
-                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                  >
-                    <option value="courier">Courier</option>
-                    <option value="shifting">Shifting</option>
-                    <option value="local">Local</option>
-                    <option value="international">International</option>
-                    <option value="surface">Surface</option>
-                    <option value="air">Air</option>
-                    <option value="express">Express</option>
-                    <option value="premium">Premium</option>
-                    <option value="campus-parcel">Campus Parcel</option>
-                  </select>
+                  <>
+                    <select
+                      value={booking.serviceType}
+                      onChange={(e) => handleInputChange("serviceType", e.target.value)}
+                      className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    >
+                      <option value="courier">Courier</option>
+                      <option value="shifting">Shifting</option>
+                      <option value="local">Local</option>
+                      <option value="international">International</option>
+                      <option value="surface">Surface</option>
+                      <option value="air">Air</option>
+                      <option value="express">Express</option>
+                      <option value="premium">Premium</option>
+                      <option value="campus-parcel">Campus Parcel</option>
+                    </select>
+                    {booking.serviceType === "premium" && (
+                      <div className="mt-2 space-y-2">
+                        <select
+                          value={booking.premiumItemType || ""}
+                          onChange={(e) => handleInputChange("premiumItemType", e.target.value)}
+                          className="w-full px-3 py-2 text-sm border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-500 bg-orange-50 font-medium"
+                        >
+                          <option value="">Select Category</option>
+                          <option value="Documents">Documents</option>
+                          <option value="Mobile Phones">Mobile Phones</option>
+                          <option value="Electronics">Electronics</option>
+                          <option value="Medicine">Medicine</option>
+                          <option value="Other">Other</option>
+                        </select>
+                        {booking.premiumItemType === "Other" && (
+                          <input
+                            type="text"
+                            value={booking.otherPremiumItem || ""}
+                            onChange={(e) => handleInputChange("otherPremiumItem", e.target.value)}
+                            placeholder="Describe item..."
+                            className="w-full px-3 py-2 text-sm border border-orange-200 rounded-lg bg-orange-50"
+                          />
+                        )}
+                      </div>
+                    )}
+                  </>
                 ) : (
-                  <p className="text-sm sm:text-base text-gray-900 capitalize">{booking.serviceType}</p>
+                  <div className="space-y-1">
+                    <p className="text-sm sm:text-base text-gray-900 capitalize font-bold">{booking.serviceType}</p>
+                    {booking.serviceType?.toLowerCase() === "premium" && booking.premiumItemType && (
+                      <div className="bg-orange-50 px-2 py-1 rounded border border-orange-100 flex flex-col gap-1">
+                        <p className="text-[10px] text-orange-600 font-black uppercase tracking-widest">Premium Category</p>
+                        <p className="text-sm font-bold text-orange-900">{booking.premiumItemType}</p>
+                        {booking.premiumItemType === "Other" && booking.otherPremiumItem && (
+                          <p className="text-xs text-orange-700 italic">"{booking.otherPremiumItem}"</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
@@ -1102,7 +1140,7 @@ const BookingDetail = () => {
 
             <div className="grid grid-cols-2 gap-3 sm:gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Tax</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">GST (18%)</label>
                 {editMode ? (
                   <input
                     type="number"
@@ -1128,6 +1166,58 @@ const BookingDetail = () => {
                 )}
               </div>
             </div>
+
+            {(booking.couponCode || booking.pricing?.discount > 0 || editMode) && (
+              <div className="p-3 bg-green-50 border border-green-100 rounded-lg">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center">
+                    <Tag className="h-4 w-4 text-green-600 mr-2" />
+                    <span className="text-sm font-bold text-green-800 uppercase tracking-tight">Coupon Details</span>
+                  </div>
+                  {!editMode && booking.couponCode && (
+                    <span className="bg-white px-2 py-0.5 rounded text-[11px] font-bold text-green-700 border border-green-200">
+                      {booking.couponCode}
+                    </span>
+                  )}
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {editMode ? (
+                    <>
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Coupon Code</label>
+                        <input
+                          type="text"
+                          value={booking.couponCode || ""}
+                          onChange={(e) => handleInputChange("couponCode", e.target.value.toUpperCase())}
+                          className="w-full px-2 py-1.5 text-xs border border-green-200 rounded focus:ring-1 focus:ring-green-500"
+                          placeholder="CODE"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Discount amount</label>
+                        <input
+                          type="number"
+                          value={booking.pricing?.discount || 0}
+                          onChange={(e) => handleInputChange("discount", Number(e.target.value), "pricing")}
+                          className="w-full px-2 py-1.5 text-xs border border-green-200 rounded focus:ring-1 focus:ring-green-500"
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div>
+                        <p className="text-[10px] text-green-600 font-bold uppercase">Code Applied</p>
+                        <p className="text-sm text-green-900 font-medium">{booking.couponCode || 'None'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] text-green-600 font-bold uppercase">Discount Given</p>
+                        <p className="text-sm text-green-900 font-bold">- ₹{booking.pricing?.discount || booking.couponDiscount || 0}</p>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div>
