@@ -48,6 +48,11 @@ const couponSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    category: {
+      type: String,
+      enum: ["global", "influencer"],
+      default: "global",
+    },
   },
   { timestamps: true },
 )
