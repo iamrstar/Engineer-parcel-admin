@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { Link } from "react-router-dom"
 import axios from "axios"
 import toast from "react-hot-toast"
 import {
@@ -15,6 +16,7 @@ import {
   MapPin,
   Map,
   Globe,
+  Eye,
   Home,
   Wallet,
   History,
@@ -751,20 +753,28 @@ const Vendors = () => {
                               </span>
                             </td>
                             <td className="px-6 py-4 text-center">
-                              <button 
-                                onClick={() => {
-                                  setEditingOrder(order);
-                                  setOrderPaymentData({
-                                    totalAmount: order.pricing?.totalAmount || 0,
-                                    vendorPaidAmount: order.vendorPaidAmount || 0,
-                                    newPaymentAmount: 0,
-                                    vendorPaymentMethod: order.vendorPaymentMethod || "Cash",
-                                    vendorReceivedBy: order.vendorReceivedBy || localStorage.getItem("adminName") || "Admin",
-                                    vendorPaymentDate: (new Date().toISOString()).split("T")[0]
-                                  });
-                                }}
-                                className="bg-gray-900 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg hover:bg-black transition-all"
-                              >Update Payment</button>
+                              <div className="flex items-center justify-center gap-2">
+                                <Link
+                                  to={`/bookings/${order._id}`}
+                                  className="p-1.5 px-3 bg-blue-50 text-blue-600 text-[10px] font-bold rounded-lg hover:bg-blue-100 transition-all flex items-center gap-1.5 border border-blue-200"
+                                >
+                                  <Eye className="h-3 w-3" /> View Order
+                                </Link>
+                                <button 
+                                  onClick={() => {
+                                    setEditingOrder(order);
+                                    setOrderPaymentData({
+                                      totalAmount: order.pricing?.totalAmount || 0,
+                                      vendorPaidAmount: order.vendorPaidAmount || 0,
+                                      newPaymentAmount: 0,
+                                      vendorPaymentMethod: order.vendorPaymentMethod || "Cash",
+                                      vendorReceivedBy: order.vendorReceivedBy || localStorage.getItem("adminName") || "Admin",
+                                      vendorPaymentDate: (new Date().toISOString()).split("T")[0]
+                                    });
+                                  }}
+                                  className="bg-gray-900 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg hover:bg-black transition-all"
+                                >Update Payment</button>
+                              </div>
                             </td>
                           </tr>
                         ))}
