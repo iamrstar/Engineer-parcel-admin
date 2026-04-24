@@ -16,8 +16,9 @@ import {
 import toast from 'react-hot-toast';
 
 const Tasks = () => {
-    const [filter, setFilter] = useState('tomorrow'); // 'tomorrow', 'today', 'last7days', 'custom'
-    const [customDate, setCustomDate] = useState('');
+    const [filter, setFilter] = useState('next7days'); // 'next7days', 'tomorrow', 'today', 'last7days', 'custom_range'
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
     const [tasks, setTasks] = useState({ boxPickups: [], boxDeliveries: [] });
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('deliveries');
@@ -35,11 +36,14 @@ const Tasks = () => {
         const start = new Date(); start.setDate(start.getDate() - 7);
         const end = new Date();
         dateString = `${start.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}`;
-    } else if (filter === 'custom' && customDate) {
-        const d = new Date(customDate);
-        dateString = d.toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    } else if (filter === 'next7days') {
+        const start = new Date();
+        const end = new Date(); end.setDate(end.getDate() + 7);
+        dateString = `${start.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })} - ${end.toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+    } else if (filter === 'custom_range' && startDate && endDate) {
+        dateString = `${new Date(startDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })} - ${new Date(endDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}`;
     } else {
-        dateString = "Select a date";
+        dateString = "Select Range";
     }
 
     const [loadingTaskId, setLoadingTaskId] = useState(null);
@@ -53,11 +57,16 @@ const Tasks = () => {
             let url = `${import.meta.env.VITE_API_URL}/api/bookings/tasks/tomorrow`;
             if (filter === 'last7days') {
                 url += `?range=last7days`;
+            } else if (filter === 'next7days') {
+                url += `?range=next7days`;
             } else if (filter === 'today') {
                 const todayStr = new Date().toISOString().split('T')[0];
                 url += `?date=${todayStr}`;
-            } else if (filter === 'custom' && customDate) {
-                url += `?date=${customDate}`;
+            } else if (filter === 'tomorrow') {
+                const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+                url += `?date=${tomorrow.toISOString().split('T')[0]}`;
+            } else if (filter === 'custom_range' && startDate && endDate) {
+                url += `?startDate=${startDate}&endDate=${endDate}`;
             }
 
             const res = await axios.get(url, {
@@ -73,11 +82,10 @@ const Tasks = () => {
     };
 
     useEffect(() => {
-        // Trigger fetch only if filter is custom and we have a date, or if it isn't custom
-        if (filter !== 'custom' || (filter === 'custom' && customDate)) {
+        if (filter !== 'custom_range' || (filter === 'custom_range' && startDate && endDate)) {
             fetchTasks();
         }
-    }, [filter, customDate]);
+    }, [filter, startDate, endDate]);
 
     const triggerCompleteTask = (e, id, type) => {
         e.stopPropagation();
@@ -232,7 +240,7 @@ const Tasks = () => {
                     <div className="flex items-center gap-2 mb-2">
                         <Calendar className="h-5 w-5 text-primary-500" />
                         <span className="text-sm font-bold text-primary-600 uppercase tracking-widest">
-                            {filter === 'last7days' ? 'Last 7 Days' : filter === 'today' ? "Today's Schedule" : filter === 'custom' ? "Custom Schedule" : "Tomorrow's Schedule"}
+                            {filter === 'last7days' ? 'Last 7 Days' : filter === 'next7days' ? 'Next 7 Days (Default)' : filter === 'today' ? "Today's Schedule" : "Custom Schedule"}
                         </span>
                     </div>
                     <h1 className="text-3xl font-black text-gray-900">{dateString}</h1>
@@ -241,6 +249,12 @@ const Tasks = () => {
                 <div className="flex flex-col gap-3">
                     {/* Filters */}
                     <div className="flex flex-wrap items-center gap-2 bg-gray-50 p-1.5 rounded-xl border border-gray-100">
+                        <button 
+                            onClick={() => setFilter('next7days')}
+                            className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${filter === 'next7days' ? 'bg-primary-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-200'}`}
+                        >
+                            Next 7 Days
+                        </button>
                         <button 
                             onClick={() => setFilter('tomorrow')}
                             className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${filter === 'tomorrow' ? 'bg-primary-600 text-white shadow-md' : 'text-gray-500 hover:bg-gray-200'}`}
@@ -259,17 +273,27 @@ const Tasks = () => {
                         >
                             Last 7 Days
                         </button>
-                        <div className="relative flex items-center">
+
+                        <div className="flex items-center gap-2 px-3 border-l border-gray-200 ml-2">
                             <input 
                                 type="date"
-                                className={`pl-8 pr-3 py-1.5 rounded-lg text-sm font-bold border-none outline-none focus:ring-2 focus:ring-primary-500 transition-all ${filter === 'custom' ? 'bg-primary-100 text-primary-800' : 'bg-transparent text-gray-500 hover:bg-gray-200'}`}
-                                value={customDate}
+                                className={`px-2 py-1.5 rounded-lg text-xs font-bold border outline-none focus:ring-1 focus:ring-primary-500 transition-all ${filter === 'custom_range' ? 'bg-primary-50 border-primary-200 text-primary-800' : 'bg-transparent border-gray-200 text-gray-500'}`}
+                                value={startDate}
                                 onChange={(e) => {
-                                    setCustomDate(e.target.value);
-                                    setFilter('custom');
+                                    setStartDate(e.target.value);
+                                    setFilter('custom_range');
                                 }}
                             />
-                            <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+                            <span className="text-[10px] font-bold text-gray-400">TO</span>
+                            <input 
+                                type="date"
+                                className={`px-2 py-1.5 rounded-lg text-xs font-bold border outline-none focus:ring-1 focus:ring-primary-500 transition-all ${filter === 'custom_range' ? 'bg-primary-50 border-primary-200 text-primary-800' : 'bg-transparent border-gray-200 text-gray-500'}`}
+                                value={endDate}
+                                onChange={(e) => {
+                                    setEndDate(e.target.value);
+                                    setFilter('custom_range');
+                                }}
+                            />
                         </div>
                     </div>
                 </div>
