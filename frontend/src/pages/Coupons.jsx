@@ -21,30 +21,27 @@ const Coupons = () => {
     validFrom: "",
     validUntil: "",
     usageLimit: "",
+    category: "global",
   })
 
-  const apiBaseUrl = import.meta.env.VITE_API_URL
-
-  // 🔐 Set Authorization header dynamically (works on both local + deploy)
   useEffect(() => {
-    const token = localStorage.getItem("token")
-    if (token) {
-      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`
-    }
     fetchCoupons()
   }, [])
 
   const fetchCoupons = async () => {
-    try {
-      const response = await axios.get(`${apiBaseUrl}/api/coupons`)
-      setCoupons(response.data)
-    } catch (error) {
-      toast.error("Error fetching coupons")
-      console.error("Fetch error:", error)
-    } finally {
-      setLoading(false)
-    }
+  const apiBaseUrl = import.meta.env.VITE_API_URL
+
+  try {
+    const response = await axios.get(`${apiBaseUrl}/api/coupons`)
+    setCoupons(response.data)
+  } catch (error) {
+    toast.error("Error fetching coupons")
+    console.error("Error:", error)
+  } finally {
+    setLoading(false)
   }
+}
+const apiBaseUrl = import.meta.env.VITE_API_URL
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -57,20 +54,18 @@ const Coupons = () => {
         usageLimit: formData.usageLimit ? Number.parseInt(formData.usageLimit) : null,
       }
 
-      if (editingCoupon) {
-        await axios.put(`${apiBaseUrl}/api/coupons/${editingCoupon._id}`, submitData)
-        toast.success("Coupon updated successfully")
-      } else {
-        await axios.post(`${apiBaseUrl}/api/coupons`, submitData)
-        toast.success("Coupon created successfully")
-      }
-
+    if (editingCoupon) {
+    await axios.put(`${apiBaseUrl}/api/coupons/${editingCoupon._id}`, submitData)
+    toast.success("Coupon updated successfully")
+  } else {
+    await axios.post(`${apiBaseUrl}/api/coupons`, submitData)
+    toast.success("Coupon created successfully")
+  }
       setShowModal(false)
       setEditingCoupon(null)
       resetForm()
       fetchCoupons()
     } catch (error) {
-      console.error("Save error:", error)
       toast.error(error.response?.data?.message || "Error saving coupon")
     }
   }
@@ -86,6 +81,7 @@ const Coupons = () => {
       validFrom: "",
       validUntil: "",
       usageLimit: "",
+      category: "global",
     })
   }
 
@@ -96,11 +92,12 @@ const Coupons = () => {
       description: coupon.description,
       discountType: coupon.discountType,
       discountValue: coupon.discountValue.toString(),
-      minOrderValue: coupon.minOrderValue?.toString() || "",
+      minOrderValue: coupon.minOrderValue.toString(),
       maxDiscountAmount: coupon.maxDiscountAmount?.toString() || "",
       validFrom: new Date(coupon.validFrom).toISOString().split("T")[0],
       validUntil: new Date(coupon.validUntil).toISOString().split("T")[0],
       usageLimit: coupon.usageLimit?.toString() || "",
+      category: coupon.category || "global",
     })
     setShowModal(true)
   }
@@ -108,45 +105,38 @@ const Coupons = () => {
   const handleDelete = async (id) => {
     if (window.confirm("Are you sure you want to delete this coupon?")) {
       try {
-        await axios.delete(`${apiBaseUrl}/api/coupons/${id}`)
+        await axios.delete(`/api/coupons/${id}`)
         toast.success("Coupon deleted successfully")
         fetchCoupons()
       } catch (error) {
-        console.error("Delete error:", error)
         toast.error("Error deleting coupon")
       }
     }
   }
 
   const handleToggleStatus = async (id) => {
-  try {
-    const couponToToggle = coupons.find((c) => c._id === id)
-    if (!couponToToggle) return toast.error("Coupon not found")
-
-    const updatedStatus = !couponToToggle.isActive
-
-    await axios.put(`${apiBaseUrl}/api/coupons/${id}`, {
-      ...couponToToggle,
-      isActive: updatedStatus,
-    })
-
-    toast.success(`Coupon ${updatedStatus ? "activated" : "deactivated"} successfully`)
-    fetchCoupons()
-  } catch (error) {
-    console.error("Toggle error:", error)
-    toast.error(error.response?.data?.message || "Error updating coupon status")
+    try {
+      await axios.patch(`/api/coupons/${id}/toggle`)
+      toast.success("Coupon status updated")
+      fetchCoupons()
+    } catch (error) {
+      toast.error("Error updating coupon status")
+    }
   }
-}
-
 
   const filteredCoupons = coupons.filter(
     (coupon) =>
       coupon.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      coupon.description.toLowerCase().includes(searchTerm.toLowerCase())
+      coupon.description.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
-  const formatDate = (dateString) => new Date(dateString).toLocaleDateString()
-  const isExpired = (dateString) => new Date(dateString) < new Date()
+  const formatDate = (dateString) => {
+    return new Date(dateString).toLocaleDateString()
+  }
+
+  const isExpired = (dateString) => {
+    return new Date(dateString) < new Date()
+  }
 
   return (
     <div>
@@ -206,6 +196,9 @@ const Coupons = () => {
                     Valid Until
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Category
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Usage
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -234,6 +227,11 @@ const Coupons = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {coupon.usageLimit ? `${coupon.usedCount}/${coupon.usageLimit}` : `${coupon.usedCount}/∞`}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase ${coupon.category === 'influencer' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'}`}>
+                        {coupon.category || 'global'}
+                      </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
@@ -300,6 +298,17 @@ const Coupons = () => {
                     >
                       <option value="percentage">Percentage</option>
                       <option value="fixed">Fixed Amount</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                    <select
+                      value={formData.category}
+                      onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    >
+                      <option value="global">Global (Public)</option>
+                      <option value="influencer">Influencer (Hidden)</option>
                     </select>
                   </div>
                 </div>
