@@ -35,8 +35,10 @@ export default function ManualBooking() {
     insuranceRequired: true,
     fragile: false,
     premiumItemType: "",
+    otherPremiumItem: "",
     notes: "",
     totalAmount: "",
+    isWithoutGST: false,
     isVendorBooking: false,
     vendorId: "",
   });
@@ -84,7 +86,7 @@ export default function ManualBooking() {
       senderState: vendor.state,
       senderLandmark: vendor.landmark || "",
       pickupPincode: vendor.pincode,
-      totalAmount: "0" // Default to 0 as per user request
+      totalAmount: "" // Cleared to prevent accidental zero orders
     }));
     setShowVendorDropdown(false);
     setVendorSearch(vendor.name);
@@ -169,8 +171,10 @@ export default function ManualBooking() {
       insuranceRequired: true,
       fragile: false,
       premiumItemType: "",
+      otherPremiumItem: "",
       notes: "",
       totalAmount: "",
+      isWithoutGST: false,
       isVendorBooking: false,
       vendorId: "",
     });
@@ -243,13 +247,25 @@ export default function ManualBooking() {
       isVendorBooking: formData.isVendorBooking,
       vendorId: formData.vendorId,
       premiumItemType: formData.premiumItemType,
+      otherPremiumItem: formData.premiumItemType === "Other" ? formData.otherPremiumItem : "",
       bookingId: isManualId ? `EP${formData.bookingId.replace(/^EP/i, '')}` : undefined,
-      pricing: {
-        totalAmount: parseFloat(formData.totalAmount) || 0,
-        basePrice: parseFloat(formData.totalAmount) || 0,
-        tax: 0,
-        additionalCharges: 0
-      },
+      pricing: (() => {
+        const total = parseFloat(formData.totalAmount) || 0;
+        let base, tax;
+        if (formData.isWithoutGST) {
+          base = total;
+          tax = total * 0.18;
+        } else {
+          base = total / 1.18;
+          tax = total - base;
+        }
+        return {
+          totalAmount: base + tax,
+          basePrice: base,
+          tax: tax,
+          additionalCharges: 0
+        };
+      })(),
 
       senderDetails: {
         name: formData.senderName,
@@ -490,10 +506,27 @@ export default function ManualBooking() {
                     <option value="Documents">Documents</option>
                     <option value="Mobile Phones">Mobile Phones</option>
                     <option value="Electronics">Electronics</option>
+                    <option value="Medicine">Medicine</option>
+                    <option value="Other">Other</option>
                   </select>
                 </div>
               )}
             </div>
+
+            {formData.serviceType === "Premium" && formData.premiumItemType === "Other" && (
+              <div className="animate-in slide-in-from-top-2 duration-200">
+                <label className="block text-sm font-bold text-gray-700 mb-1">Item Description (Other Premium)</label>
+                <input
+                  type="text"
+                  name="otherPremiumItem"
+                  value={formData.otherPremiumItem}
+                  onChange={handleChange}
+                  placeholder="Describe your item..."
+                  className="w-full border border-orange-200 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-orange-50 font-medium"
+                  required
+                />
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -681,16 +714,35 @@ export default function ManualBooking() {
                   </label>
                 </div>
                 <div className="sm:col-span-2">
-                  <label className="block text-xs font-bold text-orange-700 uppercase mb-1 ml-1">Booking Amount (₹)</label>
+                  <div className="flex justify-between items-center mb-1 ml-1 text-orange-700">
+                    <label className="block text-xs font-bold uppercase">{formData.isWithoutGST ? "Base Amount (Without GST)" : "Total Amount (With GST)"} (₹)</label>
+                    <button 
+                      type="button" 
+                      onClick={() => setFormData(prev => ({...prev, isWithoutGST: !prev.isWithoutGST}))}
+                      className={`text-[10px] px-2 py-1 rounded font-bold transition-all border ${formData.isWithoutGST ? 'bg-orange-600 text-white border-orange-600' : 'bg-white text-orange-600 border-orange-200'}`}
+                    >
+                      {formData.isWithoutGST ? "✓ Without GST" : "Add Without GST?"}
+                    </button>
+                  </div>
                   <input
                     name="totalAmount"
                     type="number"
                     value={formData.totalAmount}
                     onChange={handleChange}
-                    placeholder="Total Price"
+                    placeholder="Enter Amount"
                     className="w-full border border-orange-200 p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 bg-white font-bold"
                     required
                   />
+                  {formData.totalAmount && (
+                    <div className="flex justify-between items-center mt-2 px-1">
+                       <p className="text-[10px] text-gray-500 italic">
+                        {formData.isWithoutGST ? `+ ₹${(parseFloat(formData.totalAmount) * 0.18).toFixed(2)} GST will be added` : `Incl. ₹${(parseFloat(formData.totalAmount) - parseFloat(formData.totalAmount)/1.18).toFixed(2)} GST`}
+                      </p>
+                      <p className="text-xs font-extrabold text-orange-600">
+                        Final Total: ₹{formData.isWithoutGST ? (parseFloat(formData.totalAmount) * 1.18).toFixed(2) : parseFloat(formData.totalAmount).toFixed(2)}
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="pt-2">
