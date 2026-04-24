@@ -790,15 +790,25 @@ router.get("/tasks/tomorrow", adminAuth, async (req, res) => {
     if (range === 'last7days') {
       targetStart.setDate(targetStart.getDate() - 7);
       targetEnd.setDate(targetEnd.getDate() + 1); // Up to the end of today
+    } else if (range === 'next7days') {
+      targetStart = new Date(today);
+      targetEnd = new Date(today);
+      targetEnd.setDate(targetEnd.getDate() + 7);
+    } else if (req.query.startDate && req.query.endDate) {
+      targetStart = new Date(req.query.startDate);
+      targetStart.setHours(0, 0, 0, 0);
+      targetEnd = new Date(req.query.endDate);
+      targetEnd.setHours(23, 59, 59, 999);
     } else if (date) {
       targetStart = new Date(date);
       targetStart.setHours(0, 0, 0, 0);
       targetEnd = new Date(targetStart);
       targetEnd.setDate(targetEnd.getDate() + 1);
     } else {
-      // Default to tomorrow
-      targetStart.setDate(targetStart.getDate() + 1);
-      targetEnd.setDate(targetEnd.getDate() + 2);
+      // Default to next 7 days as requested
+      targetStart = new Date(today);
+      targetEnd = new Date(today);
+      targetEnd.setDate(targetEnd.getDate() + 7);
     }
 
     const bookings = await Booking.find({
