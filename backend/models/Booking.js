@@ -84,6 +84,8 @@ const bookingSchema = new mongoose.Schema(
       type: String,
       default: "Hub",
     },
+    premiumItemType: String,
+    otherPremiumItem: String,
 
     // for admin booking
     trackingId: {
@@ -112,7 +114,9 @@ const bookingSchema = new mongoose.Schema(
     pricing: {
       basePrice: Number,
       additionalCharges: Number,
+      packagingCharge: Number,
       tax: Number,
+      discount: Number,
       totalAmount: Number,
     },
     paymentStatus: {
