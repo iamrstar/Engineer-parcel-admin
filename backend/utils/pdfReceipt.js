@@ -32,8 +32,14 @@ async function generateReceiptPDF(booking) {
         let globalY = height - 20;
         const sectionTop = globalY;
 
+        // Sanitizer to prevent WinAnsi encoding errors (like tabs 0x0009 or emojis)
+        const clean = (str) => {
+            if (typeof str !== 'string') return String(str || '');
+            return str.replace(/\t/g, ' ').replace(/[^\x20-\x7E]/g, '');
+        };
+
         const drawCell = (text, x, yTop, boxW, boxH, font, size, align = 'left', color = black) => {
-            const tx = String(text || '');
+            const tx = clean(text);
             const tw = font.widthOfTextAtSize(tx, size);
             const th = font.sizeAtHeight(size);
             let px = x + 6;
@@ -47,7 +53,7 @@ async function generateReceiptPDF(booking) {
         const drawVLine = (xPos, yTop, yBot) => page.drawLine({ start: { x: xPos, y: yTop }, end: { x: xPos, y: yBot }, thickness: 0.6, color: black });
 
         const wrapText = (text, x, y, maxW, font, size) => {
-            const words = String(text || '').split(' ');
+            const words = clean(text).split(' ');
             let line = '';
             let cy = y;
             for (const w of words) {
@@ -148,7 +154,7 @@ async function generateReceiptPDF(booking) {
             if (det?.address1) a = `${det.address1}, ${det.address2 || ''}`.trim();
             if (det?.landmark) a += ` (${det.landmark})`;
             drawF('Address', a);
-            drawF('Destination', `${det?.city || det?.pincode || 'N/A'}, ${det?.state || ''}`);
+            drawF('Destination', `${det?.city || 'N/A'}, ${det?.state || ''} - ${det?.pincode || ''}`);
             return y;
         };
 
@@ -169,7 +175,7 @@ async function generateReceiptPDF(booking) {
             { l: 'Sno.', w: 30 }, 
             { l: 'Description of Goods', w: 220 }, 
             { l: 'Qty', w: 40 },
-            { l: 'Weight', w: 60 },
+            { l: 'Weight(Ch.)', w: 60 },
             { l: 'Dimensions', w: tableWidth - 350 }
         ];
 
@@ -200,20 +206,31 @@ async function generateReceiptPDF(booking) {
         // Qty
         drawCell(String(booking.packageDetails?.boxQuantity || 1), cx2, globalY, cols[2].w, r7H, fonts.regular, 8, 'center');
         cx2 += cols[2].w;
-        // Weight
-        drawCell(`${booking.packageDetails?.weight || 0}${booking.packageDetails?.weightUnit || 'kg'}`, cx2, globalY, cols[3].w, r7H, fonts.bold, 8, 'center');
+        // Weight (Show Chargeable Weight primarily)
+        const weightVal = booking.packageDetails?.chargeableWeight || booking.packageDetails?.weight || 0;
+        const weightUnit = booking.packageDetails?.chargeableWeightUnit || booking.packageDetails?.weightUnit || 'kg';
+        drawCell(`${weightVal}${weightUnit}`, cx2, globalY, cols[2].w + 20, r7H, fonts.bold, 8, 'center');
         cx2 += cols[3].w;
 
+        // --- Dimensions Logic (Refined) ---
         let ds = 'N/A';
-        if (isEdl && booking.packageDetails?.edlItems) {
-            ds = booking.packageDetails.edlItems.map(item => item.dims).join(', ');
-        } else {
-            const dimensions = booking.packageDetails?.dimensions;
-            let d = Array.isArray(dimensions) ? dimensions[0] : (dimensions || {});
-            if (d && (d.length || d.width || d.height)) {
-                ds = `${d.length || 0}x${d.width || 0}x${d.height || 0}`;
-            }
+        const pkg = booking.packageDetails || {};
+        const dims = pkg.dimensions || [];
+
+        if (isEdl && pkg.edlItems && pkg.edlItems.length > 0) {
+            ds = pkg.edlItems.map(item => item.dims || item.dimensions).filter(Boolean).join(', ');
+        } else if (Array.isArray(dims) && dims.length > 0) {
+            ds = dims.map(d => {
+                if (!d) return '';
+                // Try multiple common field names
+                const l = d.length || d.L || d.len || 0;
+                const w = d.width || d.W || d.wid || 0;
+                const h = d.height || d.H || d.hei || 0;
+                return (l || w || h) ? `${l}x${w}x${h}` : '';
+            }).filter(Boolean).join(', ');
         }
+
+        if (!ds || ds === '') ds = 'N/A';
         if (ds.length > 30) ds = ds.substring(0, 27) + '...';
         drawCell(ds, cx2, globalY, cols[4].w, r7H, fonts.regular, 7.5, 'center');
 
@@ -348,8 +365,13 @@ async function generateLabelPDF(booking) {
         const margin = 15;
         let globalY = height - margin;
 
+        const clean = (str) => {
+            if (typeof str !== 'string') return String(str || '');
+            return str.replace(/\t/g, ' ').replace(/[^\x20-\x7E]/g, '');
+        };
+
         const drawText = (t, x, y, size, font) => {
-            page.drawText(String(t || '').replace(/[^\x00-\x7F]/g, ""), { x, y, size, font, color: black });
+            page.drawText(clean(t), { x, y, size, font, color: black });
         };
 
         // Header
@@ -444,16 +466,24 @@ async function generateLabelPDF(booking) {
         const labelDesc = booking.packageDetails?.description || 'Standard Box';
         drawText(`Package: ${labelDesc}`, margin, globalY, 9, fonts.regular);
         globalY -= 12;
-        let ds = 'N/A';
-        if (isEdl && booking.packageDetails?.edlItems) {
-            ds = booking.packageDetails.edlItems.map(item => item.dims).join(', ') + ' cm';
-            drawText(`Dimensions: ${ds}`, margin, globalY, 9, fonts.regular);
-        } else {
-            const dimensions = booking.packageDetails?.dimensions;
-            let d = Array.isArray(dimensions) ? dimensions[0] : (dimensions || {});
-            if (d && (d.length || d.width || d.height)) {
-                drawText(`Dimensions: ${d.length || 0}x${d.width || 0}x${d.height || 0} cm`, margin, globalY, 9, fonts.regular);
-            }
+        let ds = '';
+        const pkgL = booking.packageDetails || {};
+        const dimsL = pkgL.dimensions || [];
+
+        if (isEdl && pkgL.edlItems && pkgL.edlItems.length > 0) {
+            ds = pkgL.edlItems.map(item => item.dims || item.dimensions).filter(Boolean).join(', ') + ' cm';
+        } else if (Array.isArray(dimsL) && dimsL.length > 0) {
+            ds = dimsL.map(d => {
+                if (!d) return '';
+                const l = d.length || d.L || d.len || 0;
+                const w = d.width || d.W || d.wid || 0;
+                const h = d.height || d.H || d.hei || 0;
+                return (l || w || h) ? `${l}x${w}x${h}` : '';
+            }).filter(Boolean).join(', ') + ' cm';
+        }
+
+        if (ds && ds !== ' cm') {
+            drawText(`Dimensions: ${ds}`, margin, globalY, 10, fonts.bold);
         }
 
         // Subtext
@@ -484,8 +514,13 @@ async function generateDeclarationPDF(booking) {
         const margin = 50;
         let globalY = height - 50;
 
+        const clean = (str) => {
+            if (typeof str !== 'string') return String(str || '');
+            return str.replace(/\t/g, ' ').replace(/[^\x20-\x7E]/g, '');
+        };
+
         const drawText = (t, x, y, size, font) => {
-            page.drawText(String(t || ''), { x, y, size, font, color: black });
+            page.drawText(clean(t), { x, y, size, font, color: black });
         };
 
         // Title
@@ -603,8 +638,13 @@ async function generateOfficeLabelPDF(booking) {
         const margin = 45;
         let globalY = height - margin;
 
+        const clean = (str) => {
+            if (typeof str !== 'string') return String(str || '');
+            return str.replace(/\t/g, ' ').replace(/[^\x20-\x7E]/g, '');
+        };
+
         const drawHLine = (y, xStart = margin, xEnd = width - margin) => page.drawLine({ start: { x: xStart, y }, end: { x: xEnd, y }, thickness: 0.8, color: black });
-        const drawText = (t, x, y, size = 10, font = fonts.regular) => page.drawText(String(t || '').replace(/[^\x00-\x7F]/g, " "), { x, y, size, font, color: black });
+        const drawText = (t, x, y, size = 10, font = fonts.regular) => page.drawText(clean(t), { x, y, size, font, color: black });
         const drawCheckbox = (x, y) => page.drawRectangle({ x, y, width: 25, height: 12, borderWidth: 1, borderColor: black });
 
         // --- 1. Logo ---
@@ -741,6 +781,28 @@ async function generateOfficeLabelPDF(booking) {
         drawHLine(globalY - 2, valBox.x + valBox.w + 60, width - margin - 15);
         drawText(")", width - margin - 10, globalY, 11, fonts.regular);
         globalY -= 35;
+
+        // Dimensions in Office Label
+        let officeDStr = '';
+        const oPkg = booking.packageDetails || {};
+        const oDims = oPkg.dimensions || [];
+
+        if (isEdl && oPkg.edlItems && oPkg.edlItems.length > 0) {
+            officeDStr = oPkg.edlItems.map(item => item.dims || item.dimensions).filter(Boolean).join(', ');
+        } else if (Array.isArray(oDims) && oDims.length > 0) {
+            officeDStr = oDims.map(d => {
+                if (!d) return '';
+                const l = d.length || d.L || d.len || 0;
+                const w = d.width || d.W || d.wid || 0;
+                const h = d.height || d.H || d.hei || 0;
+                return (l || w || h) ? `${l}x${w}x${h}` : '';
+            }).filter(Boolean).join(', ');
+        }
+
+        if (officeDStr) {
+            drawText(`Dimensions: ${officeDStr} cm`, margin, globalY, 10, fonts.bold);
+            globalY -= 20;
+        }
 
         // Invoice/Challan Section
         drawText("Invoice:", margin, globalY, 11, fonts.bold);
