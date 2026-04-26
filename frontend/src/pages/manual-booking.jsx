@@ -8,7 +8,9 @@ export default function ManualBooking() {
     deliveryPincode: "",
     serviceType: "Surface",
     actualWeight: "",
+    chargeableWeight: "",
     weightUnit: "kg",
+    chargeableWeightUnit: "kg",
     dimensions: [{ length: "", width: "", height: "" }],
     boxQuantity: 1,
     goodsDescription: "",
@@ -144,7 +146,9 @@ export default function ManualBooking() {
       deliveryPincode: "",
       serviceType: "Surface",
       actualWeight: "",
+      chargeableWeight: "",
       weightUnit: "kg",
+      chargeableWeightUnit: "kg",
       dimensions: [{ length: "", width: "", height: "" }],
       boxQuantity: 1,
       goodsDescription: "",
@@ -293,7 +297,9 @@ export default function ManualBooking() {
 
       packageDetails: {
         weight: parseFloat(formData.actualWeight),
+        chargeableWeight: parseFloat(formData.chargeableWeight) || parseFloat(formData.actualWeight),
         weightUnit: formData.weightUnit,
+        chargeableWeightUnit: formData.chargeableWeightUnit || formData.weightUnit,
         volumetricWeight: formData.dimensions.reduce((acc, dim) => acc + (parseFloat(dim.length) * parseFloat(dim.width) * parseFloat(dim.height) / 5000 || 0), 0),
         dimensions: formData.dimensions.map(dim => ({
           length: parseFloat(dim.length) || 0,
@@ -615,7 +621,7 @@ export default function ManualBooking() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 border-t pt-6">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t pt-6">
               <div>
                 <label className="block text-sm font-bold text-gray-700 mb-1">Actual Weight ({formData.weightUnit})</label>
                 <div className="flex gap-2">
@@ -625,7 +631,7 @@ export default function ManualBooking() {
                     step="0.01"
                     value={formData.actualWeight}
                     onChange={handleChange}
-                    placeholder="Total Weight"
+                    placeholder="Actual"
                     className="flex-1 border border-gray-300 p-3 rounded-xl outline-none focus:ring-2 focus:ring-orange-500"
                     required
                   />
@@ -633,7 +639,31 @@ export default function ManualBooking() {
                     name="weightUnit"
                     value={formData.weightUnit}
                     onChange={handleChange}
-                    className="w-24 border border-gray-300 p-3 rounded-xl outline-none bg-white font-medium"
+                    className="w-20 border border-gray-300 p-3 rounded-xl outline-none bg-white font-medium text-xs"
+                  >
+                    <option value="kg">kg</option>
+                    <option value="g">g</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Chargeable Weight</label>
+                <div className="flex gap-2">
+                  <input
+                    name="chargeableWeight"
+                    type="number"
+                    step="0.01"
+                    value={formData.chargeableWeight}
+                    onChange={handleChange}
+                    placeholder="Chargeable"
+                    className="flex-1 border border-gray-300 p-3 rounded-xl outline-none focus:ring-2 focus:ring-orange-500"
+                    required
+                  />
+                  <select
+                    name="chargeableWeightUnit"
+                    value={formData.chargeableWeightUnit}
+                    onChange={handleChange}
+                    className="w-20 border border-gray-300 p-3 rounded-xl outline-none bg-white font-medium text-xs"
                   >
                     <option value="kg">kg</option>
                     <option value="g">g</option>
