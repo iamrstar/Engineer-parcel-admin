@@ -849,7 +849,7 @@ const BookingDetail = () => {
           <div className="space-y-3 sm:space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Weight</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Actual Weight</label>
                 {editMode ? (
                   <div className="flex">
                     <input
@@ -870,6 +870,31 @@ const BookingDetail = () => {
                 ) : (
                   <p className="text-sm sm:text-base text-gray-900">
                     {booking.packageDetails.weight} {booking.packageDetails.weightUnit}
+                  </p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Chargeable Weight</label>
+                {editMode ? (
+                  <div className="flex">
+                    <input
+                      type="number"
+                      value={booking.packageDetails.chargeableWeight || ""}
+                      onChange={(e) => handleInputChange("chargeableWeight", Number.parseFloat(e.target.value), "packageDetails")}
+                      className="flex-1 px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-l-lg focus:ring-2 focus:ring-primary-500"
+                    />
+                    <select
+                      value={booking.packageDetails.chargeableWeightUnit || "kg"}
+                      onChange={(e) => handleInputChange("chargeableWeightUnit", e.target.value, "packageDetails")}
+                      className="px-2 sm:px-3 py-2 text-sm sm:text-base border border-l-0 border-gray-300 rounded-r-lg focus:ring-2 focus:ring-primary-500"
+                    >
+                      <option value="g">g</option>
+                      <option value="kg">kg</option>
+                    </select>
+                  </div>
+                ) : (
+                  <p className="text-sm sm:text-base text-gray-900">
+                    {booking.packageDetails.chargeableWeight || booking.packageDetails.weight || 0} {booking.packageDetails.chargeableWeightUnit || booking.packageDetails.weightUnit || "kg"}
                   </p>
                 )}
               </div>
