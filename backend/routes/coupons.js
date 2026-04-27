@@ -1,135 +1,122 @@
-const express = require("express");
-const router = express.Router();
-const Coupon = require("../models/Coupon"); // ✅ Import the model
+const express = require("express")
+const Coupon = require("../models/Coupon")
+const authMiddleware = require("../middleware/auth")
+const router = express.Router()
 
-// ======================
-// 🔒 ADMIN ROUTES
-// ======================
-
-// Get all coupons (admin)
-router.get("/", async (req, res) => {
+// Get all coupons
+router.get("/", authMiddleware, async (req, res) => {
   try {
-    const coupons = await Coupon.find();
-    res.json(coupons);
+    const coupons = await Coupon.find().sort({ createdAt: -1 })
+    res.json(coupons)
   } catch (error) {
-    res.status(500).json({ message: "Error fetching coupons" });
+    console.error(error)
+    res.status(500).json({ message: "Server error" })
   }
-});
+})
 
-// Toggle coupon status (admin)
-router.patch("/:id/toggle", async (req, res) => {
+// Create new coupon
+router.post("/", authMiddleware, async (req, res) => {
   try {
-    const coupon = await Coupon.findById(req.params.id);
-    if (!coupon) return res.status(404).json({ message: "Coupon not found" });
+    const couponData = req.body
+    couponData.code = couponData.code.toUpperCase()
 
-    coupon.isActive = !coupon.isActive;
-    await coupon.save();
-    res.json({ message: "Coupon status updated", isActive: coupon.isActive });
-  } catch (error) {
-    res.status(500).json({ message: "Error updating coupon status" });
-  }
-});
-
-// Delete coupon (admin)
-router.delete("/:id", async (req, res) => {
-  try {
-    const deletedCoupon = await Coupon.findByIdAndDelete(req.params.id);
-    if (!deletedCoupon) return res.status(404).json({ message: "Coupon not found" });
-    res.json({ message: "Coupon deleted successfully" });
-  } catch (error) {
-    res.status(500).json({ message: "Error deleting coupon" });
-  }
-});
-
-// ======================
-// 🌍 PUBLIC ROUTE — Client Side
-// ======================
-
-// Fetch all active & valid coupons (no login required)
-router.get("/public", async (req, res) => {
-  try {
-    const today = new Date();
-
-    const coupons = await Coupon.find({
-      isActive: true,
-      category: "global", // Only show global coupons in public lists
-      validFrom: { $lte: today },
-      validUntil: { $gte: today },
-    }).select("code description discountType discountValue minOrderValue maxDiscountAmount validUntil category");
-
-    if (!coupons.length) {
-      return res.status(404).json({ message: "No active coupons available" });
+    const existingCoupon = await Coupon.findOne({ code: couponData.code })
+    if (existingCoupon) {
+      return res.status(400).json({ message: "Coupon code already exists" })
     }
 
-    res.json(coupons);
+    const newCoupon = new Coupon(couponData)
+    await newCoupon.save()
+
+    res.status(201).json(newCoupon)
   } catch (error) {
-    console.error("Error fetching public coupons:", error);
-    res.status(500).json({ message: "Error fetching public coupons" });
+    console.error(error)
+    res.status(500).json({ message: "Server error" })
   }
-});
+})
 
-// ======================
-// ✅ Validate Coupon
-// ======================
-// ======================
-// ✅ Validate Coupon (Safe Version)
-// ======================
-router.post("/validate", async (req, res) => {
+// Update coupon
+router.put("/:id", authMiddleware, async (req, res) => {
   try {
-    const { code, couponCode, orderTotal } = req.body;
-
-    // ✅ Handle both "code" or "couponCode"
-    const couponKey = (code || couponCode || "").toUpperCase();
-
-    if (!couponKey) {
-      return res.status(400).json({ message: "Coupon code is required" });
-    }
-
-    const coupon = await Coupon.findOne({
-      code: couponKey,
-      isActive: true,
-    });
+    const coupon = await Coupon.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true })
 
     if (!coupon) {
-      return res.status(404).json({ message: "Invalid coupon code" });
+      return res.status(404).json({ message: "Coupon not found" })
     }
 
-    const now = new Date();
-    if (now < coupon.validFrom || now > coupon.validUntil) {
-      return res.status(400).json({ message: "Coupon expired or not active yet" });
-    }
-
-    if (orderTotal < coupon.minOrderValue) {
-      return res.status(400).json({
-        message: `Minimum order value is ₹${coupon.minOrderValue}`,
-      });
-    }
-
-    // ✅ Discount calculation
-    let discount = 0;
-    if (coupon.discountType === "percentage") {
-      discount = (orderTotal * coupon.discountValue) / 100;
-      if (coupon.maxDiscountAmount) {
-        discount = Math.min(discount, coupon.maxDiscountAmount);
-      }
-    } else if (coupon.discountType === "flat") {
-      discount = coupon.discountValue;
-    }
-
-    const finalAmount = orderTotal - discount;
-
-    return res.json({
-      success: true,
-      message: `${couponKey} applied successfully!`,
-      couponCode: coupon.code,
-      discount,
-      finalAmount,
-    });
+    res.json(coupon)
   } catch (error) {
-    console.error("Error validating coupon:", error);
-    res.status(500).json({ message: "Error validating coupon" });
+    console.error(error)
+    res.status(500).json({ message: "Server error" })
   }
-});
+})
 
+// Delete coupon
+router.delete("/:id", authMiddleware, async (req, res) => {
+  try {
+    const coupon = await Coupon.findByIdAndDelete(req.params.id)
+    if (!coupon) {
+      return res.status(404).json({ message: "Coupon not found" })
+    }
+    res.json({ message: "Coupon deleted successfully" })
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ message: "Server error" })
+  }
+})
 
-module.exports = router;
+// Toggle coupon status
+router.patch("/:id/toggle", authMiddleware, async (req, res) => {
+  try {
+    const coupon = await Coupon.findById(req.params.id)
+    if (!coupon) {
+      return res.status(404).json({ message: "Coupon not found" })
+    }
+
+    coupon.isActive = !coupon.isActive
+    await coupon.save()
+
+    res.json(coupon)
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ message: "Server error" })
+  }
+})
+
+// Validate coupon
+router.post("/validate", async (req, res) => {
+  try {
+    const { code, amount } = req.body
+    if (!code) {
+      return res.status(400).json({ message: "Coupon code is required" })
+    }
+
+    const coupon = await Coupon.findOne({ code: code.toUpperCase(), isActive: true })
+
+    if (!coupon) {
+      return res.status(404).json({ message: "Invalid coupon code" })
+    }
+
+    // Check expiration
+    if (new Date(coupon.validUntil) < new Date()) {
+      return res.status(400).json({ message: "Coupon has expired" })
+    }
+
+    // Check usage limit
+    if (coupon.usageLimit !== null && coupon.usedCount >= coupon.usageLimit) {
+      return res.status(400).json({ message: "Coupon usage limit reached" })
+    }
+
+    // Check min order value
+    if (amount && amount < coupon.minOrderValue) {
+      return res.status(400).json({ message: `Minimum order value for this coupon is ₹${coupon.minOrderValue}` })
+    }
+
+    res.json(coupon)
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ message: "Server error" })
+  }
+})
+
+module.exports = router
