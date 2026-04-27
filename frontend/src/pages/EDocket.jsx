@@ -128,6 +128,8 @@ export default function EDocket() {
                 {
                     bookingId: selectedBooking.bookingId,
                     pricing,
+                    isVendorBooking: editForm.isVendorBooking,
+                    vendorId: editForm.vendorId,
                     ...editForm,
                 },
                 { headers: { Authorization: `Bearer ${currentToken}` } }
@@ -462,6 +464,8 @@ export default function EDocket() {
                                                         estimatedDelivery: booking.estimatedDelivery || "",
                                                         insuranceRequired: booking.insuranceRequired || false,
                                                         notes: booking.notes || "",
+                                                        isVendorBooking: booking.isVendorBooking || false,
+                                                        vendorId: booking.vendorId || "",
                                                     });
                                                     setOtherVendor(false);
                                                 }}
@@ -506,6 +510,11 @@ export default function EDocket() {
                                     Verify Booking
                                     <span className="font-mono text-primary-600 bg-primary-50 px-2 rounded-md border border-primary-100 text-base py-0.5">{selectedBooking.trackingId}</span>
                                 </h2>
+                                {editForm.isVendorBooking && (
+                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                        Vendor Booking: {editForm.vendorId}
+                                    </span>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -731,6 +740,12 @@ export default function EDocket() {
                                             />
                                         </div>
                                     </div>
+                                    {editForm.isVendorBooking && (
+                                        <div className="mt-2 p-2 bg-blue-50 border border-blue-100 rounded-lg">
+                                            <p className="text-[10px] text-blue-700 font-bold uppercase">Linked Vendor Account</p>
+                                            <p className="text-sm font-mono text-blue-900">{editForm.vendorId}</p>
+                                        </div>
+                                    )}
                                 </div>
                                 <div className="mt-4 pt-4 border-t border-gray-100">
                                     <label className="block text-sm font-bold text-gray-700 mb-1">Estimated Delivery (ETD)</label>
