@@ -11,6 +11,7 @@ const Coupons = () => {
   const [showModal, setShowModal] = useState(false)
   const [editingCoupon, setEditingCoupon] = useState(null)
   const [searchTerm, setSearchTerm] = useState("")
+  const [categoryFilter, setCategoryFilter] = useState("all")
   const [formData, setFormData] = useState({
     code: "",
     description: "",
@@ -28,24 +29,28 @@ const Coupons = () => {
     fetchCoupons()
   }, [])
 
-  const fetchCoupons = async () => {
   const apiBaseUrl = import.meta.env.VITE_API_URL
 
-  try {
-    const response = await axios.get(`${apiBaseUrl}/api/coupons`)
-    setCoupons(response.data)
-  } catch (error) {
-    toast.error("Error fetching coupons")
-    console.error("Error:", error)
-  } finally {
-    setLoading(false)
+  const fetchCoupons = async () => {
+    const token = localStorage.getItem("adminToken") || localStorage.getItem("token")
+
+    try {
+      const response = await axios.get(`${apiBaseUrl}/api/coupons`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      setCoupons(response.data)
+    } catch (error) {
+      toast.error("Error fetching coupons")
+      console.error("Error:", error)
+    } finally {
+      setLoading(false)
+    }
   }
-}
-const apiBaseUrl = import.meta.env.VITE_API_URL
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     try {
+      const token = localStorage.getItem("adminToken") || localStorage.getItem("token")
       const submitData = {
         ...formData,
         discountValue: Number.parseFloat(formData.discountValue),
@@ -54,13 +59,17 @@ const apiBaseUrl = import.meta.env.VITE_API_URL
         usageLimit: formData.usageLimit ? Number.parseInt(formData.usageLimit) : null,
       }
 
-    if (editingCoupon) {
-    await axios.put(`${apiBaseUrl}/api/coupons/${editingCoupon._id}`, submitData)
-    toast.success("Coupon updated successfully")
-  } else {
-    await axios.post(`${apiBaseUrl}/api/coupons`, submitData)
-    toast.success("Coupon created successfully")
-  }
+      if (editingCoupon) {
+        await axios.put(`${apiBaseUrl}/api/coupons/${editingCoupon._id}`, submitData, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        toast.success("Coupon updated successfully")
+      } else {
+        await axios.post(`${apiBaseUrl}/api/coupons`, submitData, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+        toast.success("Coupon created successfully")
+      }
       setShowModal(false)
       setEditingCoupon(null)
       resetForm()
@@ -105,7 +114,10 @@ const apiBaseUrl = import.meta.env.VITE_API_URL
   const handleDelete = async (id) => {
     if (window.confirm("Are you sure you want to delete this coupon?")) {
       try {
-        await axios.delete(`/api/coupons/${id}`)
+        const token = localStorage.getItem("adminToken") || localStorage.getItem("token")
+        await axios.delete(`${apiBaseUrl}/api/coupons/${id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        })
         toast.success("Coupon deleted successfully")
         fetchCoupons()
       } catch (error) {
@@ -116,7 +128,10 @@ const apiBaseUrl = import.meta.env.VITE_API_URL
 
   const handleToggleStatus = async (id) => {
     try {
-      await axios.patch(`/api/coupons/${id}/toggle`)
+      const token = localStorage.getItem("adminToken") || localStorage.getItem("token")
+      await axios.patch(`${apiBaseUrl}/api/coupons/${id}/toggle`, {}, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
       toast.success("Coupon status updated")
       fetchCoupons()
     } catch (error) {
@@ -124,11 +139,13 @@ const apiBaseUrl = import.meta.env.VITE_API_URL
     }
   }
 
-  const filteredCoupons = coupons.filter(
-    (coupon) =>
+  const filteredCoupons = coupons.filter((coupon) => {
+    const matchesSearch =
       coupon.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      coupon.description.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+      coupon.description.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesCategory = categoryFilter === "all" || coupon.category === categoryFilter
+    return matchesSearch && matchesCategory
+  })
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString()
@@ -160,15 +177,43 @@ const apiBaseUrl = import.meta.env.VITE_API_URL
 
       {/* Search */}
       <div className="bg-white rounded-lg shadow p-6 mb-6">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
-          <input
-            type="text"
-            placeholder="Search coupons..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-          />
+        <div className="flex flex-col md:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+            <input
+              type="text"
+              placeholder="Search coupons..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+            />
+          </div>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setCategoryFilter("all")}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                categoryFilter === "all" ? "bg-orange-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setCategoryFilter("global")}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                categoryFilter === "global" ? "bg-orange-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              Global
+            </button>
+            <button
+              onClick={() => setCategoryFilter("influencer")}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                categoryFilter === "influencer" ? "bg-orange-600 text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+              }`}
+            >
+              Influencers
+            </button>
+          </div>
         </div>
       </div>
 
