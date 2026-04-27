@@ -103,6 +103,20 @@ router.post("/", async (req, res) => {
 
     await newBooking.save();
 
+    // Increment Coupon Usage Count if code exists
+    if (newBooking.couponCode) {
+      try {
+        const Coupon = require("../models/Coupon");
+        await Coupon.updateOne(
+          { code: newBooking.couponCode.toUpperCase() },
+          { $inc: { usedCount: 1 } }
+        );
+        console.log(`✅ Coupon ${newBooking.couponCode} usage incremented (Manual)`);
+      } catch (couponErr) {
+        console.error("Failed to increment coupon count (Manual):", couponErr);
+      }
+    }
+
     // Generate Razorpay Payment Link if amount > 0
     if (newBooking.pricing?.totalAmount > 0 && razorpay) {
       try {
