@@ -320,6 +320,20 @@ router.post("/seed", adminAuth, async (req, res) => {
                     { upsert: true }
                 );
 
+                // Increment Coupon Usage Count if code exists
+                if (payload.couponCode) {
+                    try {
+                        const Coupon = require("../models/Coupon");
+                        await Coupon.updateOne(
+                            { code: payload.couponCode.toUpperCase() },
+                            { $inc: { usedCount: 1 } }
+                        );
+                        console.log(`✅ Coupon ${payload.couponCode} usage incremented`);
+                    } catch (couponErr) {
+                        console.error("Failed to increment coupon count:", couponErr);
+                    }
+                }
+
                 // Mark as seeded in Intake
                 doc.seededToMainDashboard = true;
                 doc.seededAt = new Date();
