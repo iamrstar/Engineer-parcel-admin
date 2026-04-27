@@ -71,7 +71,8 @@ router.post("/verify", adminAuth, async (req, res) => {
         const { 
             bookingId, pricing, senderDetails, receiverDetails, packageDetails, 
             serviceType, premiumItemType, trackingId, vendorName, 
-            vendorTrackingId, estimatedDelivery, insuranceRequired, notes 
+            vendorTrackingId, estimatedDelivery, insuranceRequired, notes,
+            isVendorBooking, vendorId
         } = req.body;
 
         if (!bookingId || !pricing) {
@@ -93,6 +94,8 @@ router.post("/verify", adminAuth, async (req, res) => {
         if (vendorTrackingId) booking.vendorTrackingId = vendorTrackingId;
         if (typeof insuranceRequired !== 'undefined') booking.insuranceRequired = insuranceRequired;
         if (typeof notes !== 'undefined') booking.notes = notes;
+        if (typeof isVendorBooking !== 'undefined') booking.isVendorBooking = isVendorBooking;
+        if (vendorId) booking.vendorId = vendorId;
 
         booking.pricing = pricing;
         booking.status = "Verified - Payment Pending";
@@ -303,6 +306,8 @@ router.post("/seed", adminAuth, async (req, res) => {
                 pricing: doc.pricing,
                 paymentStatus: doc.paymentStatus,
                 paymentMethod: doc.paymentMethod,
+                isVendorBooking: doc.isVendorBooking || false,
+                vendorId: doc.vendorId || null,
                 notes: doc.notes || "Imported from Agent Intake",
                 currentLocation: `${doc.senderDetails.address1 || doc.senderDetails.address || "Hub"}${doc.senderDetails.landmark ? ', ' + doc.senderDetails.landmark : ''}`,
                 trackingHistory: [{
