@@ -121,6 +121,8 @@ const Tasks = () => {
             ? ['picked', 'in-transit', 'out-for-delivery', 'delivered'].includes(booking.status)
             : booking.isBoxDelivered === true;
 
+        const isAssigned = booking.assignedRider && booking.assignedRider.name;
+
         return (
             <div 
                 onClick={() => navigate(`/bookings/${booking._id}`)}
@@ -128,6 +130,24 @@ const Tasks = () => {
                     isCompleted ? 'border-green-500 ring-1 ring-green-500 bg-green-50/30' : 'border-gray-100'
                 }`}
             >
+                {/* Rider Assignment Alert */}
+                <div className={`mb-3 px-3 py-2 rounded-lg flex items-center gap-2 text-xs font-bold ${
+                    isAssigned 
+                        ? 'bg-blue-50 text-blue-700 border border-blue-100' 
+                        : 'bg-red-50 text-red-700 border border-red-100'
+                }`}>
+                    {isAssigned ? (
+                        <>
+                            <User className="h-3.5 w-3.5" />
+                            Rider Assigned: {booking.assignedRider.name}
+                        </>
+                    ) : (
+                        <>
+                            <AlertCircle className="h-3.5 w-3.5" />
+                            Rider Not Assigned
+                        </>
+                    )}
+                </div>
                 {/* Completion Overlay during loading */}
                 {loadingTaskId === booking._id && (
                     <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-10 flex items-center justify-center">
@@ -336,10 +356,31 @@ const Tasks = () => {
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+            <div className="space-y-12">
                 {activeTab === 'deliveries' ? (
                     tasks.boxDeliveries.length > 0 ? (
-                        tasks.boxDeliveries.map(item => <TaskCard key={item._id} booking={item} type="delivery" />)
+                        Object.entries(
+                            tasks.boxDeliveries.reduce((acc, item) => {
+                                const date = new Date(item.boxDeliveryDate).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                                if (!acc[date]) acc[date] = [];
+                                acc[date].push(item);
+                                return acc;
+                            }, {})
+                        ).sort((a, b) => new Date(a[1][0].boxDeliveryDate) - new Date(b[1][0].boxDeliveryDate))
+                        .map(([date, items]) => (
+                            <div key={date} className="animate-in fade-in slide-in-from-top-4 duration-500">
+                                <div className="flex items-center gap-3 mb-6">
+                                    <div className="h-px bg-gray-200 flex-1"></div>
+                                    <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest bg-gray-50 px-4 py-1 rounded-full border border-gray-100 whitespace-nowrap">
+                                        {date}
+                                    </h2>
+                                    <div className="h-px bg-gray-200 flex-1"></div>
+                                </div>
+                                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                                    {items.map(item => <TaskCard key={item._id} booking={item} type="delivery" />)}
+                                </div>
+                            </div>
+                        ))
                     ) : (
                         <div className="col-span-full py-20 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-center px-10">
                             <div className="bg-gray-100 p-6 rounded-full mb-4">
@@ -351,7 +392,28 @@ const Tasks = () => {
                     )
                 ) : (
                     tasks.boxPickups.length > 0 ? (
-                        tasks.boxPickups.map(item => <TaskCard key={item._id} booking={item} type="pickup" />)
+                        Object.entries(
+                            tasks.boxPickups.reduce((acc, item) => {
+                                const date = new Date(item.pickupDate).toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                                if (!acc[date]) acc[date] = [];
+                                acc[date].push(item);
+                                return acc;
+                            }, {})
+                        ).sort((a, b) => new Date(a[1][0].pickupDate) - new Date(b[1][0].pickupDate))
+                        .map(([date, items]) => (
+                            <div key={date} className="animate-in fade-in slide-in-from-top-4 duration-500">
+                                <div className="flex items-center gap-3 mb-6">
+                                    <div className="h-px bg-gray-200 flex-1"></div>
+                                    <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest bg-gray-50 px-4 py-1 rounded-full border border-gray-100 whitespace-nowrap">
+                                        {date}
+                                    </h2>
+                                    <div className="h-px bg-gray-200 flex-1"></div>
+                                </div>
+                                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                                    {items.map(item => <TaskCard key={item._id} booking={item} type="pickup" />)}
+                                </div>
+                            </div>
+                        ))
                     ) : (
                         <div className="col-span-full py-20 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200 flex flex-col items-center justify-center text-center px-10">
                             <div className="bg-gray-100 p-6 rounded-full mb-4">
