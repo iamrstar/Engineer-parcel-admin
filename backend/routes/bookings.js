@@ -241,7 +241,7 @@ router.get("/:id", authMiddleware, async (req, res) => {
  * ------------------------ */
 router.get("/:id/receipt", authMiddleware, async (req, res) => {
   try {
-    const booking = await Booking.findById(req.params.id);
+    const booking = await Booking.findById(req.params.id).lean();
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
     }
@@ -477,14 +477,21 @@ router.put("/:id/assign", adminAuth, async (req, res) => {
       const User = require("../models/User");
       const rider = await User.findById(riderId);
       if (rider) {
-        updateObj.$push = {
-          trackingHistory: {
-            status: booking.status,
-            location: "Hub",
-            timestamp: new Date(),
-            description: `Rider ${rider.name} assigned for ${assignedFor || "pickup"}`
-          }
-        };
+        // Check if there's already an assignment entry in the tracking history
+        const alreadyAssigned = booking.trackingHistory.some(entry => 
+          entry.description && entry.description.includes("assigned for")
+        );
+
+        if (!alreadyAssigned) {
+          updateObj.$push = {
+            trackingHistory: {
+              status: booking.status,
+              location: "Hub",
+              timestamp: new Date(),
+              description: `Rider ${rider.name} assigned for ${assignedFor || "pickup"}`
+            }
+          };
+        }
       }
     }
 
@@ -755,6 +762,7 @@ router.get("/tasks/tomorrow-count", adminAuth, async (req, res) => {
     console.log(`Fetching tasks between ${tomorrowStart.toISOString()} and ${tomorrowEnd.toISOString()}`);
 
     const count = await Booking.countDocuments({
+      serviceType: "campus-parcel",
       $or: [
         { 
           pickupDate: { $gte: tomorrowStart, $lt: tomorrowEnd },
@@ -812,11 +820,13 @@ router.get("/tasks/tomorrow", adminAuth, async (req, res) => {
     }
 
     const bookings = await Booking.find({
+      serviceType: "campus-parcel",
       $or: [
         { pickupDate: { $gte: targetStart, $lt: targetEnd } },
         { boxDeliveryDate: { $gte: targetStart, $lt: targetEnd } }
       ]
-    }).select('bookingId senderDetails receiverDetails pickupDate pickupSlot boxDeliveryDate boxDeliverySlot serviceType status isBoxDelivered');
+    }).select('bookingId senderDetails receiverDetails pickupDate pickupSlot boxDeliveryDate boxDeliverySlot serviceType status isBoxDelivered assignedRider')
+      .populate('assignedRider', 'name phone');
 
     // Categorize
     const boxPickups = bookings.filter(b => 
