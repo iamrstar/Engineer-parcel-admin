@@ -99,12 +99,20 @@ const Tasks = () => {
         try {
             setLoadingTaskId(id);
             const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
-            await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/${id}/tasks/complete`, 
-                { type }, 
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
             
-            toast.success(`${type === 'pickup' ? 'Pickup' : 'Delivery'} marked as completed`);
+            if (type === 'final_confirm') {
+                await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/${id}/finalize`, 
+                    { status: 'delivered' }, 
+                    { headers: { Authorization: `Bearer ${token}` } }
+                );
+                toast.success("Booking finalized and marked as delivered");
+            } else {
+                await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/${id}/tasks/complete`, 
+                    { type }, 
+                    { headers: { Authorization: `Bearer ${token}` } }
+                );
+                toast.success(`${type === 'pickup' ? 'Pickup' : 'Delivery'} marked as completed`);
+            }
             
             // Re-fetch to update counts and list
             fetchTasks();
@@ -132,14 +140,14 @@ const Tasks = () => {
             >
                 {/* Rider Assignment Alert */}
                 <div className={`mb-3 px-3 py-2 rounded-lg flex items-center gap-2 text-xs font-bold ${
-                    isAssigned 
+                    (type === 'pickup' ? booking.pickupRider : booking.deliveryRider) 
                         ? 'bg-blue-50 text-blue-700 border border-blue-100' 
                         : 'bg-red-50 text-red-700 border border-red-100'
                 }`}>
-                    {isAssigned ? (
+                    {(type === 'pickup' ? booking.pickupRider : booking.deliveryRider) ? (
                         <>
                             <User className="h-3.5 w-3.5" />
-                            Rider Assigned: {booking.assignedRider.name}
+                            Rider Assigned: {(type === 'pickup' ? booking.pickupRider.name : booking.deliveryRider.name)}
                         </>
                     ) : (
                         <>
@@ -228,14 +236,28 @@ const Tasks = () => {
                 </div>
 
                 <div className={`flex items-center justify-between pt-4 border-t ${isCompleted ? 'border-green-100' : 'border-gray-50'}`}>
-                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide border ${
-                        booking.status === 'pending' ? 'bg-yellow-50 text-yellow-700 border-yellow-100' :
-                        booking.status === 'confirmed' ? 'bg-green-50 text-green-700 border-green-100' :
-                        booking.status === 'picked' ? 'bg-green-100 text-green-800 border-green-200' :
-                        'bg-blue-50 text-blue-700 border-blue-100'
-                    }`}>
-                        {booking.status}
-                    </span>
+                    <div className="flex gap-2">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide border ${
+                            booking.status === 'pending' ? 'bg-yellow-50 text-yellow-700 border-yellow-100' :
+                            booking.status === 'confirmed' ? 'bg-green-50 text-green-700 border-green-100' :
+                            booking.status === 'picked' ? 'bg-green-100 text-green-800 border-green-200' :
+                            booking.status === 'delivered' ? 'bg-blue-100 text-blue-800 border-blue-200' :
+                            'bg-blue-50 text-blue-700 border-blue-100'
+                        }`}>
+                            {booking.status}
+                        </span>
+                        {isCompleted && booking.status !== 'delivered' && (
+                            <button 
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setConfirmModal({ show: true, id: booking._id, type: 'final_confirm' });
+                                }}
+                                className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-green-600 text-white hover:bg-green-700 transition-colors shadow-sm"
+                            >
+                                Confirm & Close
+                            </button>
+                        )}
+                    </div>
                     <div className={`${isCompleted ? 'text-green-700' : 'text-primary-600'} flex items-center text-xs font-bold gap-1 group-hover:translate-x-1 transition-transform`}>
                         View Details <ChevronRight className="h-3.5 w-3.5" />
                     </div>
@@ -449,9 +471,14 @@ const Tasks = () => {
                             <div className="w-16 h-16 bg-green-50 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
                                 <CheckCircle className="h-8 w-8" />
                             </div>
-                            <h3 className="text-xl font-bold text-gray-900 mb-2">Complete Task?</h3>
+                            <h3 className="text-xl font-bold text-gray-900 mb-2">
+                                {confirmModal.type === 'final_confirm' ? 'Finalize Booking?' : 'Complete Task?'}
+                            </h3>
                             <p className="text-gray-500 text-sm mb-6">
-                                Are you sure you want to mark this <strong>{confirmModal.type}</strong> as completed? This will update the tracking history.
+                                {confirmModal.type === 'final_confirm' 
+                                    ? 'Are you sure you want to mark this booking as DONE? This will set the status to Delivered.'
+                                    : `Are you sure you want to mark this ${confirmModal.type} as completed? This will update the tracking history.`
+                                }
                             </p>
                             <div className="flex gap-3">
                                 <button
