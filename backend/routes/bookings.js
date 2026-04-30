@@ -210,6 +210,7 @@ router.get("/stats/recent-rider-activity", authMiddleware, async (req, res) => {
       return {
         _id: lastUpdate?._id || booking._id,
         bookingId: booking.bookingId,
+        bookingMongoId: booking._id,
         status: booking.status,
         assignedRider: booking.assignedRider,
         timestamp: lastUpdate?.timestamp || booking.updatedAt
@@ -225,7 +226,10 @@ router.get("/stats/recent-rider-activity", authMiddleware, async (req, res) => {
 
 router.get("/:id", authMiddleware, async (req, res) => {
   try {
-    const booking = await Booking.findById(req.params.id);
+    const booking = await Booking.findById(req.params.id)
+      .populate('assignedRider', 'name phone')
+      .populate('pickupRider', 'name phone')
+      .populate('deliveryRider', 'name phone');
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
     }
@@ -473,6 +477,15 @@ router.put("/:id/assign", adminAuth, async (req, res) => {
       }
     };
 
+    if (assignedFor === "pickup") {
+      updateObj.$set.pickupRider = riderId || null;
+    } else if (assignedFor === "delivery") {
+      updateObj.$set.deliveryRider = riderId || null;
+    } else if (assignedFor === "both") {
+      updateObj.$set.pickupRider = riderId || null;
+      updateObj.$set.deliveryRider = riderId || null;
+    }
+
     if (riderId) {
       const User = require("../models/User");
       const rider = await User.findById(riderId);
@@ -499,7 +512,9 @@ router.put("/:id/assign", adminAuth, async (req, res) => {
       req.params.id,
       updateObj,
       { new: true, runValidators: false }
-    );
+    ).populate('assignedRider', 'name phone')
+     .populate('pickupRider', 'name phone')
+     .populate('deliveryRider', 'name phone');
     res.json(updated);
   } catch (error) {
     console.error("Error assigning rider:", error);
@@ -825,8 +840,10 @@ router.get("/tasks/tomorrow", adminAuth, async (req, res) => {
         { pickupDate: { $gte: targetStart, $lt: targetEnd } },
         { boxDeliveryDate: { $gte: targetStart, $lt: targetEnd } }
       ]
-    }).select('bookingId senderDetails receiverDetails pickupDate pickupSlot boxDeliveryDate boxDeliverySlot serviceType status isBoxDelivered assignedRider')
-      .populate('assignedRider', 'name phone');
+    }).select('bookingId senderDetails receiverDetails pickupDate pickupSlot boxDeliveryDate boxDeliverySlot serviceType status isBoxDelivered assignedRider pickupRider deliveryRider')
+      .populate('assignedRider', 'name phone')
+      .populate('pickupRider', 'name phone')
+      .populate('deliveryRider', 'name phone');
 
     // Categorize
     const boxPickups = bookings.filter(b => 
@@ -886,6 +903,39 @@ router.put("/:id/tasks/complete", adminAuth, async (req, res) => {
     res.json({ message: "Task marked as completed", booking: updated });
   } catch (error) {
     console.error("Error completing task:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/** ------------------------
+ * ✅ Finalize Booking Status
+ * ------------------------ */
+router.put("/:id/finalize", adminAuth, async (req, res) => {
+  try {
+    const { status } = req.body;
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+    const finalStatus = status || 'delivered';
+
+    const updated = await Booking.findByIdAndUpdate(
+      req.params.id,
+      {
+        $set: { status: finalStatus },
+        $push: {
+          trackingHistory: {
+            status: finalStatus,
+            location: booking.currentLocation || "Hub",
+            timestamp: new Date(),
+            description: `Booking finalized by Admin. Shipment marked as ${finalStatus.toUpperCase()}.`
+          }
+        }
+      },
+      { new: true, runValidators: false }
+    );
+    res.json(updated);
+  } catch (error) {
+    console.error("Error finalizing booking:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
