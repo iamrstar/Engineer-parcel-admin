@@ -380,25 +380,26 @@ const BookingDetail = () => {
           <Bike className="h-5 w-5 text-orange-500 mr-2" />
           <h3 className="text-base sm:text-lg font-medium text-gray-900">Rider Assignment</h3>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Assignment Controls */}
           {booking.status === "pending" ? (
-            <>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Assign Rider</label>
-                <select
-                  value={assignmentData.riderId}
-                  onChange={(e) => setAssignmentData({ ...assignmentData, riderId: e.target.value })}
-                  className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white"
-                >
-                  <option value="">Unassigned</option>
-                  {riders.map(r => (
-                    <option key={r._id} value={r._id}>{r.name} ({r.phone})</option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex items-end gap-2">
-                <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Assigned For</label>
+            <div className="bg-white/50 p-4 rounded-xl border border-orange-100 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Select Rider</label>
+                  <select
+                    value={assignmentData.riderId}
+                    onChange={(e) => setAssignmentData({ ...assignmentData, riderId: e.target.value })}
+                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white"
+                  >
+                    <option value="">Unassigned</option>
+                    {riders.map(r => (
+                      <option key={r._id} value={r._id}>{r.name} ({r.phone})</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Assigned For</label>
                   <select
                     value={assignmentData.assignedFor}
                     onChange={(e) => setAssignmentData({ ...assignmentData, assignedFor: e.target.value })}
@@ -409,63 +410,78 @@ const BookingDetail = () => {
                     <option value="both">Both (Pickup & Delivery)</option>
                   </select>
                 </div>
-                <button
-                  onClick={() => handleAssignRider(assignmentData.riderId, assignmentData.assignedFor)}
-                  className="px-4 py-2 bg-primary-600 text-white text-sm font-bold rounded-lg hover:bg-primary-700 transition-all shadow-sm active:scale-95"
-                >
-                  Confirm
-                </button>
               </div>
-            </>
+              <button
+                onClick={() => handleAssignRider(assignmentData.riderId, assignmentData.assignedFor)}
+                className="w-full py-2 bg-primary-600 text-white text-sm font-bold rounded-lg hover:bg-primary-700 transition-all shadow-md active:scale-95 flex items-center justify-center gap-2"
+              >
+                <Bike className="h-4 w-4" />
+                Confirm Assignment
+              </button>
+            </div>
           ) : (
-            <div className="sm:col-span-2 flex items-center">
-              <div className={`${booking.status === 'cancelled' ? 'bg-red-50 border-red-200' : 'bg-orange-100/50 border-orange-200'} border rounded-lg px-4 py-3 w-full`}>
-                <p className={`text-sm ${booking.status === 'cancelled' ? 'text-red-800' : 'text-orange-800'} flex items-center`}>
-                  <span className="font-bold mr-2">Order Status:</span>
-                  <span className="capitalize">{booking.status}</span>
+            <div className={`${booking.status === 'cancelled' ? 'bg-red-50 border-red-200' : 'bg-orange-100/50 border-orange-200'} border rounded-xl px-4 py-4 h-full flex flex-col justify-center`}>
+              <p className={`text-sm ${booking.status === 'cancelled' ? 'text-red-800' : 'text-orange-800'} flex items-center`}>
+                <span className="font-bold mr-2">Order Status:</span>
+                <span className="capitalize">{booking.status}</span>
+              </p>
+              {booking.status === 'cancelled' && booking.rejectionReason && (
+                <p className="mt-2 p-2 bg-white/50 border border-red-100 rounded text-sm text-red-700 italic">
+                  <span className="font-bold not-italic">REASON:</span> {booking.rejectionReason}
                 </p>
-                {booking.status === 'cancelled' && booking.rejectionReason && (
-                  <p className="mt-2 p-2 bg-white/50 border border-red-100 rounded text-sm text-red-700 italic">
-                    <span className="font-bold not-italic">REASON:</span> {booking.rejectionReason}
-                  </p>
-                )}
-                <p className={`text-xs ${booking.status === 'cancelled' ? 'text-red-600' : 'text-orange-600'} mt-1`}>
-                  {booking.status === 'cancelled'
-                    ? "Order was rejected. Click 'Reschedule Order' if you want to make it assignable again."
-                    : `Rider assignment is locked for ${booking.status} orders.`}
-                </p>
-                {booking.status === 'cancelled' && (
-                  <button
-                    onClick={handleReschedule}
-                    className="mt-3 px-4 py-1.5 bg-green-600 text-white text-xs font-bold rounded-md hover:bg-green-700 shadow-sm flex items-center gap-1 w-fit"
-                  >
-                    <RefreshCw className="h-3 w-3" />
-                    Reschedule Order
-                  </button>
-                )}
-              </div>
+              )}
+              <p className={`text-xs ${booking.status === 'cancelled' ? 'text-red-600' : 'text-orange-600'} mt-1`}>
+                {booking.status === 'cancelled'
+                  ? "Order was rejected. Click 'Reschedule Order' if you want to make it assignable again."
+                  : `Rider assignment is locked for ${booking.status} orders.`}
+              </p>
+              {booking.status === 'cancelled' && (
+                <button
+                  onClick={handleReschedule}
+                  className="mt-3 px-4 py-1.5 bg-green-600 text-white text-xs font-bold rounded-md hover:bg-green-700 shadow-sm flex items-center gap-1 w-fit"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                  Reschedule Order
+                </button>
+              )}
             </div>
           )}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              {booking.status === "pending" ? "Current Assignment" : "Assigned Rider"}
+
+          {/* Current Assignment Status */}
+          <div className="space-y-3">
+            <label className="block text-xs font-bold text-gray-500 uppercase px-1">
+              Live Assignment Status
             </label>
-            <div className="px-3 py-2 text-sm bg-white border border-gray-200 rounded-lg h-[42px] flex items-center">
-              {booking.assignedRider ? (
-                <span className="inline-flex items-center gap-1.5 overflow-hidden">
-                  <span className="w-2 h-2 rounded-full bg-green-500 shrink-0"></span>
-                  <span className="text-green-700 font-bold truncate">
-                    {typeof booking.assignedRider === 'object' ? booking.assignedRider.name : 'Rider Assigned'}
-                  </span>
-                  <span className="text-gray-500 text-xs shrink-0">— {booking.assignedFor || 'pickup'}</span>
-                </span>
-              ) : (
-                <span className="text-gray-400">No rider assigned</span>
-              )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Pickup Rider Info */}
+              <div className="bg-white p-3 rounded-xl border border-blue-100 shadow-sm flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
+                  <Package className="h-5 w-5 text-blue-500" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase leading-none mb-1">Pickup Rider</p>
+                  <p className="text-sm font-bold text-gray-900 truncate">
+                    {booking.pickupRider ? (typeof booking.pickupRider === 'object' ? booking.pickupRider.name : 'Rider Assigned') : 'Unassigned'}
+                  </p>
+                </div>
+              </div>
+              
+              {/* Delivery Rider Info */}
+              <div className="bg-white p-3 rounded-xl border border-purple-100 shadow-sm flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center shrink-0">
+                  <Truck className="h-5 w-5 text-purple-500" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase leading-none mb-1">Delivery Rider</p>
+                  <p className="text-sm font-bold text-gray-900 truncate">
+                    {booking.deliveryRider ? (typeof booking.deliveryRider === 'object' ? booking.deliveryRider.name : 'Rider Assigned') : 'Unassigned'}
+                  </p>
+                </div>
             </div>
           </div>
         </div>
       </div>
+    </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Sender Details */}
