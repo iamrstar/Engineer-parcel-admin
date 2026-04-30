@@ -81,17 +81,21 @@ const Layout = ({ children }) => {
 
         let alertTriggered = false;
         let alertMessage = "";
+        let singleBookingId = null;
+        let updateCount = 0;
 
         if (!isFirstLoadRef.current) {
           // Check for new intake bookings
           if (newCount > prevCountRef.current) {
             alertTriggered = true;
             alertMessage = "New E-Docket intake bookings have arrived.";
+            updateCount++;
           }
           // Check for new online orders
           if (newPending > prevPendingRef.current) {
             alertTriggered = true;
             alertMessage = alertTriggered && alertMessage ? "New E-Dockets and Online Orders arrived." : "New Online Orders have arrived.";
+            updateCount++;
           }
 
           // Check for new Rider Actions (Picked/Delivered)
@@ -99,18 +103,15 @@ const Layout = ({ children }) => {
             if (!seenActivityIdsRef.current.has(activity._id)) {
               seenActivityIdsRef.current.add(activity._id);
               
-              // Only trigger sound/alert for meaningful actions
-              // 1. Skip "assigned" or "confirmed" as these are admin actions
-              // 2. Skip "pending" IF a rider is assigned (this means an admin just assigned the rider)
-              // 3. Keep "pending" IF NO rider is assigned (this is a new web order)
               const isAdminAction = activity.status === "assigned" || 
                                     activity.status === "confirmed" || 
                                     (activity.status === "pending" && activity.assignedRider);
 
               if (!isAdminAction) {
                 alertTriggered = true;
+                updateCount++;
+                singleBookingId = activity.bookingMongoId;
                 
-                // Form a clean message
                 let message = "";
                 if (activity.status === "pending" && !activity.assignedRider) {
                   message = `New Web Order ${activity.bookingId} received.`;
@@ -127,15 +128,13 @@ const Layout = ({ children }) => {
           });
         }
 
-        // IMPORTANT: Always populate seenActivityIdsRef even on first load 
-        // to prevent bulk "already happened" alerts
+        // ... existing seenActivityIdsRef logic ...
         recentActivity.forEach(activity => {
           if (!seenActivityIdsRef.current.has(activity._id)) {
             seenActivityIdsRef.current.add(activity._id);
           }
         });
 
-        // Keep track of IDs to avoid memory leaks if it gets too big
         if (seenActivityIdsRef.current.size > 200) {
           const idsArray = Array.from(seenActivityIdsRef.current);
           seenActivityIdsRef.current = new Set(idsArray.slice(-100));
@@ -150,7 +149,7 @@ const Layout = ({ children }) => {
           audio.play().catch(e => console.error("Audio play failed:", e));
           audioRef.current = audio;
 
-          // Flash the tab title to get user attention if they are on another tab
+          // Flash the tab title
           const originalTitle = document.title;
           let isAlertTitle = false;
           const titleInterval = setInterval(() => {
@@ -158,7 +157,6 @@ const Layout = ({ children }) => {
             isAlertTitle = !isAlertTitle;
           }, 1000);
 
-          // Limit the number of individual rider actions displayed to avoid "hazy" UI
           let displayMessage = alertMessage;
           if (alertMessage.split("Also,").length > 3) {
             const parts = alertMessage.split("Also,");
@@ -166,14 +164,36 @@ const Layout = ({ children }) => {
           }
 
           toast((t) => (
-            <div className="flex flex-col gap-2 min-w-[250px]">
-              <div className="flex items-center gap-2 font-bold text-red-600 text-lg">
-                🚨 New Order Alert!
+            <div className="flex flex-col gap-3 min-w-[300px] bg-white p-1">
+              <div className="flex items-center gap-3 border-b border-red-100 pb-2">
+                <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center animate-pulse">
+                  <Bell className="h-5 w-5 text-red-600" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-gray-900 leading-tight">New Order Alert!</h4>
+                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">System Notification</p>
+                </div>
               </div>
-              <p className="text-gray-800">{displayMessage}</p>
-              {newCount > prevCountRef.current && <p className="text-sm font-semibold text-gray-600">Pending E-Dockets: {newCount}</p>}
-              {newPending > prevPendingRef.current && <p className="text-sm font-semibold text-gray-600 mb-2">Pending Online Orders: {newPending}</p>}
-              <div className="flex gap-2">
+              
+              <div className="py-1">
+                <p className="text-sm text-gray-700 font-medium leading-relaxed">{displayMessage}</p>
+                <div className="mt-2 space-y-1">
+                  {newCount > prevCountRef.current && (
+                    <div className="flex items-center gap-2 text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                      Pending E-Dockets: {newCount}
+                    </div>
+                  )}
+                  {newPending > prevPendingRef.current && (
+                    <div className="flex items-center gap-2 text-[11px] font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded">
+                      <div className="w-1.5 h-1.5 rounded-full bg-orange-500"></div>
+                      Pending Online Orders: {newPending}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-2 border-t border-gray-100">
                 <button
                   onClick={() => {
                     toast.dismiss(t.id);
@@ -183,11 +203,17 @@ const Layout = ({ children }) => {
                     }
                     clearInterval(titleInterval);
                     document.title = originalTitle;
-                    navigate("/bookings");
+                    
+                    if (updateCount === 1 && singleBookingId) {
+                      navigate(`/bookings/${singleBookingId}`);
+                    } else {
+                      navigate("/bookings");
+                    }
                   }}
-                  className="flex-1 px-4 py-2 bg-primary-500 text-white rounded-lg hover:bg-primary-600 font-medium transition-colors text-sm"
+                  className="flex-1 px-4 py-2.5 bg-orange-500 text-white rounded-xl hover:bg-orange-600 font-bold shadow-lg shadow-orange-100 transition-all active:scale-95 text-xs flex items-center justify-center gap-2"
                 >
-                  View Orders
+                  <Package className="h-3.5 w-3.5" />
+                  {updateCount === 1 && singleBookingId ? "View Order" : "View Orders"}
                 </button>
                 <button
                   onClick={() => {
@@ -199,7 +225,7 @@ const Layout = ({ children }) => {
                     clearInterval(titleInterval);
                     document.title = originalTitle;
                   }}
-                  className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium transition-colors text-sm"
+                  className="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 font-bold transition-all text-xs"
                 >
                   Dismiss
                 </button>
@@ -207,8 +233,8 @@ const Layout = ({ children }) => {
             </div>
           ), {
             duration: Infinity,
-            position: 'top-center',
-            style: { border: '2px solid #ef4444', padding: '16px', backgroundColor: '#fef2f2' },
+            position: 'top-right',
+            style: { border: 'none', padding: '12px', borderRadius: '16px', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' },
           });
         }
 
