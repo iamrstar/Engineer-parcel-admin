@@ -137,6 +137,14 @@ const bookingSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
+    pickupRider: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    deliveryRider: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
     assignedFor: {
       type: String,
       enum: ["pickup", "delivery", "both"],
