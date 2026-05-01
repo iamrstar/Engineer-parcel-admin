@@ -195,7 +195,17 @@ const RiderDashboard = () => {
                             <div className="mt-6 flex gap-3">
                                 <button
                                     disabled={actionLoading === task._id}
-                                    onClick={() => handleAction(task._id, task.status === 'pending' || task.status === 'confirmed' ? 'picked' : 'delivered')}
+                                    onClick={() => {
+                                        let nextAction = "";
+                                        if (task.serviceType?.toLowerCase() === 'campus-parcel') {
+                                            if (task.status === 'pending' || task.status === 'confirmed') nextAction = "empty_box_delivered";
+                                            else if (task.status === 'empty_box_delivered') nextAction = "filled_box_picked";
+                                            else nextAction = "delivered";
+                                        } else {
+                                            nextAction = (task.status === 'pending' || task.status === 'confirmed' ? 'picked' : 'delivered');
+                                        }
+                                        handleAction(task._id, nextAction);
+                                    }}
                                     className="flex-1 bg-primary-600 hover:bg-primary-700 text-white py-3.5 rounded-2xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-primary-200 transition-all active:translate-y-0.5 disabled:opacity-50"
                                 >
                                     {actionLoading === task._id ? (
@@ -203,7 +213,12 @@ const RiderDashboard = () => {
                                     ) : (
                                         <>
                                             <CheckCircle className="h-5 w-5" />
-                                            {task.status === 'pending' || task.status === 'confirmed' ? 'Mark as Picked' : 'Mark as Delivered'}
+                                            {task.serviceType?.toLowerCase() === 'campus-parcel' ? (
+                                                task.status === 'pending' || task.status === 'confirmed' ? 'Box Delivered' :
+                                                task.status === 'empty_box_delivered' ? 'Box Picked' : 'Final Delivery'
+                                            ) : (
+                                                task.status === 'pending' || task.status === 'confirmed' ? 'Mark as Picked' : 'Mark as Delivered'
+                                            )}
                                         </>
                                     )}
                                 </button>
