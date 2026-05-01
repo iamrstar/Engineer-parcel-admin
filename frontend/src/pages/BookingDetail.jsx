@@ -382,7 +382,7 @@ const BookingDetail = () => {
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Assignment Controls */}
-          {booking.status === "pending" ? (
+          {booking.status === "pending" || (booking.serviceType === 'campus-parcel' && booking.status === 'empty_box_delivered') ? (
             <div className="bg-white/50 p-4 rounded-xl border border-orange-100 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -416,14 +416,20 @@ const BookingDetail = () => {
                 className="w-full py-2 bg-primary-600 text-white text-sm font-bold rounded-lg hover:bg-primary-700 transition-all shadow-md active:scale-95 flex items-center justify-center gap-2"
               >
                 <Bike className="h-4 w-4" />
-                Confirm Assignment
+                {booking.status === 'empty_box_delivered' ? 'Assign for Box Pickup' : 'Confirm Assignment'}
               </button>
             </div>
           ) : (
             <div className={`${booking.status === 'cancelled' ? 'bg-red-50 border-red-200' : 'bg-orange-100/50 border-orange-200'} border rounded-xl px-4 py-4 h-full flex flex-col justify-center`}>
               <p className={`text-sm ${booking.status === 'cancelled' ? 'text-red-800' : 'text-orange-800'} flex items-center`}>
                 <span className="font-bold mr-2">Order Status:</span>
-                <span className="capitalize">{booking.status}</span>
+                <span className="capitalize">
+                  {booking.serviceType?.toLowerCase() === 'campus-parcel' 
+                    ? (booking.status === 'empty_box_delivered' ? 'Box Delivered (For Packing)' :
+                       booking.status === 'filled_box_picked' ? 'Box Picked (Ready)' :
+                       booking.status)
+                    : booking.status}
+                </span>
               </p>
               {booking.status === 'cancelled' && booking.rejectionReason && (
                 <p className="mt-2 p-2 bg-white/50 border border-red-100 rounded text-sm text-red-700 italic">
@@ -433,7 +439,9 @@ const BookingDetail = () => {
               <p className={`text-xs ${booking.status === 'cancelled' ? 'text-red-600' : 'text-orange-600'} mt-1`}>
                 {booking.status === 'cancelled'
                   ? "Order was rejected. Click 'Reschedule Order' if you want to make it assignable again."
-                  : `Rider assignment is locked for ${booking.status} orders.`}
+                  : (booking.serviceType === 'campus-parcel' && booking.status === 'filled_box_picked')
+                    ? "Box has been picked up. Final delivery assignment can be managed if needed."
+                    : `Rider assignment is locked for ${booking.status} orders.`}
               </p>
               {booking.status === 'cancelled' && (
                 <button
@@ -1118,6 +1126,12 @@ const BookingDetail = () => {
                 >
                   <option value="pending">Pending</option>
                   <option value="confirmed">Confirmed</option>
+                  {booking.serviceType?.toLowerCase() === 'campus-parcel' && (
+                    <>
+                      <option value="empty_box_delivered">Box Delivered (For Packing)</option>
+                      <option value="filled_box_picked">Box Picked (Ready)</option>
+                    </>
+                  )}
                   <option value="picked">Picked</option>
                   <option value="in-transit">In Transit</option>
                   <option value="out-for-delivery">Out for Delivery</option>
@@ -1135,7 +1149,11 @@ const BookingDetail = () => {
                         : "bg-blue-100 text-blue-800"
                     }`}
                 >
-                  {booking.status}
+                  {booking.serviceType?.toLowerCase() === 'campus-parcel' 
+                    ? (booking.status === 'empty_box_delivered' ? 'Box Delivered (For Packing)' :
+                       booking.status === 'filled_box_picked' ? 'Box Picked (Ready)' :
+                       booking.status)
+                    : booking.status}
                 </span>
               )}
             </div>
@@ -1519,7 +1537,11 @@ const BookingDetail = () => {
                 ) : (
                   <>
                     <p className="text-sm text-gray-700">
-                      <span className="font-semibold">Status:</span> {track?.status || "—"}
+                      <span className="font-semibold">Status:</span> {
+                        track?.status === 'empty_box_delivered' ? 'Empty Box Delivered' :
+                        track?.status === 'filled_box_picked' ? 'Filled Box Picked' :
+                        track?.status || "—"
+                      }
                     </p>
                     <p className="text-sm text-gray-700">
                       <span className="font-semibold">Location:</span> {track?.location || "—"}
