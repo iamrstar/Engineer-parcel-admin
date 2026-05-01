@@ -78,9 +78,13 @@ const bookingSchema = new mongoose.Schema(
     deliveryDate: Date,
     status: {
       type: String,
-      enum: ["pending", "confirmed", "picked", "in-transit", "reached", "out-for-delivery", "delivered", "cancelled"],
+      enum: ["pending", "confirmed", "picked", "in-transit", "reached", "out-for-delivery", "delivered", "cancelled", "empty_box_delivered", "filled_box_picked"],
       default: "pending",
     },
+    emptyBoxDelivered: { type: Boolean, default: false },
+    emptyBoxDeliveredAt: Date,
+    boxPicked: { type: Boolean, default: false },
+    boxPickedAt: Date,
     currentLocation: {
       type: String,
       default: "Hub",
