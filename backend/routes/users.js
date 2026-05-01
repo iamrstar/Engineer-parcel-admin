@@ -205,17 +205,32 @@ router.put("/tasks/:id/action", userAuth, async (req, res) => {
             booking.status = "picked";
         } else if (action === "delivered") {
             booking.status = "delivered";
+        } else if (action === "empty_box_delivered") {
+            booking.status = "empty_box_delivered";
+            booking.emptyBoxDelivered = true;
+            booking.emptyBoxDeliveredAt = new Date();
+        } else if (action === "filled_box_picked") {
+            booking.status = "filled_box_picked";
+            booking.boxPicked = true;
+            booking.boxPickedAt = new Date();
         } else if (action === "cancelled" || action === "rejected") {
             booking.status = "cancelled";
             booking.isRejected = true;
             booking.rejectionReason = reason || "No reason provided";
         }
 
+        const actionLabels = {
+            'empty_box_delivered': 'Empty box delivered to student',
+            'filled_box_picked': 'Filled box picked from student',
+            'picked': 'Package picked up',
+            'delivered': 'Package delivered to destination'
+        };
+
         booking.trackingHistory.push({
             status: booking.status,
             location: "Active",
             timestamp: new Date(),
-            description: `Task marked as ${booking.status} by ${req.user.name}${reason ? ': ' + reason : ''}`
+            description: `${actionLabels[action] || ('Task marked as ' + booking.status)} by ${req.user.name}${reason ? ': ' + reason : ''}`
         });
 
         await booking.save();
