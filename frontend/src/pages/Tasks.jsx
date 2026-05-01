@@ -242,9 +242,15 @@ const Tasks = () => {
                             booking.status === 'confirmed' ? 'bg-green-50 text-green-700 border-green-100' :
                             booking.status === 'picked' ? 'bg-green-100 text-green-800 border-green-200' :
                             booking.status === 'delivered' ? 'bg-blue-100 text-blue-800 border-blue-200' :
+                            booking.status === 'empty_box_delivered' ? 'bg-blue-50 text-blue-700 border-blue-100' :
+                            booking.status === 'filled_box_picked' ? 'bg-teal-50 text-teal-700 border-teal-100' :
                             'bg-blue-50 text-blue-700 border-blue-100'
                         }`}>
-                            {booking.status}
+                            {booking.serviceType?.toLowerCase() === 'campus-parcel' 
+                                ? (booking.status === 'empty_box_delivered' ? 'Box Delivered (For Packing)' :
+                                   booking.status === 'filled_box_picked' ? 'Box Picked (Ready)' :
+                                   booking.status)
+                                : booking.status}
                         </span>
                         {isCompleted && booking.status !== 'delivered' && (
                             <button 
