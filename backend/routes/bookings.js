@@ -317,7 +317,29 @@ router.put("/:id", authMiddleware, async (req, res) => {
       return toReturn;
     };
 
-    const updateData = flattenObject(req.body);
+    // Prevent populated objects from causing CastErrors during flatten/update
+    const cleanBody = { ...req.body };
+    const mongoose = require("mongoose");
+    const idFields = ['assignedRider', 'pickupRider', 'deliveryRider', 'userId', 'vendorId'];
+    
+    idFields.forEach(field => {
+      if (cleanBody[field]) {
+        if (typeof cleanBody[field] === 'object') {
+          if (cleanBody[field]._id) {
+            cleanBody[field] = cleanBody[field]._id;
+          } else {
+            delete cleanBody[field];
+          }
+        } else if (typeof cleanBody[field] === 'string') {
+          // If it's a string but not a valid ObjectId (like "Vivek "), remove it
+          if (!mongoose.Types.ObjectId.isValid(cleanBody[field])) {
+            delete cleanBody[field];
+          }
+        }
+      }
+    });
+
+    const updateData = flattenObject(cleanBody);
 
     const booking = await Booking.findByIdAndUpdate(
       req.params.id, 
@@ -490,9 +512,9 @@ router.put("/:id/assign", adminAuth, async (req, res) => {
       const User = require("../models/User");
       const rider = await User.findById(riderId);
       if (rider) {
-        // Check if there's already an assignment entry in the tracking history
+        // Check if there's already an assignment entry for this specific purpose in the tracking history
         const alreadyAssigned = booking.trackingHistory.some(entry => 
-          entry.description && entry.description.includes("assigned for")
+          entry.description && entry.description.includes(`assigned for ${assignedFor || "pickup"}`)
         );
 
         if (!alreadyAssigned) {
