@@ -139,6 +139,8 @@ const Bookings = () => {
       "out-for-delivery": "bg-orange-100 text-orange-800",
       delivered: "bg-green-100 text-green-800",
       cancelled: "bg-red-100 text-red-800",
+      empty_box_delivered: "bg-blue-100 text-blue-800",
+      filled_box_picked: "bg-teal-100 text-teal-800",
     }
     return colors[status] || "bg-gray-100 text-gray-800"
   }
@@ -314,7 +316,11 @@ const Bookings = () => {
                       <td className="px-6 py-4 whitespace-nowrap overflow-visible">
                         <div className="flex items-center space-x-1.5 group relative">
                           <span className={`inline-flex px-2 py-0.5 text-[10px] font-bold uppercase rounded-full border ${getStatusColor(booking.status)}`}>
-                            {booking.status}
+                            {booking.serviceType?.toLowerCase() === 'campus-parcel' 
+                              ? (booking.status === 'empty_box_delivered' ? 'Box Delivered (For Packing)' :
+                                 booking.status === 'filled_box_picked' ? 'Box Picked (Ready)' :
+                                 booking.status)
+                              : booking.status}
                           </span>
                           {isRecent(booking.updatedAt) && (
                             <span className="flex h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse"></span>
