@@ -195,6 +195,39 @@ const BookingDetail = () => {
   };
 
   const handleInputChange = (field, value, nested = null) => {
+    if (nested === 'pricing') {
+      setBooking((prev) => {
+        const currentPricing = prev.pricing || {};
+        const newPricing = { ...currentPricing, [field]: value };
+
+        // Auto-calculate logic
+        const base = Number(field === 'basePrice' ? value : currentPricing.basePrice) || 0;
+        const packaging = Number(field === 'packagingCharge' ? value : currentPricing.packagingCharge) || 0;
+        const discount = Number(field === 'discount' ? value : (currentPricing.discount || 0)) || 0;
+        
+        if (field === 'basePrice' || field === 'packagingCharge') {
+          // Update GST and Total when base or packaging changes
+          const gst = Math.round((base + packaging) * 0.18 * 100) / 100;
+          newPricing.tax = gst;
+          newPricing.totalAmount = Math.round((base + packaging + gst - discount) * 100) / 100;
+        } else if (field === 'tax') {
+          // Update Total when GST is manually adjusted
+          const gst = Number(value) || 0;
+          newPricing.totalAmount = Math.round((base + packaging + gst - discount) * 100) / 100;
+        } else if (field === 'discount') {
+          // Update Total when discount changes
+          const gst = Number(currentPricing.tax) || 0;
+          newPricing.totalAmount = Math.round((base + packaging + gst - discount) * 100) / 100;
+        }
+
+        return {
+          ...prev,
+          pricing: newPricing,
+        };
+      });
+      return;
+    }
+
     if (nested) {
       setBooking((prev) => ({
         ...prev,
@@ -405,8 +438,8 @@ const BookingDetail = () => {
                     onChange={(e) => setAssignmentData({ ...assignmentData, assignedFor: e.target.value })}
                     className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white"
                   >
-                    <option value="pickup">Pickup</option>
-                    <option value="delivery">Delivery</option>
+                    <option value="pickup">Box Pickup</option>
+                    <option value="delivery">Box Delivery</option>
                     <option value="both">Both (Pickup & Delivery)</option>
                   </select>
                 </div>
