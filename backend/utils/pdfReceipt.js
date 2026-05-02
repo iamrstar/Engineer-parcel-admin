@@ -638,6 +638,8 @@ async function generateOfficeLabelPDF(booking) {
         const margin = 45;
         let globalY = height - margin;
 
+        const isEdl = booking.edl > 0 || booking.packageDetails?.isEdl || (booking.packageDetails?.description && booking.packageDetails.description.toUpperCase().includes('EDL'));
+
         const clean = (str) => {
             if (typeof str !== 'string') return String(str || '');
             return str.replace(/\t/g, ' ').replace(/[^\x20-\x7E]/g, '');
