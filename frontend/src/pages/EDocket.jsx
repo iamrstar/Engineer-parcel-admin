@@ -70,19 +70,25 @@ export default function EDocket() {
         totalAmount: 0,
     });
 
-    // Auto-calculate Pricing
-    useEffect(() => {
-        const base = Number(pricing.basePrice) || 0;
-        const packaging = Number(pricing.packagingCharge) || 0;
-        const gst = (base + packaging) * 0.18;
-        const total = base + packaging + gst;
-
-        setPricing((prev) => ({
-            ...prev,
-            tax: Math.round(gst * 100) / 100,
-            totalAmount: Math.round(total * 100) / 100,
-        }));
-    }, [pricing.basePrice, pricing.packagingCharge]);
+    // Pricing Update Helper
+    const updatePricing = (field, value) => {
+        setPricing(prev => {
+            const newPricing = { ...prev, [field]: value };
+            const base = Number(field === 'basePrice' ? value : prev.basePrice) || 0;
+            const packaging = Number(field === 'packagingCharge' ? value : prev.packagingCharge) || 0;
+            
+            if (field === 'basePrice' || field === 'packagingCharge') {
+                const newTax = Math.round((base + packaging) * 0.18 * 100) / 100;
+                newPricing.tax = newTax;
+                newPricing.totalAmount = Math.round((base + packaging + newTax) * 100) / 100;
+            } else if (field === 'tax') {
+                const tax = Number(value) || 0;
+                newPricing.totalAmount = Math.round((base + packaging + tax) * 100) / 100;
+            }
+            // If field is 'totalAmount', just keep the manual value
+            return newPricing;
+        });
+    };
 
     const [editForm, setEditForm] = useState({});
     const [verifySuccess, setVerifySuccess] = useState(false);
@@ -282,21 +288,38 @@ export default function EDocket() {
     };
 
     const calculateSuggestedPrice = () => {
-        const dims = editForm.packageDetails?.dimensions?.[0] || { length: 0, width: 0, height: 0 };
+        const pkg = editForm.packageDetails || {};
+        const dims = pkg.dimensions?.[0] || { length: 0, width: 0, height: 0 };
         const volWeight = (Number(dims.length) * Number(dims.width) * Number(dims.height)) / 2700;
-        return Math.round(volWeight * 100) / 100;
+        
+        let weight = Number(pkg.weight) || 0;
+        if (pkg.weightUnit === 'g') weight = weight / 1000;
+
+        const chargeableWeight = Math.max(volWeight, weight);
+        const suggestedPrice = chargeableWeight * 100;
+        
+        return Math.round(suggestedPrice * 100) / 100;
     };
 
     useEffect(() => {
         if (selectedBooking && editForm.packageDetails) {
+            // Respect manual/negotiated pricing from agent
+            // Only auto-calculate if pricingMode is NOT MANUAL OR if the admin has explicitly cleared the price (basePrice === 0)
+            if (selectedBooking.pricing?.pricingMode === 'MANUAL' && 
+                Number(pricing.basePrice) > 0 && 
+                Number(pricing.basePrice) === selectedBooking.pricing.basePrice) {
+                return;
+            }
+
             const suggested = calculateSuggestedPrice();
             if (suggested > 0) {
                 setPricing((prev) => ({ ...prev, basePrice: suggested }));
             }
         }
     }, [
+        selectedBooking,
         editForm.packageDetails?.weight,
-        editForm.packageDetails?.dimensions?.[0], // Fixed for array
+        editForm.packageDetails?.dimensions?.[0],
         editForm.receiverDetails?.city,
         editForm.receiverDetails?.state,
         editForm.serviceType,
@@ -766,19 +789,19 @@ export default function EDocket() {
                                     <div className="grid grid-cols-2 gap-4 mt-4">
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-1">Base Price ₹</label>
-                                            <input type="number" value={pricing.basePrice} onChange={(e) => setPricing({ ...pricing, basePrice: e.target.value })} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 font-mono text-lg text-primary-700" />
+                                            <input type="number" value={pricing.basePrice} onChange={(e) => updatePricing('basePrice', e.target.value)} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 font-mono text-lg text-primary-700" />
                                         </div>
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-1">Packaging Extra ₹</label>
-                                            <input type="number" value={pricing.packagingCharge} onChange={(e) => setPricing({ ...pricing, packagingCharge: e.target.value })} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 font-mono text-lg" />
+                                            <input type="number" value={pricing.packagingCharge} onChange={(e) => updatePricing('packagingCharge', e.target.value)} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 font-mono text-lg" />
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">18% GST ₹</label>
-                                            <input type="number" readOnly value={pricing.tax} className="w-full px-3 py-2.5 border border-gray-200 rounded-lg shadow-sm bg-gray-50 font-mono text-gray-500" />
+                                            <label className="block text-sm font-medium text-gray-700 mb-1">GST (18%) ₹</label>
+                                            <input type="number" value={pricing.tax} onChange={(e) => updatePricing('tax', e.target.value)} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 font-mono text-lg" />
                                         </div>
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-1">Total Payable</label>
-                                            <div className="text-2xl font-black text-green-600">₹{pricing.totalAmount}</div>
+                                            <input type="number" value={pricing.totalAmount} onChange={(e) => updatePricing('totalAmount', e.target.value)} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 font-mono text-xl font-black text-green-600" />
                                         </div>
                                     </div>
                                 </div>
