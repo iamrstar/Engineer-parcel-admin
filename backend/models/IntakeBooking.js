@@ -18,6 +18,7 @@ const PackageSchema = new mongoose.Schema({
     weightUnit: { type: String, enum: ['g', 'kg'], default: 'g' },
     volumetricWeight: Number,
     chargeableWeight: Number,
+    chargeableWeightUnit: { type: String, enum: ['g', 'kg'], default: 'kg' },
     dimensions: [{
         length: Number,
         width: Number,
