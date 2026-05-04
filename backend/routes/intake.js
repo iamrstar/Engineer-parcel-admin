@@ -72,7 +72,7 @@ router.post("/verify", adminAuth, async (req, res) => {
             bookingId, pricing, senderDetails, receiverDetails, packageDetails, 
             serviceType, premiumItemType, trackingId, vendorName, 
             vendorTrackingId, estimatedDelivery, insuranceRequired, notes,
-            isVendorBooking, vendorId
+            isVendorBooking, vendorId, sendPaymentLink
         } = req.body;
 
         if (!bookingId || !pricing) {
@@ -102,32 +102,37 @@ router.post("/verify", adminAuth, async (req, res) => {
         if (estimatedDelivery) booking.estimatedDelivery = estimatedDelivery;
         booking.adminVerified = true;
 
-        // Generate Payment Link
-        if (pricing.totalAmount > 0 && razorpay) {
-            try {
-                const paymentLink = await razorpay.paymentLink.create({
-                    amount: pricing.totalAmount * 100, // Paise
-                    currency: "INR",
-                    accept_partial: false,
-                    description: `Payment for Shipment ${booking.trackingId}`,
-                    customer: {
-                        name: booking.senderDetails.name,
-                        email: booking.senderDetails.email || "info@engineersparcel.com",
-                        contact: /^(\d)\1{9}$/.test(booking.senderDetails.phone) ? "" : (booking.senderDetails.phone || "")
-                    },
-                    notify: { sms: true, email: true },
-                    reminder_enable: true,
-                    notes: {
-                        bookingId: booking.bookingId,
-                        trackingId: booking.trackingId
-                    }
-                });
+        // Generate or Reuse Payment Link
+        let finalPaymentLink = booking.paymentLink;
 
-                if (paymentLink) {
-                    booking.paymentLink = paymentLink.short_url;
+        if (sendPaymentLink !== false && pricing.totalAmount > 0 && razorpay) {
+            try {
+                if (!finalPaymentLink) {
+                    const paymentLinkObj = await razorpay.paymentLink.create({
+                        amount: pricing.totalAmount * 100, // Paise
+                        currency: "INR",
+                        accept_partial: false,
+                        description: `Payment for Shipment ${booking.trackingId}`,
+                        customer: {
+                            name: booking.senderDetails.name,
+                            email: booking.senderDetails.email || "info@engineersparcel.com",
+                            contact: /^(\d)\1{9}$/.test(booking.senderDetails.phone) ? "" : (booking.senderDetails.phone || "")
+                        },
+                        notify: { sms: true, email: true },
+                        reminder_enable: true,
+                        notes: {
+                            bookingId: booking.bookingId,
+                            trackingId: booking.trackingId
+                        }
+                    });
+
+                    if (paymentLinkObj) {
+                        finalPaymentLink = paymentLinkObj.short_url;
+                        booking.paymentLink = finalPaymentLink;
+                    }
                 }
 
-                if (paymentLink && booking.senderDetails?.email) {
+                if (finalPaymentLink && booking.senderDetails?.email) {
                     const amount = pricing.totalAmount || 0;
                     const emailHtml = `
                 <div style="font-family: sans-serif; color: #333; max-width: 600px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
@@ -146,7 +151,7 @@ router.post("/verify", adminAuth, async (req, res) => {
                         <div style="background: #f0fdf4; border: 1px solid #bbf7d0; padding: 15px; border-radius: 6px; text-align: center;">
                             <p style="margin-bottom: 15px;">Pay securely via <strong>Razorpay</strong> (UPI, Cards, Netbanking)</p>
                             
-                            <a href="${paymentLink.short_url}" style="background-color: #166534; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">PAY NOW</a>
+                            <a href="${finalPaymentLink}" style="background-color: #166534; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">PAY NOW</a>
                             <p style="font-size: 0.8em; margin-top: 10px; color: #64748b;">Or check your portal.</p>
                         </div>
 
@@ -174,6 +179,39 @@ router.post("/verify", adminAuth, async (req, res) => {
                 }
             } catch (paymentErr) {
                 console.error("Razorpay Link Error:", paymentErr);
+            }
+        } else if (sendPaymentLink === false && booking.senderDetails?.email) {
+            // Send Simple Verification Email Without Payment Link
+            try {
+                const amount = pricing.totalAmount || 0;
+                const emailHtml = `
+            <div style="font-family: sans-serif; color: #333; max-width: 600px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+                <div style="background-color: #2563eb; color: white; padding: 20px; text-align: center;">
+                    <h2 style="margin:0;">Order Verified</h2>
+                </div>
+                <div style="padding: 20px;">
+                    <p>Hi ${booking.senderDetails.name},</p>
+                    <p>Your shipment <strong>${booking.trackingId}</strong> has been successfully verified by our team.</p>
+                    <p><strong>Your total payable amount is ₹${amount}.</strong></p>
+                    <p>A payment link will be generated and sent to you shortly. You will receive another email once it is ready.</p>
+                </div>
+                 <div style="background-color: #f1f5f9; padding: 10px; text-align: center; font-size: 0.8em; color: #64748b;">
+                    &copy; 2026 Engineers Parcel. All rights reserved.
+                </div>
+            </div>
+                `;
+                const { generateCombinedPDF } = require("../utils/pdfReceipt");
+                const pdfBuffer = await generateCombinedPDF(booking, { receipt: true, label: true, declaration: true });
+
+                await sendEmail({
+                    to: booking.senderDetails.email,
+                    subject: `Order Verified - ${booking.trackingId}`,
+                    html: emailHtml,
+                    invoicePath: pdfBuffer,
+                    bookingId: booking.trackingId
+                });
+            } catch (emailErr) {
+                console.error("Verification Email Error:", emailErr);
             }
         }
 
@@ -277,6 +315,7 @@ router.post("/seed", adminAuth, async (req, res) => {
                     weightUnit: doc.packageDetails.weightUnit,
                     volumetricWeight: doc.packageDetails.volumetricWeight,
                     chargeableWeight: doc.packageDetails.chargeableWeight,
+                    chargeableWeightUnit: doc.packageDetails.chargeableWeightUnit || doc.packageDetails.weightUnit,
                     dimensions: doc.packageDetails.dimensions,
                     boxQuantity: doc.packageDetails.boxQuantity,
                     description: doc.packageDetails.description || "N/A",
