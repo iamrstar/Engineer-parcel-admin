@@ -194,7 +194,38 @@ async function generateReceiptPDF(booking) {
         const descText = booking.packageDetails?.description || 'Shipment Content';
         const lastDescY = wrapText(descText, startX + 35, startItemY, 210, fonts.regular, 7.5);
 
-        const rowBot = Math.min(lastDescY, startItemY - 20) - 8;
+        // --- Dimensions Logic (Refined) ---
+        let ds = 'N/A';
+        const pkg = booking.packageDetails || {};
+        const dims = pkg.dimensions || [];
+
+        if (isEdl && pkg.edlItems && pkg.edlItems.length > 0) {
+            ds = pkg.edlItems.map(item => item.dims || item.dimensions).filter(Boolean).join(' | ');
+        } else if (Array.isArray(dims) && dims.length > 0) {
+            ds = dims.map(d => {
+                if (!d) return '';
+                const l = d.length || d.L || d.len || 0;
+                const w = d.width || d.W || d.wid || 0;
+                const h = d.height || d.H || d.hei || 0;
+                return (l || w || h) ? `${l}x${w}x${h}` : '';
+            }).filter(Boolean).join(' | ');
+        }
+        if (!ds || ds === '') ds = 'N/A';
+
+        // Pre-calculate dimension height if it wraps
+        let fakeCy = startItemY;
+        const words = ds.split(' ');
+        let tempLine = '';
+        for (const w of words) {
+            if (fonts.regular.widthOfTextAtSize(tempLine + w + ' ', 6.5) > cols[4].w - 10) {
+                tempLine = w + ' ';
+                fakeCy -= 9;
+            } else {
+                tempLine += w + ' ';
+            }
+        }
+
+        const rowBot = Math.min(lastDescY, fakeCy - 8, startItemY - 20) - 8;
         const r7H = globalY - rowBot;
 
         let cx2 = startX;
@@ -209,30 +240,14 @@ async function generateReceiptPDF(booking) {
         // Weight (Show Chargeable Weight primarily)
         const weightVal = booking.packageDetails?.chargeableWeight || booking.packageDetails?.weight || 0;
         const weightUnit = booking.packageDetails?.chargeableWeightUnit || booking.packageDetails?.weightUnit || 'kg';
-        drawCell(`${weightVal}${weightUnit}`, cx2, globalY, cols[2].w + 20, r7H, fonts.bold, 8, 'center');
+        drawCell(`${weightVal}${weightUnit}`, cx2, globalY, cols[3].w, r7H, fonts.bold, 8, 'center');
         cx2 += cols[3].w;
 
-        // --- Dimensions Logic (Refined) ---
-        let ds = 'N/A';
-        const pkg = booking.packageDetails || {};
-        const dims = pkg.dimensions || [];
-
-        if (isEdl && pkg.edlItems && pkg.edlItems.length > 0) {
-            ds = pkg.edlItems.map(item => item.dims || item.dimensions).filter(Boolean).join(', ');
-        } else if (Array.isArray(dims) && dims.length > 0) {
-            ds = dims.map(d => {
-                if (!d) return '';
-                // Try multiple common field names
-                const l = d.length || d.L || d.len || 0;
-                const w = d.width || d.W || d.wid || 0;
-                const h = d.height || d.H || d.hei || 0;
-                return (l || w || h) ? `${l}x${w}x${h}` : '';
-            }).filter(Boolean).join(', ');
+        if (fonts.regular.widthOfTextAtSize(ds, 7.5) > cols[4].w - 10) {
+            wrapText(ds, cx2 + 5, startItemY, cols[4].w - 10, fonts.regular, 6.5);
+        } else {
+            drawCell(ds, cx2, globalY, cols[4].w, r7H, fonts.regular, 7.5, 'center');
         }
-
-        if (!ds || ds === '') ds = 'N/A';
-        if (ds.length > 30) ds = ds.substring(0, 27) + '...';
-        drawCell(ds, cx2, globalY, cols[4].w, r7H, fonts.regular, 7.5, 'center');
 
         cx = startX;
         cols.forEach(c => { cx += c.w; if (cx < endX) drawVLine(cx, globalY, rowBot); });
@@ -483,6 +498,9 @@ async function generateLabelPDF(booking) {
         }
 
         if (ds && ds !== ' cm') {
+            if (fonts.bold.widthOfTextAtSize(`Dimensions: ${ds}`, 10) > (width - margin * 2)) {
+                ds = ds.substring(0, 35) + '...';
+            }
             drawText(`Dimensions: ${ds}`, margin, globalY, 10, fonts.bold);
         }
 
