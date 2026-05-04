@@ -124,7 +124,7 @@ export default function EDocket() {
         if (currentToken) fetchBookings();
     }, [token, filterDate, vendorNotAssigned]);
 
-    const handleVerify = async () => {
+    const handleVerify = async (sendLink = true) => {
         if (!selectedBooking) return;
         setIsVerifying(true);
         try {
@@ -136,6 +136,7 @@ export default function EDocket() {
                     pricing,
                     isVendorBooking: editForm.isVendorBooking,
                     vendorId: editForm.vendorId,
+                    sendPaymentLink: sendLink,
                     ...editForm,
                 },
                 { headers: { Authorization: `Bearer ${currentToken}` } }
@@ -289,13 +290,16 @@ export default function EDocket() {
 
     const calculateSuggestedPrice = () => {
         const pkg = editForm.packageDetails || {};
-        const dims = pkg.dimensions?.[0] || { length: 0, width: 0, height: 0 };
-        const volWeight = (Number(dims.length) * Number(dims.width) * Number(dims.height)) / 2700;
+        const dims = pkg.dimensions || [{ length: 0, width: 0, height: 0 }];
+        let totalVolWeight = 0;
+        dims.forEach(d => {
+            totalVolWeight += (Number(d.length) * Number(d.width) * Number(d.height)) / 2700;
+        });
         
         let weight = Number(pkg.weight) || 0;
         if (pkg.weightUnit === 'g') weight = weight / 1000;
 
-        const chargeableWeight = Math.max(volWeight, weight);
+        const chargeableWeight = Math.max(totalVolWeight, weight);
         const suggestedPrice = chargeableWeight * 100;
         
         return Math.round(suggestedPrice * 100) / 100;
@@ -475,6 +479,7 @@ export default function EDocket() {
                                                         receiverDetails: booking.receiverDetails,
                                                         packageDetails: {
                                                             ...booking.packageDetails,
+                                                            description: booking.notes || booking.packageDetails?.description || "",
                                                             dimensions: Array.isArray(booking.packageDetails?.dimensions) 
                                                                 ? booking.packageDetails.dimensions 
                                                                 : [booking.packageDetails?.dimensions || {length: 0, width: 0, height: 0}]
@@ -642,44 +647,86 @@ export default function EDocket() {
                                     <div>
                                         <label className="block text-sm font-medium text-gray-700 mb-1">Service Type</label>
                                         <select value={editForm.serviceType || ''} onChange={(e) => setEditForm({ ...editForm, serviceType: e.target.value })} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500">
-                                            <option value="Express">Express</option>
-                                            <option value="Premium">Premium</option>
-                                            <option value="Surface">Surface</option>
+                                            <option value="surface">Surface</option>
+                                            <option value="air">Air</option>
+                                            <option value="express">Express</option>
+                                            <option value="premium">Premium</option>
+                                            <option value="courier">Courier</option>
+                                            <option value="shifting">Shifting</option>
+                                            <option value="campus-parcel">Campus Parcel</option>
+                                            <option value="international">International</option>
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Weight ({editForm.packageDetails?.weightUnit || 'g'})</label>
-                                        <input type="number" step="0.1" value={editForm.packageDetails?.weight || ''} onChange={(e) => setEditForm({ ...editForm, packageDetails: { ...editForm.packageDetails, weight: e.target.value } })} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500" />
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Actual Weight</label>
+                                        <div className="flex gap-2">
+                                            <input type="number" step="0.1" value={editForm.packageDetails?.weight || ''} onChange={(e) => setEditForm({ ...editForm, packageDetails: { ...editForm.packageDetails, weight: e.target.value } })} className="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500" />
+                                            <select value={editForm.packageDetails?.weightUnit || 'g'} onChange={(e) => setEditForm({ ...editForm, packageDetails: { ...editForm.packageDetails, weightUnit: e.target.value } })} className="w-20 px-2 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 bg-white">
+                                                <option value="g">g</option>
+                                                <option value="kg">kg</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Quantity (Boxes)</label>
+                                        <select value={editForm.packageDetails?.boxQuantity || 1} onChange={(e) => {
+                                            const qty = parseInt(e.target.value) || 1;
+                                            const newDims = [...(editForm.packageDetails?.dimensions || [{length: 0, width: 0, height: 0}])];
+                                            if (qty > newDims.length) {
+                                                for (let i = newDims.length; i < qty; i++) {
+                                                    newDims.push({ length: 0, width: 0, height: 0 });
+                                                }
+                                            } else {
+                                                newDims.splice(qty);
+                                            }
+                                            setEditForm({ ...editForm, packageDetails: { ...editForm.packageDetails, boxQuantity: qty, dimensions: newDims } });
+                                        }} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 bg-white">
+                                            {[...Array(15)].map((_, i) => (
+                                                <option key={i + 1} value={i + 1}>{i + 1} Box{i > 0 ? 'es' : ''}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Chargeable Wt.</label>
+                                        <div className="flex gap-2">
+                                            <input type="number" step="0.1" value={editForm.packageDetails?.chargeableWeight || ''} onChange={(e) => setEditForm({ ...editForm, packageDetails: { ...editForm.packageDetails, chargeableWeight: e.target.value } })} placeholder="Auto" className="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500" />
+                                            <select value={editForm.packageDetails?.chargeableWeightUnit || 'kg'} onChange={(e) => setEditForm({ ...editForm, packageDetails: { ...editForm.packageDetails, chargeableWeightUnit: e.target.value } })} className="w-20 px-2 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 bg-white">
+                                                <option value="g">g</option>
+                                                <option value="kg">kg</option>
+                                            </select>
+                                        </div>
                                     </div>
                                 </div>
 
                                 <div className="pt-2">
                                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 flex justify-between">
                                         Dimensions (L x W x H cm)
-                                        {(editForm.packageDetails?.dimensions?.length > 1) && (
-                                            <span className="text-primary-600 bg-primary-50 px-2 py-0.5 rounded-full border border-primary-100 normal-case">
-                                                +{editForm.packageDetails.dimensions.length - 1} more boxes
-                                            </span>
-                                        )}
                                     </label>
-                                    <div className="flex gap-2">
-                                        <input type="number" placeholder="L" value={editForm.packageDetails?.dimensions?.[0]?.length || ''} onChange={(e) => {
-                                            const newDims = [...(editForm.packageDetails?.dimensions || [{length: 0, width: 0, height: 0}])];
-                                            newDims[0] = { ...newDims[0], length: Number(e.target.value) || 0 };
-                                            setEditForm({ ...editForm, packageDetails: { ...editForm.packageDetails, dimensions: newDims } });
-                                        }} className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-1 focus:ring-primary-500" />
-                                        
-                                        <input type="number" placeholder="W" value={editForm.packageDetails?.dimensions?.[0]?.width || ''} onChange={(e) => {
-                                            const newDims = [...(editForm.packageDetails?.dimensions || [{length: 0, width: 0, height: 0}])];
-                                            newDims[0] = { ...newDims[0], width: Number(e.target.value) || 0 };
-                                            setEditForm({ ...editForm, packageDetails: { ...editForm.packageDetails, dimensions: newDims } });
-                                        }} className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-1 focus:ring-primary-500" />
-                                        
-                                        <input type="number" placeholder="H" value={editForm.packageDetails?.dimensions?.[0]?.height || ''} onChange={(e) => {
-                                            const newDims = [...(editForm.packageDetails?.dimensions || [{length: 0, width: 0, height: 0}])];
-                                            newDims[0] = { ...newDims[0], height: Number(e.target.value) || 0 };
-                                            setEditForm({ ...editForm, packageDetails: { ...editForm.packageDetails, dimensions: newDims } });
-                                        }} className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-1 focus:ring-primary-500" />
+                                    <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                                        {(editForm.packageDetails?.dimensions?.length > 0 ? editForm.packageDetails.dimensions : [{length: 0, width: 0, height: 0}]).map((dim, index) => (
+                                            <div key={index} className="flex gap-2 items-center">
+                                                {(editForm.packageDetails?.dimensions?.length > 1) && (
+                                                    <span className="text-xs font-bold text-gray-400 w-12">Box {index + 1}</span>
+                                                )}
+                                                <input type="number" placeholder="L" value={dim.length || ''} onChange={(e) => {
+                                                    const newDims = [...editForm.packageDetails.dimensions];
+                                                    newDims[index] = { ...newDims[index], length: Number(e.target.value) || 0 };
+                                                    setEditForm({ ...editForm, packageDetails: { ...editForm.packageDetails, dimensions: newDims } });
+                                                }} className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-1 focus:ring-primary-500" />
+                                                
+                                                <input type="number" placeholder="W" value={dim.width || ''} onChange={(e) => {
+                                                    const newDims = [...editForm.packageDetails.dimensions];
+                                                    newDims[index] = { ...newDims[index], width: Number(e.target.value) || 0 };
+                                                    setEditForm({ ...editForm, packageDetails: { ...editForm.packageDetails, dimensions: newDims } });
+                                                }} className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-1 focus:ring-primary-500" />
+                                                
+                                                <input type="number" placeholder="H" value={dim.height || ''} onChange={(e) => {
+                                                    const newDims = [...editForm.packageDetails.dimensions];
+                                                    newDims[index] = { ...newDims[index], height: Number(e.target.value) || 0 };
+                                                    setEditForm({ ...editForm, packageDetails: { ...editForm.packageDetails, dimensions: newDims } });
+                                                }} className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-1 focus:ring-primary-500" />
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
 
@@ -714,6 +761,7 @@ export default function EDocket() {
                                         placeholder="e.g. Clothes, Electronics, Documents..."
                                     />
                                 </div>
+
                                 <div className="mt-4 p-3 bg-primary-50 rounded-lg border border-primary-100 flex justify-between items-center text-sm">
                                     <span className="font-semibold text-primary-800">Shipment Category</span>
                                     <span className="bg-primary-600 text-white px-2 py-0.5 rounded text-xs">{getShipmentCategory()}</span>
@@ -806,20 +854,22 @@ export default function EDocket() {
                                     </div>
                                 </div>
 
-                                <button
-                                    onClick={handleVerify}
-                                    disabled={isVerifying}
-                                    className="w-full py-4 mt-8 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl shadow-lg transition-colors text-lg flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-                                >
-                                    {isVerifying ? (
-                                        <>
-                                            <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                            Verifying & Sending...
-                                        </>
-                                    ) : (
-                                        "Verify & Send Payment Link"
-                                    )}
-                                </button>
+                                <div className="grid grid-cols-2 gap-4 mt-8">
+                                    <button
+                                        onClick={() => handleVerify(false)}
+                                        disabled={isVerifying}
+                                        className="w-full py-4 bg-gray-800 hover:bg-gray-900 text-white font-bold rounded-xl shadow-lg transition-colors text-base flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                                    >
+                                        Verify Only
+                                    </button>
+                                    <button
+                                        onClick={() => handleVerify(true)}
+                                        disabled={isVerifying}
+                                        className="w-full py-4 bg-primary-600 hover:bg-primary-700 text-white font-bold rounded-xl shadow-lg transition-colors text-base flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
+                                    >
+                                        Verify & Send Payment Link
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     )}
