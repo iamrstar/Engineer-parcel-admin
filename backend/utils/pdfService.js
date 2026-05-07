@@ -540,19 +540,9 @@ async function generateLabelPDF(booking) {
             page.drawLine({ start: { x: margin, y: globalY }, end: { x: width - margin, y: globalY }, thickness: 1 });
             globalY -= 15;
 
-            // Package Box Details
-            drawText(`Weight: ${booking.packageDetails?.weight || ''} ${booking.packageDetails?.weightUnit || 'kg'}`, margin, globalY, 10, fonts.bold);
-            globalY -= 12;
-            
-            let ds = '';
-            const pkgL = booking.packageDetails || {};
-            const dimsL = pkgL.dimensions || [];
-            if (pkgL.isEdl && pkgL.edlItems) {
-                ds = pkgL.edlItems.map(item => item.dims || item.dimensions).filter(Boolean).join(', ') + ' cm';
-            } else if (Array.isArray(dimsL) && dimsL.length > 0) {
-                ds = dimsL.map(d => `${d.length}x${d.width}x${d.height}`).join(', ') + ' cm';
-            }
-            if (ds) drawText(`Dimensions: ${ds}`, margin, globalY, 9, fonts.regular);
+            // Package Box Details removed as requested
+            globalY -= 15;
+
 
             // --- BOTTOM RED BOX (Box Name) ---
             const nameRectW = 150;
