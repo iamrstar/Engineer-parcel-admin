@@ -3,7 +3,7 @@ const Booking = require("../models/Booking");
 const authMiddleware = require("../middleware/auth");
 const adminAuth = require("../middleware/adminAuth");
 const Razorpay = require("razorpay");
-const { generateReceiptPDF, generateOfficeLabelPDF } = require("../utils/pdfReceipt");
+const { generateReceiptPDF, generateOfficeLabelPDF } = require("../utils/pdfService");
 const sendEmail = require("../utils/sendEmail");
 
 // Initialize Razorpay
@@ -277,7 +277,7 @@ router.get("/:id/receipt", authMiddleware, async (req, res) => {
 
     // Generate PDF
     const { receipt, label, declaration } = req.query;
-    const { generateCombinedPDF } = require("../utils/pdfReceipt");
+    const { generateCombinedPDF } = require("../utils/pdfService");
     const pdfBuffer = await generateCombinedPDF(booking, { receipt, label, declaration });
 
     res.set({

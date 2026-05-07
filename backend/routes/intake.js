@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const exceljs = require("exceljs");
-const { generateReceiptPDF } = require("../utils/pdfReceipt");
+const { generateReceiptPDF } = require("../utils/pdfService");
 const Razorpay = require("razorpay");
 
 const IntakeBooking = require("../models/IntakeBooking");
@@ -200,7 +200,7 @@ router.post("/verify", adminAuth, async (req, res) => {
                 </div>
             </div>
                 `;
-                const { generateCombinedPDF } = require("../utils/pdfReceipt");
+                const { generateCombinedPDF } = require("../utils/pdfService");
                 const pdfBuffer = await generateCombinedPDF(booking, { receipt: true, label: true, declaration: true });
 
                 await sendEmail({
@@ -524,7 +524,7 @@ router.get("/receipt", adminAuth, async (req, res) => {
         }
 
         const { receipt, label, declaration } = req.query;
-        const { generateCombinedPDF } = require("../utils/pdfReceipt");
+        const { generateCombinedPDF } = require("../utils/pdfService");
         const pdfBuffer = await generateCombinedPDF(booking, { receipt, label, declaration });
 
         res.setHeader('Content-Type', 'application/pdf');

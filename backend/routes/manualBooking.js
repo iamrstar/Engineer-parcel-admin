@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 const Booking = require("../models/Booking");
 const Razorpay = require("razorpay");
-const { generateReceiptPDF } = require("../utils/pdfReceipt");
+const { generateReceiptPDF } = require("../utils/pdfService");
 const sendEmail = require("../utils/sendEmail");
 
 // Initialize Razorpay
