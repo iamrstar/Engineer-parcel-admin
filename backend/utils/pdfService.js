@@ -215,7 +215,7 @@ async function generateReceiptPDF(booking) {
             if (det?.address1) a = `${det.address1}, ${det.address2 || ''}`.trim();
             if (det?.landmark) a += ` (${det.landmark})`;
             drawF('Address', a);
-            drawF('Destination', `${det?.city || det?.pincode || 'N/A'}, ${det?.state || ''}`);
+            drawF('Destination', `${det?.city || 'N/A'}, ${det?.state || ''} - ${det?.pincode || ''}`);
             return y;
         };
 
@@ -306,7 +306,7 @@ async function generateReceiptPDF(booking) {
         const subT = (booking.pricing?.basePrice || 0) + (booking.pricing?.packagingCharge || 0);
         drawCell(`SERVICE: ${(booking.serviceType || 'STD').toUpperCase()}`, startX, globalY, 200, 18, fonts.bold, 8);
         drawCell(`STATUS: ${booking.paymentStatus?.toUpperCase() || 'UNPAID'}`, startX, globalY - 18, 200, 18, fonts.regular, 7.5);
-        drawCell(`DELIVERY: ${booking.estimatedDelivery || '3-5 Days'}`, startX, globalY - 36, 200, 18, fonts.oblique, 7.5);
+        drawCell(`DELIVERY: ${booking.estimatedDelivery || '5-7 Days'}`, startX, globalY - 36, 200, 18, fonts.oblique, 7.5);
 
         const pX1 = endX - 160;
         const pX2 = endX - 80;
