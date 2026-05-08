@@ -20,6 +20,23 @@ const clean = (str) => {
     return str.replace(/\t/g, ' ').replace(/[^\x20-\x7E]/g, '');
 };
 
+const numberToWords = (num) => {
+    const a = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+    const b = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+
+    const inWords = (n) => {
+        if (n < 20) return a[n];
+        if (n < 100) return b[Math.floor(n / 10)] + (n % 10 !== 0 ? ' ' + a[n % 10] : '');
+        if (n < 1000) return a[Math.floor(n / 100)] + ' Hundred' + (n % 100 !== 0 ? ' and ' + inWords(n % 100) : '');
+        if (n < 100000) return inWords(Math.floor(n / 1000)) + ' Thousand' + (n % 1000 !== 0 ? ' ' + inWords(n % 1000) : '');
+        if (n < 10000000) return inWords(Math.floor(n / 100000)) + ' Lakh' + (n % 100000 !== 0 ? ' ' + inWords(n % 100000) : '');
+        return 'Too Large';
+    };
+
+    if (num === 0) return 'Zero';
+    return inWords(num).trim();
+};
+
 const getAsset = (name, filePath) => {
     if (assetCache[name]) return assetCache[name];
     if (assetCache.failedAttempts.has(name)) return null;
@@ -565,106 +582,19 @@ async function generateLabelPDF(booking) {
     }
 }
 
+/**
+ * Self Declaration Form - Now identical to Office Label as requested
+ */
 async function generateDeclarationPDF(booking) {
-    try {
-        const pdfDoc = await PDFDocument.create();
-        const page = pdfDoc.addPage([595.28, 841.89]); // A4
-        const { width, height } = page.getSize();
-
-        const fonts = {
-            regular: await pdfDoc.embedFont(StandardFonts.Helvetica),
-            bold: await pdfDoc.embedFont(StandardFonts.HelveticaBold),
-            oblique: await pdfDoc.embedFont(StandardFonts.HelveticaOblique),
-        };
-
-        const black = rgb(0, 0, 0);
-        const margin = 50;
-        let globalY = height - 50;
-
-        const drawText = (t, x, y, size, font) => {
-            page.drawText(clean(t), { x, y, size, font, color: black });
-        };
-
-        // Title
-        drawText('SELF DECLARATION FORM', width / 2 - 100, globalY, 16, fonts.bold);
-        globalY -= 40;
-
-        drawText(`Date: ${new Date().toLocaleDateString('en-IN')}`, margin, globalY, 11, fonts.regular);
-        drawText(`Tracking ID: ${booking.bookingId || 'PENDING'}`, width - margin - 150, globalY, 11, fonts.bold);
-        globalY -= 40;
-
-        // Content
-        const lines = [
-            `I, ${booking.senderDetails?.name || '_______________'}, hereby declare that the goods/parcel`,
-            `being dispatched through Engineers Parcel do not contain any prohibited,`,
-            `hazardous, or illegal items.`
-        ];
-        lines.forEach(line => {
-            drawText(line, margin, globalY, 12, fonts.regular);
-            globalY -= 15;
-        });
-
-        globalY -= 20;
-        drawText('I explicitly confirm that the parcel DOES NOT contain:', margin, globalY, 12, fonts.bold);
-        globalY -= 25;
-
-        const prohibited = [
-            "1. Medicines of any kind (Prescription or counter)",
-            "2. Alcoholic items or Beverages",
-            "3. Indecent or Obscene materials",
-            "4. Flammable, Hazardous, or Explosive items",
-            "5. Drugs or Narcotics",
-            "6. Any item banned by the relevant State or Central Authorities"
-        ];
-
-        prohibited.forEach(item => {
-            drawText(item, margin + 20, globalY, 11, fonts.regular);
-            globalY -= 20;
-        });
-
-        globalY -= 20;
-        const liability = [
-            `I understand that strict inspection will be performed by the authorities.`,
-            `If any of the aforementioned prohibited items are found during scanning`,
-            `or transit, I take full legal responsibility. I understand that legal action`,
-            `may be taken by authorities, and Engineers Parcel holds no liability.`
-        ];
-
-        liability.forEach(line => {
-            drawText(line, margin, globalY, 11, fonts.regular);
-            globalY -= 15;
-        });
-
-        globalY -= 40;
-        drawText('SENDER DETAILS:', margin, globalY, 12, fonts.bold);
-        globalY -= 15;
-        drawText(`Name: ${booking.senderDetails?.name || 'N/A'}`, margin, globalY, 11, fonts.regular);
-        globalY -= 15;
-        drawText(`Phone: ${booking.senderDetails?.phone || 'N/A'}`, margin, globalY, 11, fonts.regular);
-        globalY -= 15;
-        drawText(`Address: ${booking.senderDetails?.address || 'N/A'}, ${booking.senderDetails?.city || 'N/A'} - ${booking.senderDetails?.pincode || 'N/A'}`, margin, globalY, 11, fonts.regular);
-        globalY -= 20;
-        
-        // --- DECLARED VALUE (Restored from booking.packageDetails.value) ---
-        const declaredVal = booking.packageDetails?.value || booking.packageDetails?.itemValue || 0;
-        drawText(`Declared Value of Items: Rs. ${declaredVal}`, margin, globalY, 11, fonts.bold);
-
-        // Signature block
-        globalY -= 80;
-        page.drawLine({ start: { x: margin, y: globalY }, end: { x: margin + 150, y: globalY }, thickness: 1 });
-        drawText(`Signature of the Sender`, margin, globalY - 15, 10, fonts.bold);
-        drawText(` accepted by ${booking.senderDetails?.name || 'Sender'}`, margin, globalY - 30, 9, fonts.oblique);
-
-        const pdfBytes = await pdfDoc.save();
-        return Buffer.from(pdfBytes);
-    } catch (error) {
-        console.error("❌ generateDeclarationPDF ERROR:", error);
-        throw error;
-    }
+    return generateOfficeLabelPDF(booking);
 }
 
 /**
  * Redesigned Shipping Label for Office Use (Declaration Style)
+ */
+/**
+ * Redesigned Shipping Label for Office Use (Declaration Style)
+ * Now optimized to fit TWO forms on a single A4 page.
  */
 async function generateOfficeLabelPDF(booking) {
     try {
@@ -678,156 +608,174 @@ async function generateOfficeLabelPDF(booking) {
         };
 
         const black = rgb(0, 0, 0);
-        const margin = 45;
-        let globalY = height - margin;
+        const margin = 40;
 
-        const isEdl = booking.edl > 0 || booking.packageDetails?.isEdl || (booking.packageDetails?.description && booking.packageDetails.description.toUpperCase().includes('EDL'));
+        const drawForm = async (startY) => {
+            let globalY = startY;
+            const drawHLine = (y, xStart = margin, xEnd = width - margin) => page.drawLine({ start: { x: xStart, y }, end: { x: xEnd, y }, thickness: 0.8, color: black });
+            const drawText = (t, x, y, size = 9, font = fonts.regular) => page.drawText(clean(t), { x, y, size, font, color: black });
+            const drawCheckbox = (x, y) => page.drawRectangle({ x, y, width: 20, height: 10, borderWidth: 1, borderColor: black });
 
-        const drawHLine = (y, xStart = margin, xEnd = width - margin) => page.drawLine({ start: { x: xStart, y }, end: { x: xEnd, y }, thickness: 0.8, color: black });
-        const drawText = (t, x, y, size = 10, font = fonts.regular) => page.drawText(clean(t), { x, y, size, font, color: black });
-        const drawCheckbox = (x, y) => page.drawRectangle({ x, y, width: 25, height: 12, borderWidth: 1, borderColor: black });
+            // --- 1. Logo ---
+            try {
+                const lp = path.join(__dirname, '..', 'public', 'logo.png');
+                const logoData = getAsset('logo', lp);
+                if (logoData) {
+                    const li = await pdfDoc.embedPng(logoData);
+                    const ld = li.scaleToFit(110, 45);
+                    page.drawImage(li, { x: (width / 2) - (ld.width / 2), y: globalY - 40, width: ld.width, height: ld.height });
+                }
+            } catch (e) { }
+            globalY -= 50;
 
-        // --- 1. Logo ---
-        try {
-            const lp = path.join(__dirname, '..', 'public', 'logo.png');
-            const logoData = getAsset('logo', lp);
-            if (logoData) {
-                const li = await pdfDoc.embedPng(logoData);
-                const ld = li.scaleToFit(140, 60);
-                page.drawImage(li, { x: (width / 2) - (ld.width / 2), y: globalY - 45, width: ld.width, height: ld.height });
-            }
-        } catch (e) { }
-        globalY -= 70;
+            // --- 2. Title ---
+            const titleText = "DECLARATION FORM";
+            const titleWidth = fonts.bold.widthOfTextAtSize(titleText, 12);
+            drawText(titleText, (width / 2) - (titleWidth / 2), globalY, 12, fonts.bold);
+            drawHLine(globalY - 2, (width / 2) - (titleWidth / 2), (width / 2) + (titleWidth / 2));
+            globalY -= 30;
 
-        // --- 2. Title ---
-        const titleText = "DECLARATION FORM";
-        const titleWidth = fonts.bold.widthOfTextAtSize(titleText, 14);
-        drawText(titleText, (width / 2) - (titleWidth / 2), globalY, 14, fonts.bold);
-        drawHLine(globalY - 2, (width / 2) - (titleWidth / 2), (width / 2) + (titleWidth / 2));
-        globalY -= 40;
+            // --- 3. Consignment No & Date ---
+            drawText("Consignment No:", margin, globalY, 10, fonts.bold);
+            drawText("", margin + 105, globalY, 10, fonts.regular);
+            drawHLine(globalY - 2, margin + 100, margin + 280);
 
-        // --- 3. Consignment No & Date ---
-        drawText("Consignment No:", margin, globalY, 11, fonts.bold);
-        const tid = String(booking.trackingId || booking.bookingId || 'PENDING');
-        drawText(tid, margin + 105, globalY, 11, fonts.regular);
-        drawHLine(globalY - 2, margin + 100, margin + 280);
+            drawText("Date:", width - margin - 150, globalY, 10, fonts.bold);
+            const dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            drawText(dateStr, width - margin - 115, globalY, 10, fonts.regular);
+            drawHLine(globalY - 2, width - margin - 120, width - margin);
+            globalY -= 25;
 
-        drawText("Date:", width - margin - 180, globalY, 11, fonts.bold);
-        const dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        drawText(dateStr, width - margin - 145, globalY, 11, fonts.regular);
-        drawHLine(globalY - 2, width - margin - 150, width - margin);
-        globalY -= 35;
+            // --- 4. Consignor Details ---
+            drawText("Consignor Details:", margin, globalY, 8, fonts.bold);
+            drawHLine(globalY - 1, margin, margin + 75);
+            globalY -= 12;
 
-        // --- 4. Consignor Details ---
-        drawText("Consignor Details:", margin, globalY, 9, fonts.bold);
-        drawHLine(globalY - 1, margin, margin + 85);
-        globalY -= 15;
+            drawText("Name:", margin, globalY, 10, fonts.bold);
+            drawText(booking.senderDetails?.name, margin + 45, globalY, 10, fonts.regular);
+            drawHLine(globalY - 2, margin + 40, margin + 300);
+            globalY -= 15;
 
-        drawText("Name:", margin, globalY, 11, fonts.bold);
-        drawText(booking.senderDetails?.name, margin + 45, globalY, 11, fonts.regular);
-        drawHLine(globalY - 2, margin + 40, margin + 350);
-        globalY -= 20;
+            // GST Section
+            drawText("GST Registered:", margin, globalY, 9, fonts.bold);
+            drawText("Yes", margin + 80, globalY, 9, fonts.regular);
+            drawCheckbox(margin + 105, globalY - 2);
+            drawText("No", margin + 80, globalY - 12, 9, fonts.regular);
+            drawCheckbox(margin + 105, globalY - 14);
 
-        // GST Section
-        drawText("GST Registered:", margin, globalY, 10, fonts.bold);
-        drawText("Yes", margin + 85, globalY, 10, fonts.regular);
-        drawCheckbox(margin + 115, globalY - 2);
-        drawText("No", margin + 85, globalY - 15, 10, fonts.regular);
-        drawCheckbox(margin + 115, globalY - 17);
+            drawText("If Yes, GST No:", margin + 140, globalY, 9, fonts.regular);
+            drawHLine(globalY - 2, margin + 220, width - margin - 80);
 
-        drawText("If Yes, GST No:", margin + 160, globalY, 10, fonts.regular);
-        drawHLine(globalY - 2, margin + 240, width - margin - 100);
+            const legalText = [
+                "We, M/s ____________________________________, hereby declare and confirm that we",
+                "are not liable to register under Section 22 or Section 24 of the Central GST Act, 2017",
+                "or under the corresponding provisions of the applicable State GST Act. (Stamp)"
+            ];
+            legalText.forEach((line, i) => {
+                drawText(line, margin + 140, globalY - 12 - (i * 10), 7.5, fonts.regular);
+            });
+            globalY -= 45;
 
-        const legalText = [
-            "We, M/s ____________________________________, hereby declare and confirm that we",
-            "are not liable to register under Section 22 or Section 24 of the Central GST Act, 2017",
-            "or under the corresponding provisions of the applicable State GST Act. (Stamp)"
-        ];
-        legalText.forEach((line, i) => {
-            drawText(line, margin + 160, globalY - 15 - (i * 12), 8.5, fonts.regular);
-        });
-        globalY -= 55;
+            // --- 5. Consignee Details ---
+            drawText("Consignee Details:", margin, globalY, 8, fonts.bold);
+            drawHLine(globalY - 1, margin, margin + 75);
+            globalY -= 12;
 
-        // --- 5. Consignee Details ---
-        drawText("Consignee Details:", margin, globalY, 9, fonts.bold);
-        drawHLine(globalY - 1, margin, margin + 85);
-        globalY -= 15;
+            drawText("Name:", margin, globalY, 10, fonts.bold);
+            drawText(booking.receiverDetails?.name, margin + 45, globalY, 10, fonts.regular);
+            drawHLine(globalY - 2, margin + 40, margin + 250);
 
-        drawText("Name:", margin, globalY, 11, fonts.bold);
-        drawText(booking.receiverDetails?.name, margin + 45, globalY, 11, fonts.regular);
-        drawHLine(globalY - 2, margin + 40, margin + 250);
+            drawText("Place of Delivery:", margin + 265, globalY, 10, fonts.bold);
+            const rAddrFull = `${booking.receiverDetails?.address || ''}, ${booking.receiverDetails?.city || ''} - ${booking.receiverDetails?.pincode || ''}`;
+            
+            drawText(rAddrFull.substring(0, 40), margin + 355, globalY, 8.5, fonts.regular);
+            drawHLine(globalY - 2, margin + 350, width - margin);
+            
+            globalY -= 15;
+            drawText(rAddrFull.slice(40, 150), margin, globalY + 2, 8.5, fonts.regular);
+            drawHLine(globalY, margin, width - margin);
+            globalY -= 15;
 
-        drawText("Place of Delivery:", margin + 265, globalY, 11, fonts.bold);
-        drawText(booking.receiverDetails?.city, margin + 375, globalY, 11, fonts.regular);
-        drawHLine(globalY - 2, margin + 370, width - margin);
-        globalY -= 25;
+            // Consignee GST
+            drawText("GST Registered:", margin, globalY, 9, fonts.bold);
+            drawText("Yes", margin + 80, globalY, 9, fonts.regular);
+            drawCheckbox(margin + 105, globalY - 2);
+            drawText("No", margin + 80, globalY - 12, 9, fonts.regular);
+            drawCheckbox(margin + 105, globalY - 14);
 
-        drawHLine(globalY, margin, width - margin);
-        globalY -= 15;
+            drawText("If Yes, GST No:", margin + 140, globalY, 9, fonts.regular);
+            drawHLine(globalY - 2, margin + 220, width - margin - 80);
 
-        // Consignee GST
-        drawText("GST Registered:", margin, globalY, 10, fonts.bold);
-        drawText("Yes", margin + 85, globalY, 10, fonts.regular);
-        drawCheckbox(margin + 115, globalY - 2);
-        drawText("No", margin + 85, globalY - 15, 10, fonts.regular);
-        drawCheckbox(margin + 115, globalY - 17);
+            const legalText2 = [
+                "We, M/s ____________________________('consignor'), hereby declare to the best",
+                "of our knowledge that M/s ____________________________('Consignee') are",
+                "not liable to register under Section 22 or Section 24 of the Central GST Act, 2017"
+            ];
+            legalText2.forEach((line, i) => {
+                drawText(line, margin + 140, globalY - 12 - (i * 10), 7.5, fonts.regular);
+            });
+            globalY -= 45;
 
-        drawText("If Yes, GST No:", margin + 160, globalY, 10, fonts.regular);
-        drawHLine(globalY - 2, margin + 240, width - margin - 100);
+            // --- 6. Content Section ---
+            drawText("Content:", margin, globalY, 10, fonts.bold);
+            drawText("", margin + 55, globalY, 10, fonts.regular);
+            drawHLine(globalY - 2, margin + 50, width - margin);
+            globalY -= 15;
+            drawHLine(globalY - 2, margin, width - margin);
+            globalY -= 12;
 
-        const legalText2 = [
-            "We, M/s ____________________________('consignor'), hereby declare to the best",
-            "of our knowledge that M/s ____________________________('Consignee') are",
-            "not liable to register under Section 22 or Section 24 of the Central GST Act, 2017 or",
-            "under the corresponding provisions of the applicable State GST Act."
-        ];
-        legalText2.forEach((line, i) => {
-            drawText(line, margin + 160, globalY - 15 - (i * 12), 8.5, fonts.regular);
-        });
-        globalY -= 70;
+            drawText("If Consignor or Consignee is GST Registered, mention HSN Code :", margin, globalY, 8, fonts.regular);
+            drawHLine(globalY - 2, margin + 280, width - margin);
+            globalY -= 12;
 
-        // --- 6. Content Section ---
-        drawText("Content:", margin, globalY, 11, fonts.bold);
-        drawText(booking.packageDetails?.description, margin + 55, globalY, 11, fonts.regular);
-        drawHLine(globalY - 2, margin + 50, width - margin);
-        globalY -= 18;
-        drawHLine(globalY - 2, margin, width - margin);
-        globalY -= 15;
+            drawText("Reason for Transportation:", margin, globalY, 10, fonts.bold);
+            drawHLine(globalY - 2, margin + 140, width - margin);
+            globalY -= 12;
 
-        drawText("If Consignor or Consignee is GST Registered, mention HSN Code :", margin, globalY, 9, fonts.regular);
-        drawHLine(globalY - 2, margin + 300, width - margin);
-        globalY -= 15;
+            drawText("If this consignment is of commercial nature: Yes", margin, globalY, 9, fonts.bold);
+            drawCheckbox(margin + 215, globalY - 2);
+            drawText("No", margin + 255, globalY, 9, fonts.bold);
+            drawCheckbox(margin + 275, globalY - 2);
+            globalY -= 18;
 
-        drawText("Reason for Transportation:", margin, globalY, 11, fonts.bold);
-        drawHLine(globalY - 2, margin + 155, width - margin);
-        globalY -= 15;
+            // Value Section
+            drawText("Value of Consignment :", margin, globalY, 10, fonts.bold);
+            drawText("(Declared Value)", margin + 115, globalY, 8.5, fonts.regular);
+            globalY -= 15;
 
-        drawText("If this consignment is of commercial nature: Yes", margin, globalY, 10, fonts.bold);
-        drawCheckbox(margin + 235, globalY - 2);
-        drawText("No", margin + 275, globalY, 10, fonts.bold);
-        drawCheckbox(margin + 295, globalY - 2);
-        globalY -= 20;
+            drawText("Rs.", margin + 25, globalY, 10, fonts.regular);
+            const declaredVal = booking.packageDetails?.value || booking.packageDetails?.itemValue || booking.value || 0;
+            drawText(String(declaredVal), margin + 55, globalY, 10, fonts.bold);
+            drawHLine(globalY - 2, margin + 50, margin + 140);
 
-        // Value Section
-        drawText("Value of Consignment :", margin, globalY, 11, fonts.bold);
-        drawText("((Irrespective of the commercial/Non-commercial nature of consignment)", margin + 125, globalY, 9, fonts.regular);
-        globalY -= 20;
+            const words = numberToWords(Math.floor(declaredVal));
+            drawText("(Rupees ", margin + 150, globalY, 10, fonts.regular);
+            drawText(words + " Only", margin + 200, globalY, 8.5, fonts.regular);
+            drawHLine(globalY - 2, margin + 195, width - margin - 15);
+            drawText(")", width - margin - 10, globalY, 10, fonts.regular);
+            globalY -= 25;
 
-        drawText("Rs.", margin + 25, globalY, 11, fonts.regular);
-        const valBox = { x: margin + 50, y: globalY - 5, w: 100, h: 20 };
-        page.drawRectangle({ ...valBox, borderWidth: 1, borderColor: black });
-        drawText(String(booking.packageDetails?.value || 0), valBox.x + 5, valBox.y + 5, 11, fonts.bold);
+            drawHLine(globalY, margin, margin + 120);
+            drawText("Date", margin + 40, globalY - 12, 9, fonts.bold);
 
-        drawText("(Rupees ", valBox.x + valBox.w + 10, globalY, 11, fonts.regular);
-        drawHLine(globalY - 2, valBox.x + valBox.w + 60, width - margin - 15);
-        drawText(")", width - margin - 10, globalY, 11, fonts.regular);
-        globalY -= 35;
+            drawHLine(globalY, width - margin - 160, width - margin);
+            drawText("Signature of the Consignor", width - margin - 150, globalY - 12, 9, fonts.bold);
 
-        drawHLine(globalY, margin, margin + 140);
-        drawText("Date", margin + 50, globalY - 15, 10, fonts.bold);
+            // --- New Address Field at bottom right (Two Rows) ---
+            globalY -= 35;
+            drawText("Address:", width - margin - 160, globalY, 10, fonts.bold);
+            const sAddr = `${booking.senderDetails?.address || ''}, ${booking.senderDetails?.pincode || ''}`;
+            
+            drawText(sAddr.substring(0, 40), width - margin - 110, globalY, 8.5, fonts.regular);
+            drawHLine(globalY - 2, width - margin - 115, width - margin);
+            
+            globalY -= 12;
+            drawHLine(globalY - 2, width - margin - 115, width - margin);
+            drawText(sAddr.slice(40, 90), width - margin - 110, globalY, 8.5, fonts.regular);
+        };
 
-        drawHLine(globalY, width - margin - 180, width - margin);
-        drawText("Signature of the Consignor", width - margin - 165, globalY - 15, 10, fonts.bold);
+        // Draw only one form at the top half
+        await drawForm(height - 25);
 
         const pdfBytes = await pdfDoc.save();
         return Buffer.from(pdfBytes);

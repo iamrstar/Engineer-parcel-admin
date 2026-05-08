@@ -203,17 +203,20 @@ router.get("/stats/recent-rider-activity", authMiddleware, async (req, res) => {
     })
       .sort({ updatedAt: -1 })
       .limit(10)
-      .populate("assignedRider", "name phone");
+      .populate("assignedRider", "name phone")
+      .lean();
 
     const activities = recentUpdates.map(booking => {
       const lastUpdate = booking.trackingHistory[booking.trackingHistory.length - 1];
+      const declaredVal = booking.packageDetails?.value || booking.packageDetails?.itemValue || booking.value || 0;
       return {
         _id: lastUpdate?._id || booking._id,
         bookingId: booking.bookingId,
         bookingMongoId: booking._id,
         status: booking.status,
         assignedRider: booking.assignedRider,
-        timestamp: lastUpdate?.timestamp || booking.updatedAt
+        timestamp: lastUpdate?.timestamp || booking.updatedAt,
+        declaredValue: declaredVal
       };
     });
 
@@ -754,7 +757,7 @@ router.put("/:id/cancel", authMiddleware, async (req, res) => {
  * ------------------------ */
 router.get("/:id/office-label", authMiddleware, async (req, res) => {
   try {
-    const booking = await Booking.findById(req.params.id);
+    const booking = await Booking.findById(req.params.id).lean();
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
     }
