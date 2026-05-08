@@ -158,7 +158,7 @@ const BookingDetail = () => {
     try {
       setSaving(true)
       await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/${id}`, booking)
-      // await axios.put(`http://localhost:8000/api/bookings/${id}`, booking)
+      // await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/${id}`, booking)
       toast.success("Booking updated successfully")
       setEditMode(false)
     } catch (error) {
@@ -180,7 +180,7 @@ const BookingDetail = () => {
 
     try {
       const response = await axios.delete(`${import.meta.env.VITE_API_URL}/api/bookings/${id}`);
-      // const response = await axios.delete(`http://localhost:8000/api/bookings/${id}`);
+      // const response = await axios.delete(`${import.meta.env.VITE_API_URL}/api/bookings/${id}`);
 
       if (response.data.success) {
         toast.success("Booking deleted successfully");

@@ -28,7 +28,7 @@ const SalesReport = () => {
         try {
             setLoading(true)
             const token = localStorage.getItem("token")
-            const res = await axios.get("http://localhost:8000/api/bookings/sales/report", {
+            const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/sales/report`, {
                 headers: {
                     Authorization: `Bearer ${token}`
                 }
