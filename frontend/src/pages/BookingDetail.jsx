@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import axios from "axios"
 import toast from "react-hot-toast"
-import { Package, Truck, MapPin, Calendar, Clock, User, Phone, Mail, ChevronRight, Edit2, Save, Trash2, ArrowLeft, CreditCard, XCircle, Tag, Printer, Bike, RefreshCw } from "lucide-react"
+import { Package, Truck, MapPin, Calendar, Clock, User, Phone, Mail, ChevronRight, Edit2, Save, Trash2, ArrowLeft, CreditCard, XCircle, Tag, Printer, Bike, RefreshCw, CheckCircle2 } from "lucide-react"
 
 
 
@@ -14,12 +14,14 @@ const BookingDetail = () => {
 
   const [booking, setBooking] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [sendingLink, setSendingLink] = useState(false)
   const [saving, setSaving] = useState(false)
   const [editMode, setEditMode] = useState(false)
   const [riders, setRiders] = useState([])
   const [otherVendor, setOtherVendor] = useState(false)
   const [showETDPopup, setShowETDPopup] = useState(false)
   const [tempETD, setTempETD] = useState("")
+  const [deliveryNotifyModal, setDeliveryNotifyModal] = useState({ open: false, type: "", data: null })
 
   // Reschedule State
   const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false)
@@ -137,6 +139,22 @@ const BookingDetail = () => {
     }
   }
 
+  const handleSendPaymentLink = async () => {
+    try {
+      setSendingLink(true)
+      const t = localStorage.getItem("adminToken") || localStorage.getItem("token")
+      const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/bookings/${id}/payment-link`, {}, {
+        headers: { Authorization: `Bearer ${t}` }
+      })
+      setBooking(prev => ({ ...prev, paymentLink: res.data.paymentLink }))
+      toast.success("Payment link generated and sent!")
+    } catch (error) {
+      toast.error(error.response?.data?.message || "Failed to send link")
+    } finally {
+      setSendingLink(false)
+    }
+  }
+
   const fetchBooking = async () => {
     try {
       const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/${id}`)
@@ -154,13 +172,45 @@ const BookingDetail = () => {
     }
   }
 
-  const handleSave = async () => {
+  const handleTrackingSave = async (track, notifyValue = null) => {
     try {
+      if (notifyValue === null && track.status?.toLowerCase() === "delivered") {
+        setDeliveryNotifyModal({ open: true, type: "tracking", data: track });
+        return false; // Did not save yet
+      }
+
       setSaving(true)
-      await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/${id}`, booking)
-      // await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/${id}`, booking)
+      let url = `${import.meta.env.VITE_API_URL}/api/bookings/${id}/tracking`;
+      if (track._id) {
+        url = `${import.meta.env.VITE_API_URL}/api/bookings/${id}/tracking/${track._id}`;
+      }
+
+      const response = await axios.put(url, { ...track, notify: !!notifyValue })
+      toast.success("Tracking updated successfully")
+      setBooking(response.data)
+      setDeliveryNotifyModal({ open: false, type: "", data: null });
+      return true; // Successfully saved
+    } catch (err) {
+      console.error(err)
+      toast.error("Failed to update tracking")
+      return false;
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleSave = async (notify = null) => {
+    try {
+      if ((notify === null || notify === undefined) && booking.status?.toLowerCase() === "delivered") {
+        setDeliveryNotifyModal({ open: true, type: "save", data: null });
+        return;
+      }
+
+      setSaving(true)
+      await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/${id}`, { ...booking, notify: !!notify })
       toast.success("Booking updated successfully")
       setEditMode(false)
+      setDeliveryNotifyModal({ open: false, type: "", data: null });
     } catch (error) {
       toast.error("Error updating booking")
       console.error("Error:", error)
@@ -307,7 +357,7 @@ const BookingDetail = () => {
       <div className="mb-6 sm:mb-8">
         <div className="flex items-start sm:items-center gap-3 sm:gap-4 mb-4">
           <button
-            onClick={() => navigate("/bookings")}
+            onClick={() => navigate(-1)}
             className="p-2 text-gray-600 hover:text-gray-900 shrink-0"
           >
             <ArrowLeft className="h-5 w-5" />
@@ -1354,6 +1404,43 @@ const BookingDetail = () => {
                 )}
               </div>
             </div>
+
+            {/* Payment Link Section */}
+            <div className="pt-2 border-t border-gray-100">
+                <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Razorpay Payment Link</label>
+                {booking.paymentLink ? (
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                    <a 
+                      href={booking.paymentLink} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline text-sm font-mono break-all bg-blue-50 px-3 py-2 rounded-lg border border-blue-100 flex-1"
+                    >
+                      {booking.paymentLink}
+                    </a>
+                    <button
+                      onClick={handleSendPaymentLink}
+                      disabled={sendingLink}
+                      className="w-full sm:w-auto px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-all flex items-center justify-center gap-2"
+                    >
+                      {sendingLink ? <RefreshCw className="w-3 h-3 animate-spin" /> : <CreditCard className="w-3 h-3" />}
+                      RESEND
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleSendPaymentLink}
+                    disabled={sendingLink || booking.pricing?.totalAmount <= 0}
+                    className="w-full px-4 py-3 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-100"
+                  >
+                    {sendingLink ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+                    GENERATE & SEND PAYMENT LINK
+                  </button>
+                )}
+                {booking.pricing?.totalAmount <= 0 && (
+                   <p className="text-[10px] text-red-500 mt-1 font-medium italic">* Amount must be greater than 0 to generate a link</p>
+                )}
+            </div>
           </div>
         </div>
       </div>
@@ -1455,6 +1542,51 @@ const BookingDetail = () => {
       )}
 
 
+      {/* Delivery Notification Confirmation Popup */}
+      {deliveryNotifyModal.open && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden animate-in zoom-in duration-300 border border-green-100">
+            <div className="p-6 text-center">
+              <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce duration-1000">
+                <CheckCircle2 className="w-10 h-10" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Marked as Delivered!</h3>
+              <p className="text-gray-600 text-sm mb-6">
+                Would you like to send a delivery confirmation email (with review link) to the customer?
+              </p>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={() => {
+                    if (deliveryNotifyModal.type === "save") {
+                      handleSave(true);
+                    } else {
+                      handleTrackingSave(deliveryNotifyModal.data, true);
+                    }
+                  }}
+                  className="py-3 bg-green-600 text-white font-bold rounded-xl hover:bg-green-700 transition-all shadow-lg shadow-green-100 flex items-center justify-center gap-2"
+                >
+                  <Mail className="w-4 h-4" />
+                  Yes, Send
+                </button>
+                <button
+                  onClick={() => {
+                    if (deliveryNotifyModal.type === "save") {
+                      handleSave(false);
+                    } else {
+                      handleTrackingSave(deliveryNotifyModal.data, false);
+                    }
+                  }}
+                  className="py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-all"
+                >
+                  No, Skip
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="mt-6 bg-white rounded-lg shadow p-6">
         <h3 className="text-lg font-medium text-gray-900 mb-4">Tracking History</h3>
 
@@ -1529,26 +1661,7 @@ const BookingDetail = () => {
                     </div>
                     <div className="flex gap-2">
                       <button
-                        onClick={async () => {
-                          try {
-                            setSaving(true)
-                            let url = `${import.meta.env.VITE_API_URL}/api/bookings/${id}/tracking`;
-                            if (track._id) {
-                              url = `${import.meta.env.VITE_API_URL}/api/bookings/${id}/tracking/${track._id}`;
-                            }
-
-                            const response = await axios.put(url, track)
-                            toast.success("Tracking updated successfully")
-
-                            // update booking state cleanly with latest from server
-                            setBooking(response.data)
-                          } catch (err) {
-                            console.error(err)
-                            toast.error("Failed to update tracking")
-                          } finally {
-                            setSaving(false)
-                          }
-                        }}
+                        onClick={() => handleTrackingSave(track)}
                         className="px-3 py-1 bg-primary-500 text-white rounded hover:bg-primary-600"
                       >
                         Save
@@ -1728,50 +1841,29 @@ const BookingDetail = () => {
           {/* Submit Button */}
           <div className="col-span-1 md:col-span-2 flex items-end">
             <button
-              onClick={async () => {
-                try {
-                  const { newStatus, newLocation, newDescription, newTimestamp } = booking || {};
+              onClick={() => {
+                const { newStatus, newLocation, newDescription, newTimestamp } = booking || {};
+                if (!newStatus || !newLocation) return toast.error("Status and Location are required");
 
-                  if (!newStatus || !newLocation) return toast.error("Status and Location are required");
+                const trackingUpdate = {
+                  status: newStatus,
+                  location: newLocation,
+                  description: newDescription || "Tracking Updated",
+                  timestamp: newTimestamp ? new Date(newTimestamp) : new Date(),
+                };
 
-                  // Use custom timestamp if provided, otherwise current time
-                  const finalTimestamp = newTimestamp ? new Date(newTimestamp) : new Date();
-
-                  const trackingUpdate = {
-                    status: newStatus,
-                    location: newLocation,
-                    description: newDescription || "Tracking Updated",
-                    timestamp: finalTimestamp,
-                  };
-
-                  setSaving(true);
-                  const response = await axios.put(
-                    `${import.meta.env.VITE_API_URL}/api/bookings/${id}/tracking`,
-                    trackingUpdate
-                  );
-
-                  toast.success("Tracking event logged successfully");
-
-                  const updated = response?.data;
-                  const latestEntry = Array.isArray(updated?.trackingHistory)
-                    ? updated.trackingHistory[updated.trackingHistory.length - 1]
-                    : trackingUpdate;
-
-                  setBooking((prev) => ({
-                    ...prev,
-                    status: newStatus,
-                    trackingHistory: [...(prev?.trackingHistory || []), latestEntry],
-                    newStatus: "",
-                    newLocation: "",
-                    newDescription: "",
-                    newTimestamp: "",
-                  }));
-                } catch (err) {
-                  console.error(err);
-                  toast.error("Failed to add tracking update");
-                } finally {
-                  setSaving(false);
-                }
+                handleTrackingSave(trackingUpdate).then((saved) => {
+                  if (saved) {
+                    // Clear form only after real success
+                    setBooking(prev => ({
+                      ...prev,
+                      newStatus: "",
+                      newLocation: "",
+                      newDescription: "",
+                      newTimestamp: ""
+                    }));
+                  }
+                });
               }}
               disabled={saving}
               className="w-full px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-md hover:bg-primary-700 transition flex items-center justify-center disabled:opacity-60"

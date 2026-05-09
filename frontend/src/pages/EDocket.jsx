@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import axios from "axios";
 import toast from "react-hot-toast";
 import { useAuth } from "../contexts/AuthContext";
@@ -29,9 +30,12 @@ const isRecent = (date) => {
 
 export default function EDocket() {
     const { token } = useAuth();
+    const [searchParams, setSearchParams] = useSearchParams();
     const [bookings, setBookings] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filterDate, setFilterDate] = useState(() => {
+        const urlDate = searchParams.get("date");
+        if (urlDate) return urlDate;
         const d = new Date();
         return d.toISOString().split('T')[0];
     });
@@ -123,6 +127,23 @@ export default function EDocket() {
         const currentToken = token || localStorage.getItem("adminToken") || localStorage.getItem("token");
         if (currentToken) fetchBookings();
     }, [token, filterDate, vendorNotAssigned]);
+
+    // Handle deep-linked booking
+    useEffect(() => {
+        const id = searchParams.get("id");
+        if (id && bookings.length > 0 && !selectedBooking) {
+            const b = bookings.find(x => x.bookingId === id || x.trackingId === id);
+            if (b) {
+                setSelectedBooking(b);
+                setEditForm({ ...b });
+                setPricing({ ...b.pricing });
+                // Clean up URL after opening
+                searchParams.delete("id");
+                searchParams.delete("date");
+                setSearchParams(searchParams);
+            }
+        }
+    }, [bookings, searchParams, selectedBooking]);
 
     const handleVerify = async (sendLink = true) => {
         if (!selectedBooking) return;

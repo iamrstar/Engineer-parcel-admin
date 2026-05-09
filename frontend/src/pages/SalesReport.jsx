@@ -1,23 +1,33 @@
 import React, { useState, useEffect } from "react"
 import axios from "axios"
 import toast from "react-hot-toast"
-import { Lock, Printer, IndianRupee, PieChart } from "lucide-react"
+import { Lock, Printer, IndianRupee, PieChart, FileDown, Calendar, Filter, RotateCcw } from "lucide-react"
+import * as XLSX from "xlsx"
 
 const SalesReport = () => {
     const [isAuthenticated, setIsAuthenticated] = useState(false)
     const [password, setPassword] = useState("")
     const [loading, setLoading] = useState(false)
     const [reportData, setReportData] = useState([])
+    const [startDate, setStartDate] = useState("")
+    const [endDate, setEndDate] = useState("")
+    const [serviceType, setServiceType] = useState("all")
 
     // Calculate totals
     const totalRevenue = reportData.reduce((sum, item) => sum + item.totalAmount, 0)
     const totalBookings = reportData.reduce((sum, item) => sum + item.totalBookings, 0)
 
+    useEffect(() => {
+        if (isAuthenticated) {
+            fetchReportData()
+        }
+    }, [startDate, endDate, serviceType, isAuthenticated])
+
     const handleLogin = (e) => {
         e.preventDefault()
         if (password === "only@CEO") {
             setIsAuthenticated(true)
-            fetchReportData()
+            // fetchReportData() is now handled by useEffect
         } else {
             toast.error("Invalid password")
             setPassword("")
@@ -27,8 +37,9 @@ const SalesReport = () => {
     const fetchReportData = async () => {
         try {
             setLoading(true)
-            const token = localStorage.getItem("token")
+            const token = localStorage.getItem("adminToken") || localStorage.getItem("token")
             const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/sales/report`, {
+                params: { startDate, endDate, serviceType },
                 headers: {
                     Authorization: `Bearer ${token}`
                 }
@@ -48,6 +59,33 @@ const SalesReport = () => {
 
     const handlePrint = () => {
         window.print()
+    }
+
+    const handleExportExcel = () => {
+        if (reportData.length === 0) {
+            toast.error("No data to export")
+            return
+        }
+        const data = reportData.map(item => {
+            const [year, monthNum] = item.month.split("-")
+            const date = new Date(year, monthNum - 1)
+            const monthName = date.toLocaleString('default', { month: 'long', year: 'numeric' })
+            return {
+                "Month": monthName,
+                "Total Bookings": item.totalBookings,
+                "Revenue (₹)": item.totalAmount
+            }
+        })
+        const ws = XLSX.utils.json_to_sheet(data)
+        const wb = XLSX.utils.book_new()
+        XLSX.utils.book_append_sheet(wb, ws, "Sales Report")
+        XLSX.writeFile(wb, `Sales_Report_${new Date().toISOString().split('T')[0]}.xlsx`)
+    }
+
+    const handleReset = () => {
+        setStartDate("")
+        setEndDate("")
+        setServiceType("all")
     }
 
     if (!isAuthenticated) {
@@ -97,13 +135,67 @@ const SalesReport = () => {
                     </h1>
                     <p className="text-gray-500 mt-1">Overview of revenue and total bookings</p>
                 </div>
-                <button
-                    onClick={handlePrint}
-                    className="flex items-center gap-2 bg-gray-900 hover:bg-gray-800 text-white px-5 py-2.5 rounded-lg font-medium transition-colors print:hidden shadow-sm"
-                >
-                    <Printer className="w-5 h-5" />
-                    Export to PDF
-                </button>
+                <div className="flex flex-wrap items-center gap-3 print:hidden">
+                    <button
+                        onClick={handleExportExcel}
+                        className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg font-medium transition-colors shadow-sm"
+                    >
+                        <FileDown className="w-5 h-5" />
+                        Export Excel
+                    </button>
+                    <button
+                        onClick={handlePrint}
+                        className="flex items-center gap-2 bg-gray-900 hover:bg-gray-800 text-white px-5 py-2.5 rounded-lg font-medium transition-colors shadow-sm"
+                    >
+                        <Printer className="w-5 h-5" />
+                        Print PDF
+                    </button>
+                </div>
+            </div>
+
+            {/* Filter Section */}
+            <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 mb-8 print:hidden">
+                <div className="flex flex-wrap items-center gap-4">
+                    <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
+                        <Calendar className="w-4 h-4 text-gray-500" />
+                        <input
+                            type="date"
+                            value={startDate}
+                            onChange={(e) => setStartDate(e.target.value)}
+                            className="bg-transparent border-none text-sm focus:ring-0 p-0"
+                            placeholder="Start Date"
+                        />
+                        <span className="text-gray-400">to</span>
+                        <input
+                            type="date"
+                            value={endDate}
+                            onChange={(e) => setEndDate(e.target.value)}
+                            className="bg-transparent border-none text-sm focus:ring-0 p-0"
+                            placeholder="End Date"
+                        />
+                    </div>
+
+                    <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
+                        <Filter className="w-4 h-4 text-gray-500" />
+                        <select
+                            value={serviceType}
+                            onChange={(e) => setServiceType(e.target.value)}
+                            className="bg-transparent border-none text-sm focus:ring-0 p-0 pr-8 font-medium"
+                        >
+                            <option value="all">All Services</option>
+                            <option value="courier">Courier</option>
+                            <option value="campus-parcel">Campus Parcel</option>
+                        </select>
+                    </div>
+
+                    <button
+                        onClick={handleReset}
+                        className="flex items-center gap-2 text-gray-500 hover:text-gray-700 font-medium text-sm px-2"
+                    >
+                        <RotateCcw className="w-4 h-4" />
+                        Reset
+                    </button>
+                </div>
             </div>
 
             {loading ? (

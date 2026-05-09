@@ -4,6 +4,7 @@ import { useAuth } from "../contexts/AuthContext"
 import axios from "axios"
 import toast from "react-hot-toast"
 import { Package, LayoutDashboard, FileText, MapPin, Ticket, LogOut, Menu, X, BarChart, Bell, Users, Building, CheckSquare } from "lucide-react"
+import { socket } from "../utils/socket"
 
 const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -49,212 +50,180 @@ const Layout = ({ children }) => {
     };
   }, []);
 
-  useEffect(() => {
-    const fetchCount = async () => {
-      try {
-        const token = localStorage.getItem("adminToken") || localStorage.getItem("token")
-        if (!token) return
-
-        // Fetch E-Docket Count
-        const resDocket = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/edocket-count`, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-        const newCount = resDocket.data.count || 0
-
-        // Fetch Pending Online Orders Count
-        const resStats = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/stats/dashboard`, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-        const newPending = resStats.data.pendingBookings || 0
-
-        // Fetch Recent Rider Activity (Status Updates)
-        const resActivity = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/stats/recent-rider-activity`, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-        const recentActivity = resActivity.data || []
-
-        // Fetch Recent Pending Orders List for Dropdown
-        const resRecent = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/stats/pending-recent`, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-        setRecentOrders(resRecent.data || [])
-
-        let alertTriggered = false;
-        let alertMessage = "";
-        let singleBookingId = null;
-        let updateCount = 0;
-
-        if (!isFirstLoadRef.current) {
-          // Check for new intake bookings
-          if (newCount > prevCountRef.current) {
-            alertTriggered = true;
-            alertMessage = "New E-Docket intake bookings have arrived.";
-            updateCount++;
-          }
-          // Check for new online orders
-          if (newPending > prevPendingRef.current) {
-            alertTriggered = true;
-            alertMessage = alertTriggered && alertMessage ? "New E-Dockets and Online Orders arrived." : "New Online Orders have arrived.";
-            updateCount++;
-          }
-
-          // Check for new Rider Actions (Picked/Delivered)
-          recentActivity.forEach(activity => {
-            if (!seenActivityIdsRef.current.has(activity._id)) {
-              seenActivityIdsRef.current.add(activity._id);
-              
-              const isAdminAction = activity.status === "assigned" || 
-                                    activity.status === "confirmed" || 
-                                    (activity.status === "pending" && activity.assignedRider);
-
-              if (!isAdminAction) {
-                alertTriggered = true;
-                updateCount++;
-                singleBookingId = activity.bookingMongoId;
-                
-                let message = "";
-                if (activity.status === "pending" && !activity.assignedRider) {
-                  message = `New Web Order ${activity.bookingId} received.`;
-                } else {
-                  const riderName = activity.assignedRider?.name || "A rider";
-                  message = `${riderName} has ${activity.status} order ${activity.bookingId}.`;
-                }
-
-                alertMessage = alertTriggered && alertMessage
-                  ? `${alertMessage} Also, ${message}`
-                  : message;
-              }
-            }
-          });
-        }
-
-        // ... existing seenActivityIdsRef logic ...
-        recentActivity.forEach(activity => {
-          if (!seenActivityIdsRef.current.has(activity._id)) {
-            seenActivityIdsRef.current.add(activity._id);
-          }
-        });
-
-        if (seenActivityIdsRef.current.size > 200) {
-          const idsArray = Array.from(seenActivityIdsRef.current);
-          seenActivityIdsRef.current = new Set(idsArray.slice(-100));
-        }
-
-        isFirstLoadRef.current = false;
-
-        if (alertTriggered) {
-          // Play sound
-          const audio = new Audio("/notification.mp3");
-          audio.loop = true;
-          audio.play().catch(e => console.error("Audio play failed:", e));
-          audioRef.current = audio;
-
-          // Flash the tab title
-          const originalTitle = document.title;
-          let isAlertTitle = false;
-          const titleInterval = setInterval(() => {
-            document.title = isAlertTitle ? originalTitle : `(1) 🚨 New E-Docket!`;
-            isAlertTitle = !isAlertTitle;
-          }, 1000);
-
-          let displayMessage = alertMessage;
-          if (alertMessage.split("Also,").length > 3) {
-            const parts = alertMessage.split("Also,");
-            displayMessage = `${parts[0]} Also, ${parts[1]} ... and more updates.`;
-          }
-
-          toast((t) => (
-            <div className="flex flex-col gap-3 min-w-[300px] bg-white p-1">
-              <div className="flex items-center gap-3 border-b border-red-100 pb-2">
-                <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center animate-pulse">
-                  <Bell className="h-5 w-5 text-red-600" />
-                </div>
-                <div>
-                  <h4 className="font-bold text-gray-900 leading-tight">New Order Alert!</h4>
-                  <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">System Notification</p>
-                </div>
-              </div>
-              
-              <div className="py-1">
-                <p className="text-sm text-gray-700 font-medium leading-relaxed">{displayMessage}</p>
-                <div className="mt-2 space-y-1">
-                  {newCount > prevCountRef.current && (
-                    <div className="flex items-center gap-2 text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
-                      Pending E-Dockets: {newCount}
-                    </div>
-                  )}
-                  {newPending > prevPendingRef.current && (
-                    <div className="flex items-center gap-2 text-[11px] font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded">
-                      <div className="w-1.5 h-1.5 rounded-full bg-orange-500"></div>
-                      Pending Online Orders: {newPending}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex gap-2 pt-2 border-t border-gray-100">
-                <button
-                  onClick={() => {
-                    toast.dismiss(t.id);
-                    if (audioRef.current) {
-                      audioRef.current.pause();
-                      audioRef.current = null;
-                    }
-                    clearInterval(titleInterval);
-                    document.title = originalTitle;
-                    
-                    if (updateCount === 1 && singleBookingId) {
-                      navigate(`/bookings/${singleBookingId}`);
-                    } else {
-                      navigate("/bookings");
-                    }
-                  }}
-                  className="flex-1 px-4 py-2.5 bg-orange-500 text-white rounded-xl hover:bg-orange-600 font-bold shadow-lg shadow-orange-100 transition-all active:scale-95 text-xs flex items-center justify-center gap-2"
-                >
-                  <Package className="h-3.5 w-3.5" />
-                  {updateCount === 1 && singleBookingId ? "View Order" : "View Orders"}
-                </button>
-                <button
-                  onClick={() => {
-                    toast.dismiss(t.id);
-                    if (audioRef.current) {
-                      audioRef.current.pause();
-                      audioRef.current = null;
-                    }
-                    clearInterval(titleInterval);
-                    document.title = originalTitle;
-                  }}
-                  className="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 font-bold transition-all text-xs"
-                >
-                  Dismiss
-                </button>
-              </div>
-            </div>
-          ), {
-            duration: Infinity,
-            position: 'top-right',
-            style: { border: 'none', padding: '12px', borderRadius: '16px', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' },
-          });
-        }
-
-        // Fetch Tomorrow's Task Count
-        const resTasks = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/tasks/tomorrow-count`, {
-          headers: { Authorization: `Bearer ${token}` }
-        })
-        setTasksCount(resTasks.data.count || 0)
-
-        prevCountRef.current = newCount
-        prevPendingRef.current = newPending
-        setEDocketCount(newCount)
-        setPendingOrdersCount(newPending)
-      } catch (error) {
-        // Silently fail if not logged in
-      }
+  // Function to show the persistent alert (Refactored from the polling logic)
+  const showAlert = (message, updateCount, singleBookingId, counts = {}, bookingSource = null) => {
+    // Play sound if not already playing
+    if (!audioRef.current) {
+      const audio = new Audio("/notification.mp3")
+      audio.loop = true
+      audio.play().catch(e => console.error("Audio play failed:", e))
+      audioRef.current = audio
     }
+
+    // Flash the tab title
+    const originalTitle = document.title
+    let isAlertTitle = false
+    const titleInterval = setInterval(() => {
+      document.title = isAlertTitle ? originalTitle : `(1) 🚨 New Alert!`
+      isAlertTitle = !isAlertTitle
+    }, 1000)
+
+    toast((t) => (
+      <div className="flex flex-col gap-3 min-w-[300px] bg-white p-1">
+        <div className="flex items-center gap-3 border-b border-red-100 pb-2">
+          <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center animate-pulse">
+            <Bell className="h-5 w-5 text-red-600" />
+          </div>
+          <div>
+            <h4 className="font-bold text-gray-900 leading-tight">Admin Notification</h4>
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Real-time Update</p>
+          </div>
+        </div>
+        
+        <div className="py-1">
+          <p className="text-sm text-gray-700 font-medium leading-relaxed">{message}</p>
+          {(counts.newCount > 0 || counts.newPending > 0) && (
+            <div className="mt-2 space-y-1">
+              {counts.newCount > 0 && (
+                <div className="flex items-center gap-2 text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">
+                  <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                  Pending E-Dockets: {counts.newCount}
+                </div>
+              )}
+              {counts.newPending > 0 && (
+                <div className="flex items-center gap-2 text-[11px] font-bold text-orange-600 bg-orange-50 px-2 py-1 rounded">
+                  <div className="w-1.5 h-1.5 rounded-full bg-orange-500"></div>
+                  Pending Online Orders: {counts.newPending}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="flex gap-2 pt-2 border-t border-gray-100">
+          <button
+            onClick={() => {
+              toast.dismiss(t.id)
+              if (audioRef.current) {
+                audioRef.current.pause()
+                audioRef.current = null
+              }
+              clearInterval(titleInterval)
+              document.title = originalTitle
+              
+              if (bookingSource === "Agent") {
+                const date = counts.date ? counts.date.split('T')[0] : new Date().toISOString().split('T')[0]
+                navigate(`/e-docket?id=${singleBookingId}&date=${date}`)
+              } else if (updateCount === 1 && singleBookingId) {
+                navigate(`/bookings/${singleBookingId}`)
+              } else {
+                navigate("/bookings")
+              }
+            }}
+            className="flex-1 px-4 py-2.5 bg-orange-500 text-white rounded-xl hover:bg-orange-600 font-bold shadow-lg shadow-orange-100 transition-all active:scale-95 text-xs flex items-center justify-center gap-2"
+          >
+            <Package className="h-3.5 w-3.5" />
+            {bookingSource === "Agent" ? "View E-Dockets" : (updateCount === 1 && singleBookingId ? "View Update" : "View Dashboard")}
+          </button>
+          <button
+            onClick={() => {
+              toast.dismiss(t.id)
+              if (audioRef.current) {
+                audioRef.current.pause()
+                audioRef.current = null
+              }
+              clearInterval(titleInterval)
+              document.title = originalTitle
+            }}
+            className="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 font-bold transition-all text-xs"
+          >
+            Dismiss
+          </button>
+        </div>
+      </div>
+    ), {
+      duration: Infinity,
+      position: 'top-right',
+      style: { border: 'none', padding: '12px', borderRadius: '16px', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' },
+    })
+  }
+
+  const fetchCount = async (silent = false) => {
+    try {
+      const token = localStorage.getItem("adminToken") || localStorage.getItem("token")
+      if (!token) return
+
+      const resDocket = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/edocket-count`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      const newCount = resDocket.data.count || 0
+
+      const resStats = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/stats/dashboard`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      const newPending = resStats.data.pendingBookings || 0
+
+      const resActivity = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/stats/recent-rider-activity`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      const recentActivity = resActivity.data || []
+
+      const resRecent = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/stats/pending-recent`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      setRecentOrders(resRecent.data || [])
+
+      if (!silent && !isFirstLoadRef.current) {
+        // Polling-based alert logic remains as a fallback but we prefer socket events now
+        if (newCount > prevCountRef.current || newPending > prevPendingRef.current) {
+          const msg = newCount > prevCountRef.current ? "New E-Docket intake bookings have arrived." : "New Online Orders have arrived."
+          showAlert(msg, 1, null, { newCount, newPending })
+        }
+      }
+
+      const resTasks = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/tasks/tomorrow-count`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      setTasksCount(resTasks.data.count || 0)
+
+      prevCountRef.current = newCount
+      prevPendingRef.current = newPending
+      setEDocketCount(newCount)
+      setPendingOrdersCount(newPending)
+      isFirstLoadRef.current = false
+    } catch (error) {
+      console.error("Fetch count error:", error)
+    }
+  }
+
+  // Socket Connection & Listeners
+  useEffect(() => {
+    const token = localStorage.getItem("adminToken") || localStorage.getItem("token")
+    if (token) {
+      socket.connect()
+
+      socket.on("new_booking", (data) => {
+        console.log("🔥 Real-time Booking:", data)
+        showAlert(`New ${data.serviceType} Booking ${data.bookingId} from ${data.senderName}`, 1, data.bookingId, { date: data.createdAt }, data.bookingSource)
+        fetchCount(true) // Silent fetch to update counters
+      })
+
+      socket.on("status_update", (data) => {
+        console.log("🚚 Real-time Status (Silent Refresh):", data)
+        // showAlert is removed here to prevent annoying popups for transit updates
+        fetchCount(true)
+      })
+    }
+
     fetchCount()
-    const interval = setInterval(fetchCount, 10000) // Reduced to 10s for faster alerts
-    return () => clearInterval(interval)
+    const interval = setInterval(() => fetchCount(true), 30000) // Increase polling to 30s since we have sockets now
+    
+    return () => {
+      clearInterval(interval)
+      socket.off("new_booking")
+      socket.off("status_update")
+      socket.disconnect()
+    }
   }, [])
 
   const navigation = [

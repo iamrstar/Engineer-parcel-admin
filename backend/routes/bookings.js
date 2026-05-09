@@ -1,5 +1,6 @@
 const express = require("express");
 const Booking = require("../models/Booking");
+const mongoose = require("mongoose");
 const authMiddleware = require("../middleware/auth");
 const adminAuth = require("../middleware/adminAuth");
 const Razorpay = require("razorpay");
@@ -16,6 +17,53 @@ if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
 }
 
 const router = express.Router();
+
+/** ------------------------
+ * 📧 Helper: Send Delivery Email
+ * ------------------------ */
+const sendDeliveryEmail = async (booking) => {
+  try {
+    const sendEmail = require("../utils/sendEmail");
+    const reviewLink = "https://search.google.com/local/writereview?placeid=ChIJO9LYJiignysRoxbn5RCefB4";
+    
+    const emailHtml = `
+      <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px; border-radius: 12px;">
+        <div style="text-align: center; margin-bottom: 20px;">
+           <h1 style="color: #059669; margin: 0;">Delivered! 📦</h1>
+           <p style="color: #666; margin-top: 5px;">Shipment ${booking.bookingId}</p>
+        </div>
+        <p>Hello,</p>
+        <p>Good news! Your shipment <strong>${booking.bookingId}</strong> has been successfully delivered.</p>
+        <p>We hope you are satisfied with our service. It was a pleasure serving you!</p>
+        
+        <div style="margin: 30px 0; padding: 25px; border-radius: 16px; background: #f0fdf4; border: 1px solid #bcf0da; text-align: center;">
+          <h3 style="margin-top: 0; color: #065f46;">Rate Your Experience</h3>
+          <p style="font-size: 14px; color: #047857;">Could you spare 1 minute to rate us on Google? Your feedback helps us serve you better!</p>
+          <a href="${reviewLink}" style="display: inline-block; margin-top: 10px; padding: 14px 28px; background: #2563eb; color: #fff; text-decoration: none; border-radius: 10px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);">Write a Review</a>
+        </div>
+
+        <p style="margin-bottom: 0;">Thank you for choosing <strong>Engineers Parcel</strong>!</p>
+        <p style="color: #666; font-size: 14px;">Team Engineers Parcel</p>
+        
+        <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+        <p style="font-size: 12px; color: #999; text-align: center;">This is an automated notification. Please do not reply to this email.</p>
+      </div>
+    `;
+
+    const recipients = [booking.senderDetails?.email, booking.receiverDetails?.email].filter(Boolean);
+    
+    if (recipients.length > 0) {
+      await sendEmail({
+        to: recipients.join(","),
+        subject: `Delivered: Shipment ${booking.bookingId} - Engineers Parcel`,
+        html: emailHtml
+      });
+      console.log(`✅ Delivery email sent for ${booking.bookingId} to ${recipients.length} recipients`);
+    }
+  } catch (error) {
+    console.error(`❌ Delivery email failed for ${booking.bookingId}:`, error);
+  }
+};
 
 /** ------------------------
  * 📊 Dashboard & Test Routes
@@ -62,6 +110,59 @@ router.get("/stats/pending-recent", authMiddleware, async (req, res) => {
 router.get("/test-log", (req, res) => {
   console.log("✅ /api/bookings/test-log route hit");
   res.send("Test log working");
+});
+
+/** ------------------------
+ * 📊 Sales Report Route
+ * ------------------------ */
+router.get("/sales/report", adminAuth, async (req, res) => {
+  try {
+    const { startDate, endDate, serviceType } = req.query;
+    const match = { paymentStatus: "paid" };
+
+    if (startDate || endDate) {
+      match.createdAt = {};
+      if (startDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        match.createdAt.$gte = start;
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        match.createdAt.$lte = end;
+      }
+    }
+
+    if (serviceType && serviceType !== "all") {
+      match.serviceType = serviceType;
+    }
+
+    const reportData = await Booking.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m", date: "$createdAt" } },
+          totalAmount: { $sum: "$pricing.totalAmount" },
+          totalBookings: { $sum: 1 }
+        }
+      },
+      { $sort: { _id: -1 } },
+      {
+        $project: {
+          _id: 0,
+          month: "$_id",
+          totalAmount: 1,
+          totalBookings: 1
+        }
+      }
+    ]);
+
+    res.json({ success: true, reportData });
+  } catch (error) {
+    console.error("Sales Report Error:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
 });
 
 /** ------------------------
@@ -116,21 +217,24 @@ router.get("/", authMiddleware, async (req, res) => {
     const bookingsRaw = await Booking.find(query)
       .sort({ createdAt: -1 })
       .limit(limit * 1)
-      .skip((page - 1) * limit);
+      .skip((page - 1) * limit)
+      .lean();
 
-    // Look up EDL/KM for items that don't have it (older bookings)
+    // Look up EDL/KM for items that don't have it (older bookings) - Optimized Bulk Lookup
     const Pincode = require("../models/Pincode");
-    const bookings = await Promise.all(bookingsRaw.map(async (b) => {
-      let bookingObj = b.toObject();
-      if ((!bookingObj.edl || !bookingObj.km) && bookingObj.receiverDetails?.pincode) {
-        const pin = await Pincode.findOne({ pincode: bookingObj.receiverDetails.pincode });
+    const uniquePincodes = [...new Set(bookingsRaw.map(b => b.receiverDetails?.pincode).filter(Boolean))];
+    const pinInfo = await Pincode.find({ pincode: { $in: uniquePincodes } }).lean();
+    const pinMap = Object.fromEntries(pinInfo.map(p => [p.pincode, p]));
+
+    const bookings = bookingsRaw.map((b) => {
+      if ((!b.edl || !b.km) && b.receiverDetails?.pincode) {
+        const pin = pinMap[b.receiverDetails.pincode];
         if (pin) {
-          bookingObj.edl = pin.edl || 0;
-          bookingObj.km = pin.km || 0;
+          return { ...b, edl: pin.edl || 0, km: pin.km || 0 };
         }
       }
-      return bookingObj;
-    }));
+      return b;
+    });
 
     const total = await Booking.countDocuments(query);
 
@@ -147,8 +251,156 @@ router.get("/", authMiddleware, async (req, res) => {
 });
 
 /** ------------------------
- * 🔔 Get E-Docket notification count
+ * 📊 Export All Filtered Bookings
  * ------------------------ */
+router.get("/export", adminAuth, async (req, res) => {
+  try {
+    const { status, serviceType, search, startDate, endDate, vendorNotAssigned } = req.query;
+    const query = {};
+
+    if (status && status !== "all") query.status = status;
+    if (serviceType && serviceType !== "all") query.serviceType = serviceType;
+    if (vendorNotAssigned === "true") {
+      query.$or = [{ vendorName: { $exists: false } }, { vendorName: "" }, { vendorName: null }];
+    }
+    if (startDate || endDate) {
+      query.createdAt = {};
+      if (startDate) {
+        const start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+        query.createdAt.$gte = start;
+      }
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        query.createdAt.$lte = end;
+      }
+    }
+    if (search) {
+      query.$or = [
+        { bookingId: { $regex: search, $options: "i" } },
+        { "senderDetails.name": { $regex: search, $options: "i" } },
+        { "receiverDetails.name": { $regex: search, $options: "i" } },
+        { "senderDetails.phone": { $regex: search, $options: "i" } },
+        { "receiverDetails.phone": { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const bookings = await Booking.find(query)
+      .sort({ createdAt: -1 })
+      .select("bookingId serviceType status senderDetails receiverDetails pricing createdAt packageDetails weight km edl vendorName paymentStatus paymentMethod")
+      .lean();
+
+    res.json(bookings);
+  } catch (error) {
+    console.error("Export Error:", error);
+    res.status(500).json({ message: "Server error during export" });
+  }
+});
+/** ------------------------
+ * 📊 Bulk Actions
+ * ------------------------ */
+router.put("/bulk/status", adminAuth, async (req, res) => {
+  try {
+    const { bookingIds, status, location, description } = req.body;
+    if (!bookingIds || !Array.isArray(bookingIds) || !status) {
+      return res.status(400).json({ message: "Invalid request data" });
+    }
+
+    const trackEntry = {
+      status,
+      location: location || "Hub",
+      timestamp: new Date(),
+      description: description || `Bulk status update to ${status.toUpperCase()} by admin.`
+    };
+
+    await Booking.updateMany(
+      { _id: { $in: bookingIds } },
+      { 
+        $set: { status },
+        $push: { trackingHistory: trackEntry }
+      }
+    );
+
+    // ✅ Trigger emails for bulk delivered status
+    if (status?.toLowerCase() === "delivered" && req.body.notify) {
+      const bookings = await Booking.find({ _id: { $in: bookingIds } });
+      bookings.forEach(b => sendDeliveryEmail(b));
+    }
+
+    // Notify Admins
+    const io = req.app.get("socketio");
+    if (io) {
+      io.emit("status_update", {
+        bookingIds,
+        status: status.toUpperCase(),
+        description: `Bulk status update to ${status.toUpperCase()}`,
+        bookingSource: "Bulk"
+      });
+    }
+
+    res.json({ success: true, message: `Successfully updated ${bookingIds.length} bookings.` });
+  } catch (error) {
+    console.error("Bulk Status Error:", error);
+    res.status(500).json({ message: "Server error during bulk status update" });
+  }
+});
+
+router.put("/bulk/assign", adminAuth, async (req, res) => {
+  try {
+    const { bookingIds, riderId, assignedFor } = req.body;
+    if (!bookingIds || !Array.isArray(bookingIds) || !riderId) {
+      return res.status(400).json({ message: "Invalid request data" });
+    }
+
+    const User = require("../models/User");
+    const rider = await User.findById(riderId);
+    if (!rider) return res.status(404).json({ message: "Rider not found" });
+
+    const updateObj = {
+      $set: { 
+        assignedRider: riderId,
+        assignedFor: assignedFor || "pickup"
+      },
+      $push: {
+        trackingHistory: {
+          location: "Hub",
+          timestamp: new Date(),
+          description: `Bulk assigned to Rider ${rider.name} for ${assignedFor || "pickup"}`
+        }
+      }
+    };
+
+    if (assignedFor === "pickup") updateObj.$set.pickupRider = riderId;
+    else if (assignedFor === "delivery") updateObj.$set.deliveryRider = riderId;
+    else if (assignedFor === "both") {
+      updateObj.$set.pickupRider = riderId;
+      updateObj.$set.deliveryRider = riderId;
+    }
+
+    await Booking.updateMany(
+      { _id: { $in: bookingIds } },
+      updateObj
+    );
+
+    // Notify Admins
+    const io = req.app.get("socketio");
+    if (io) {
+      io.emit("status_update", {
+        bookingIds,
+        status: "ASSIGNED",
+        description: `Bulk assigned to Rider ${rider.name}`,
+        bookingSource: "Bulk"
+      });
+    }
+
+    res.json({ success: true, message: `Assigned ${bookingIds.length} bookings to ${rider.name}.` });
+  } catch (error) {
+    console.error("Bulk Assign Error:", error);
+    res.status(500).json({ message: "Server error during bulk assignment" });
+  }
+});
+
 router.get("/edocket-count", adminAuth, async (req, res) => {
   try {
     // Count intake bookings that are not yet adminVerified
@@ -229,16 +481,27 @@ router.get("/stats/recent-rider-activity", authMiddleware, async (req, res) => {
 
 router.get("/:id", authMiddleware, async (req, res) => {
   try {
-    const booking = await Booking.findById(req.params.id)
+    let query = {};
+    
+    // Check if ID is a valid MongoDB ObjectId
+    if (mongoose.Types.ObjectId.isValid(req.params.id)) {
+      query = { _id: req.params.id };
+    } else {
+      // Otherwise, treat as human-readable bookingId
+      query = { bookingId: req.params.id };
+    }
+
+    const booking = await Booking.findOne(query)
       .populate('assignedRider', 'name phone')
       .populate('pickupRider', 'name phone')
       .populate('deliveryRider', 'name phone');
+      
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
     }
     res.json(booking);
   } catch (error) {
-    console.error(error);
+    console.error("Booking fetch error:", error);
     res.status(500).json({ message: "Server error" });
   }
 });
@@ -248,7 +511,11 @@ router.get("/:id", authMiddleware, async (req, res) => {
  * ------------------------ */
 router.get("/:id/receipt", authMiddleware, async (req, res) => {
   try {
-    const booking = await Booking.findById(req.params.id).lean();
+    const query = mongoose.Types.ObjectId.isValid(req.params.id) 
+      ? { _id: req.params.id } 
+      : { bookingId: req.params.id };
+
+    const booking = await Booking.findOne(query).lean();
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
     }
@@ -301,6 +568,10 @@ router.get("/:id/receipt", authMiddleware, async (req, res) => {
  * ------------------------ */
 router.put("/:id", authMiddleware, async (req, res) => {
   try {
+    const query = mongoose.Types.ObjectId.isValid(req.params.id) 
+      ? { _id: req.params.id } 
+      : { bookingId: req.params.id };
+
     // Helper to flatten nested objects (like packageDetails) to prevent 
     // Mongoose validation errors on missing required sub-document fields
     const flattenObject = (ob) => {
@@ -322,7 +593,6 @@ router.put("/:id", authMiddleware, async (req, res) => {
 
     // Prevent populated objects from causing CastErrors during flatten/update
     const cleanBody = { ...req.body };
-    const mongoose = require("mongoose");
     const idFields = ['assignedRider', 'pickupRider', 'deliveryRider', 'userId', 'vendorId'];
     
     idFields.forEach(field => {
@@ -344,14 +614,19 @@ router.put("/:id", authMiddleware, async (req, res) => {
 
     const updateData = flattenObject(cleanBody);
 
-    const booking = await Booking.findByIdAndUpdate(
-      req.params.id, 
+    const booking = await Booking.findOneAndUpdate(
+      query, 
       { $set: updateData }, 
       { new: true, runValidators: true }
     );
 
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
+    }
+
+    // ✅ Trigger email if status is changed to delivered and notify is true
+    if (updateData.status?.toLowerCase() === "delivered" && req.body.notify) {
+      sendDeliveryEmail(booking);
     }
 
     res.json(booking);
@@ -369,7 +644,11 @@ router.put("/:id", authMiddleware, async (req, res) => {
  * ------------------------ */
 router.delete("/:id", authMiddleware, async (req, res) => {
   try {
-    const booking = await Booking.findByIdAndDelete(req.params.id);
+    const query = mongoose.Types.ObjectId.isValid(req.params.id) 
+      ? { _id: req.params.id } 
+      : { bookingId: req.params.id };
+
+    const booking = await Booking.findOneAndDelete(query);
 
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
@@ -388,9 +667,13 @@ router.delete("/:id", authMiddleware, async (req, res) => {
 // ✅ Use this endpoint for tracking history updates
 router.put("/:id/tracking", authMiddleware, async (req, res) => {
   try {
+    const query = mongoose.Types.ObjectId.isValid(req.params.id) 
+      ? { _id: req.params.id } 
+      : { bookingId: req.params.id };
+
     const { status, location, description, timestamp } = req.body;
 
-    const booking = await Booking.findById(req.params.id);
+    const booking = await Booking.findOne(query);
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
     }
@@ -406,14 +689,33 @@ router.put("/:id/tracking", authMiddleware, async (req, res) => {
       booking.trackingHistory = [];
     }
 
-    const updated = await Booking.findByIdAndUpdate(
-      req.params.id,
+    const updated = await Booking.findOneAndUpdate(
+      query,
       {
         $set: { status: status || booking.status, currentLocation: location || booking.currentLocation },
         $push: { trackingHistory: newEntry }
       },
       { new: true, runValidators: false }
     );
+
+    // ✅ NEW: Automated Delivery Email
+    if (status?.toLowerCase() === "delivered" && req.body.notify) {
+      sendDeliveryEmail(booking);
+    }
+
+    // Notify Admins
+
+    // Notify Admins
+    const io = req.app.get("socketio");
+    if (io) {
+      io.emit("status_update", {
+        bookingId: booking.bookingId,
+        bookingMongoId: booking._id,
+        status: (status || booking.status).toUpperCase(),
+        description: description || `Status updated to ${status}`,
+        bookingSource: booking.bookingSource
+      });
+    }
 
     res.json(updated);
   } catch (error) {
@@ -423,22 +725,84 @@ router.put("/:id/tracking", authMiddleware, async (req, res) => {
 });
 
 /** ------------------------
+ * 💰 Generate & Send Payment Link (Razorpay)
+ * ------------------------ */
+router.post("/:id/payment-link", authMiddleware, async (req, res) => {
+  try {
+    const query = mongoose.Types.ObjectId.isValid(req.params.id) 
+      ? { _id: req.params.id } 
+      : { bookingId: req.params.id };
+
+    const booking = await Booking.findOne(query);
+    if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+    if (!razorpay) return res.status(500).json({ message: "Razorpay not configured on server" });
+
+    // Amount should be > 0
+    const amount = booking.pricing?.totalAmount || 0;
+    if (amount <= 0) return res.status(400).json({ message: "Cannot generate link for zero amount" });
+
+    const paymentLink = await razorpay.paymentLink.create({
+      amount: Math.round(amount * 100),
+      currency: "INR",
+      accept_partial: false,
+      description: `Payment for Shipment ${booking.bookingId}`,
+      customer: {
+        name: booking.senderDetails.name,
+        email: booking.senderDetails.email || "info@engineersparcel.com",
+        contact: /^(\d)\1{9}$/.test(booking.senderDetails.phone) ? "" : (booking.senderDetails.phone || "")
+      },
+      notify: { sms: true, email: true },
+      notes: { bookingId: booking.bookingId }
+    });
+
+    if (paymentLink && paymentLink.short_url) {
+      booking.paymentLink = paymentLink.short_url;
+      await Booking.findOneAndUpdate(query, { $set: { paymentLink: paymentLink.short_url } }, { runValidators: false });
+      return res.json({ paymentLink: paymentLink.short_url });
+    }
+    
+    res.status(500).json({ message: "Failed to receive link from Razorpay" });
+  } catch (error) {
+    console.error("Razorpay Link Error:", error);
+    res.status(500).json({ message: error.description || "Razorpay API Error" });
+  }
+});
+
+/** ------------------------
  * ✏️ Edit specific tracking update
  * ------------------------ */
 router.put("/:id/tracking/:trackingId", authMiddleware, async (req, res) => {
   try {
     const { status, location, description, timestamp } = req.body;
+    const query = mongoose.Types.ObjectId.isValid(req.params.id) 
+      ? { _id: req.params.id } 
+      : { bookingId: req.params.id };
 
-    const booking = await Booking.findById(req.params.id);
+    const booking = await Booking.findOne(query);
     if (!booking) return res.status(404).json({ message: "Booking not found" });
 
-    const updated = await Booking.findByIdAndUpdate(
-      req.params.id,
+    const trackIndex = booking.trackingHistory.findIndex(
+      (t) => t._id.toString() === req.params.trackingId
+    );
+
+    if (trackIndex === -1) {
+      return res.status(404).json({ message: "Tracking update not found" });
+    }
+
+    // Update specific fields
+    if (status) booking.trackingHistory[trackIndex].status = status;
+    if (location) booking.trackingHistory[trackIndex].location = location;
+    if (description) booking.trackingHistory[trackIndex].description = description;
+    if (timestamp) booking.trackingHistory[trackIndex].timestamp = timestamp;
+
+    const updated = await Booking.findOneAndUpdate(
+      query,
       {
         $set: { 
           status: (trackIndex === booking.trackingHistory.length - 1 && status) ? status : booking.status,
           currentLocation: (trackIndex === booking.trackingHistory.length - 1 && location) ? location : booking.currentLocation,
-          trackingHistory: booking.trackingHistory // Replace full array as we edited an index
+          trackingHistory: booking.trackingHistory
         }
       },
       { new: true, runValidators: false }
@@ -455,27 +819,22 @@ router.put("/:id/tracking/:trackingId", authMiddleware, async (req, res) => {
  * ------------------------ */
 router.delete("/:id/tracking/:trackingId", authMiddleware, async (req, res) => {
   try {
-    const booking = await Booking.findById(req.params.id);
-    if (!booking) return res.status(404).json({ message: "Booking not found" });
+    const query = mongoose.Types.ObjectId.isValid(req.params.id) 
+      ? { _id: req.params.id } 
+      : { bookingId: req.params.id };
 
-    const trackIndex = booking.trackingHistory.findIndex(
-      (t) => t._id.toString() === req.params.trackingId
-    );
-
-    if (trackIndex === -1) {
-      return res.status(404).json({ message: "Tracking update not found" });
-    }
-
-    const updated = await Booking.findByIdAndUpdate(
-      req.params.id,
+    const updated = await Booking.findOneAndUpdate(
+      query,
       {
-        $set: { 
-          status: booking.status,
-          trackingHistory: booking.trackingHistory 
-        }
+        $pull: { trackingHistory: { _id: req.params.trackingId } }
       },
       { new: true, runValidators: false }
     );
+
+    if (!updated) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
     res.json(updated);
   } catch (error) {
     console.error("Error deleting tracking step:", error);

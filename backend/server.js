@@ -82,6 +82,70 @@ require("./cron/trackingCron");
 
 // Start server
 const PORT = process.env.PORT || 8000;
-app.listen(PORT, () => {
+const http = require("http");
+const { Server } = require("socket.io");
+
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: allowedOrigins,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+    credentials: true
+  }
+});
+
+// Pass socket.io to express app
+app.set("socketio", io);
+
+io.on("connection", (socket) => {
+  console.log("🟢 Admin Connected:", socket.id);
+  
+  socket.on("disconnect", () => {
+    console.log("🔴 Admin Disconnected:", socket.id);
+  });
+});
+
+// Real-time Database Watchers (Change Streams)
+const IntakeBooking = require("./models/IntakeBooking");
+const Booking = require("./models/Booking");
+
+// 1. Watch for New Agent E-Dockets (Intake)
+IntakeBooking.watch().on('change', (change) => {
+  if (change.operationType === 'insert') {
+    const doc = change.fullDocument;
+    io.emit("new_booking", {
+      bookingId: doc.trackingId || doc.bookingId,
+      senderName: doc.agentUsername || doc.senderDetails?.name || "Agent",
+      serviceType: doc.serviceType,
+      totalAmount: doc.pricing?.totalAmount || 0,
+      createdAt: doc.createdAt,
+      bookingSource: "Agent",
+      bookingMongoId: doc._id
+    });
+  }
+});
+
+// 2. Watch for New Online Orders (Main Website)
+Booking.watch().on('change', (change) => {
+  if (change.operationType === 'insert') {
+    const doc = change.fullDocument;
+    
+    // Only alert if it's NOT a manual booking
+    // Website orders usually have status 'pending'
+    if (doc.bookingSource !== 'Manual' || doc.status === 'pending') {
+      io.emit("new_booking", {
+        bookingId: doc.bookingId,
+        senderName: doc.senderDetails?.name || "Customer",
+        serviceType: doc.serviceType,
+        totalAmount: doc.pricing?.totalAmount || 0,
+        createdAt: doc.createdAt,
+        bookingSource: doc.bookingSource === 'Manual' ? "Website" : doc.bookingSource,
+        bookingMongoId: doc._id
+      });
+    }
+  }
+});
+
+server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });

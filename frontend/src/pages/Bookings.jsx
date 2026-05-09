@@ -1,12 +1,24 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Link } from "react-router-dom"
+import { Link, useSearchParams } from "react-router-dom"
 import axios from "axios"
 import toast from "react-hot-toast"
-import { Search, Filter, Eye, FileText, Calendar, XCircle, Tag } from "lucide-react"
+import { Search, Filter, Eye, FileText, Calendar, XCircle, Tag, RotateCcw, FileDown, CheckCircle2, UserPlus, Trash2 } from "lucide-react"
+import * as XLSX from "xlsx"
 
 // Helper functions for status visibility
+const PRESET_NOTES = [
+  "Shipment received at hub",
+  "In-transit to next facility",
+  "Out for delivery",
+  "Package scanned at local facility",
+  "Shipment delayed due to operational issues",
+  "Ready for pickup",
+  "Delivered successfully",
+  "Address not found / Mobile switched off"
+]
+
 const getTimeAgo = (date) => {
   const seconds = Math.floor((new Date() - new Date(date)) / 1000);
   if (isNaN(seconds)) return "N/A";
@@ -30,19 +42,196 @@ const isRecent = (date) => {
 };
 
 const Bookings = () => {
+  const [searchParams, setSearchParams] = useSearchParams()
+
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [serviceFilter, setServiceFilter] = useState("all")
-  const [currentPage, setCurrentPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [vendorNotAssigned, setVendorNotAssigned] = useState(false)
+  const [selectedIds, setSelectedIds] = useState([])
+  const [riders, setRiders] = useState([])
+  const [bulkModal, setBulkModal] = useState({ open: false, type: "" }) // type: 'status' or 'assign'
+  const [bulkStatus, setBulkStatus] = useState("pending")
+  const [bulkLocation, setBulkLocation] = useState("")
+  const [bulkDescription, setBulkDescription] = useState("")
+  const [bulkNotify, setBulkNotify] = useState(true)
+  const [bulkAssignment, setBulkAssignment] = useState({ riderId: "", assignedFor: "pickup" })
+  const [isBulkUpdating, setIsBulkUpdating] = useState(false)
+  const [searchTerm, setSearchTerm] = useState(searchParams.get("search") || "")
+  const [searchInput, setSearchInput] = useState(searchParams.get("search") || "")
+  const [statusFilter, setStatusFilter] = useState(searchParams.get("status") || "all")
+  const [serviceFilter, setServiceFilter] = useState(searchParams.get("service") || "all")
+  const [currentPage, setCurrentPage] = useState(parseInt(searchParams.get("page")) || 1)
+  const [limit, setLimit] = useState(parseInt(searchParams.get("limit")) || 10)
+  const [vendorNotAssigned, setVendorNotAssigned] = useState(searchParams.get("noVendor") === "true")
   
   // Date Filtering State
-  const [dateFilter, setDateFilter] = useState("all") // all, today, last7, last30, custom
-  const [customStartDate, setCustomStartDate] = useState("")
-  const [customEndDate, setCustomEndDate] = useState("")
+  const [dateFilter, setDateFilter] = useState(searchParams.get("date") || "all") // all, today, last7, last30, custom
+  const [customStartDate, setCustomStartDate] = useState(searchParams.get("start") || "")
+  const [customEndDate, setCustomEndDate] = useState(searchParams.get("end") || "")
+
+  // Debounce search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearchTerm(searchInput)
+      if (searchInput !== (searchParams.get("search") || "")) {
+        setCurrentPage(1)
+      }
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [searchInput])
+
+  // Sync state to URL
+  useEffect(() => {
+    const params = new URLSearchParams()
+    if (searchTerm) params.set("search", searchTerm)
+    if (statusFilter !== "all") params.set("status", statusFilter)
+    if (serviceFilter !== "all") params.set("service", serviceFilter)
+    if (currentPage !== 1) params.set("page", currentPage.toString())
+    if (limit !== 10) params.set("limit", limit.toString())
+    if (vendorNotAssigned) params.set("noVendor", "true")
+    if (dateFilter !== "all") params.set("date", dateFilter)
+    if (customStartDate) params.set("start", customStartDate)
+    if (customEndDate) params.set("end", customEndDate)
+
+    setSearchParams(params, { replace: true })
+  }, [searchTerm, statusFilter, serviceFilter, currentPage, limit, vendorNotAssigned, dateFilter, customStartDate, customEndDate])
+
+  const handleResetFilters = () => {
+    setSearchInput("")
+    setSearchTerm("")
+    setStatusFilter("all")
+    setServiceFilter("all")
+    setCurrentPage(1)
+    setVendorNotAssigned(false)
+    setDateFilter("all")
+    setCustomStartDate("")
+    setCustomEndDate("")
+  }
+
+  const handleExportExcel = async () => {
+    try {
+      const toastId = toast.loading("Preparing export...")
+      const token = localStorage.getItem("adminToken") || localStorage.getItem("token")
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/export`, {
+        params: {
+          status: statusFilter,
+          serviceType: serviceFilter,
+          search: searchTerm,
+          startDate: customStartDate || getEffectiveStartDate(dateFilter),
+          endDate: customEndDate || getEffectiveEndDate(dateFilter),
+          vendorNotAssigned: vendorNotAssigned
+        },
+        headers: { Authorization: `Bearer ${token}` }
+      })
+
+      const data = response.data.map(b => ({
+        "Booking ID": b.bookingId,
+        "Date": new Date(b.createdAt).toLocaleDateString(),
+        "Service": b.serviceType,
+        "Status": b.status,
+        "Sender": b.senderDetails?.name,
+        "Sender Phone": b.senderDetails?.phone,
+        "Receiver": b.receiverDetails?.name,
+        "Receiver Phone": b.receiverDetails?.phone,
+        "Pincode": b.receiverDetails?.pincode,
+        "Weight": b.packageDetails?.weight || b.weight,
+        "Amount (₹)": b.pricing?.totalAmount,
+        "Payment": b.paymentStatus,
+        "Vendor": b.vendorName || "Not Assigned"
+      }))
+
+      const ws = XLSX.utils.json_to_sheet(data)
+      const wb = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(wb, ws, "Bookings")
+      XLSX.writeFile(wb, `Bookings_Export_${new Date().toISOString().split('T')[0]}.xlsx`)
+      toast.dismiss(toastId)
+      toast.success("Export complete!")
+    } catch (error) {
+      console.error("Export Error:", error)
+      toast.error("Export failed")
+    }
+  }
+
+  const fetchRiders = async () => {
+    try {
+      const t = localStorage.getItem("adminToken") || localStorage.getItem("token")
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/users?roles=rider,agent,staff`, {
+        headers: { Authorization: `Bearer ${t}` }
+      })
+      setRiders(res.data.filter(r => r.isActive))
+    } catch (e) {
+      console.error("Failed to fetch riders", e)
+    }
+  }
+
+  useEffect(() => {
+    fetchRiders()
+  }, [])
+
+  const handleBulkStatusUpdate = async () => {
+    if (!bulkStatus) return
+    try {
+      setIsBulkUpdating(true)
+      const t = localStorage.getItem("adminToken") || localStorage.getItem("token")
+      await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/bulk/status`, {
+        bookingIds: selectedIds,
+        status: bulkStatus,
+        location: bulkLocation,
+        description: bulkDescription,
+        notify: bulkNotify
+      }, { headers: { Authorization: `Bearer ${t}` } })
+
+      toast.success(`Updated ${selectedIds.length} bookings to ${bulkStatus}`)
+      setSelectedIds([])
+      setBulkModal({ open: false, type: "" })
+      setBulkLocation("")
+      setBulkDescription("")
+      fetchBookings()
+    } catch (error) {
+      toast.error("Bulk status update failed")
+    } finally {
+      setIsBulkUpdating(false)
+    }
+  }
+
+  const handleBulkAssignRider = async () => {
+    if (!bulkAssignment.riderId) return toast.error("Please select a rider")
+    try {
+      setIsBulkUpdating(true)
+      const t = localStorage.getItem("adminToken") || localStorage.getItem("token")
+      await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/bulk/assign`, {
+        bookingIds: selectedIds,
+        riderId: bulkAssignment.riderId,
+        assignedFor: bulkAssignment.assignedFor
+      }, { headers: { Authorization: `Bearer ${t}` } })
+
+      toast.success(`Assigned ${selectedIds.length} bookings successfully`)
+      setSelectedIds([])
+      setBulkModal({ open: false, type: "" })
+      fetchBookings()
+    } catch (error) {
+      toast.error("Bulk assignment failed")
+    } finally {
+      setIsBulkUpdating(false)
+    }
+  }
+
+  const toggleSelectAll = () => {
+    if (selectedIds.length === bookings.length) {
+      setSelectedIds([])
+    } else {
+      setSelectedIds(bookings.map(b => b._id))
+    }
+  }
+
+  const toggleSelect = (id) => {
+    if (selectedIds.includes(id)) {
+      setSelectedIds(prev => prev.filter(i => i !== id))
+    } else {
+      setSelectedIds(prev => [...prev, id])
+    }
+  }
+
+  const [totalPages, setTotalPages] = useState(1)
 
   // PDF Selection State
   const [pdfModalOpen, setPdfModalOpen] = useState(false)
@@ -82,7 +271,7 @@ const Bookings = () => {
       const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings`, {
         params: {
           page: currentPage,
-          limit: 10,
+          limit: limit,
           status: statusFilter,
           serviceType: serviceFilter,
           search: searchTerm,
@@ -167,8 +356,8 @@ const Bookings = () => {
               <input
                 type="text"
                 placeholder="Search..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
               />
             </div>
@@ -216,6 +405,24 @@ const Bookings = () => {
               />
               <label htmlFor="vendorFilter" className="text-sm font-medium text-amber-800 whitespace-nowrap">No Vendor</label>
             </div>
+
+            <button
+              onClick={handleExportExcel}
+              className="flex items-center gap-2 px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors text-sm font-medium border border-green-200"
+              title="Export All Filtered to Excel"
+            >
+              <FileDown className="h-4 w-4" />
+              Export
+            </button>
+
+            <button
+              onClick={handleResetFilters}
+              className="flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium border border-gray-200"
+              title="Reset All Filters"
+            >
+              <RotateCcw className="h-4 w-4" />
+              Reset
+            </button>
           </div>
         </div>
 
@@ -271,6 +478,14 @@ const Bookings = () => {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
+                    <th className="px-6 py-3 text-left">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.length === bookings.length && bookings.length > 0}
+                        onChange={toggleSelectAll}
+                        className="rounded border-gray-300 text-primary-600 focus:ring-primary-500 h-4 w-4"
+                      />
+                    </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Booking ID</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sender</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receiver</th>
@@ -285,7 +500,15 @@ const Bookings = () => {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {bookings.map((booking) => (
-                    <tr key={booking._id} className="hover:bg-gray-50">
+                    <tr key={booking._id} className={`hover:bg-gray-50 transition-colors ${selectedIds.includes(booking._id) ? 'bg-primary-50/30' : ''}`}>
+                      <td className="px-6 py-4">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.includes(booking._id)}
+                          onChange={() => toggleSelect(booking._id)}
+                          className="rounded border-gray-300 text-primary-600 focus:ring-primary-500 h-4 w-4"
+                        />
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900">{booking.bookingId}</div>
                         <div className="flex flex-wrap gap-1 mt-1">
@@ -441,28 +664,231 @@ const Bookings = () => {
               </table>
             </div>
 
+            {/* Bulk Action Floating Bar */}
+            {selectedIds.length > 0 && (
+              <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-6 animate-in slide-in-from-bottom-10 duration-300">
+                <div className="flex items-center gap-3 border-r border-gray-700 pr-6">
+                  <div className="bg-primary-500 text-white text-xs font-bold px-2 py-1 rounded-full">
+                    {selectedIds.length}
+                  </div>
+                  <span className="text-sm font-medium">Selected</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setBulkModal({ open: true, type: "status" })}
+                    className="flex items-center gap-2 hover:bg-gray-800 px-3 py-2 rounded-xl transition-colors text-sm font-bold text-primary-400"
+                  >
+                    <CheckCircle2 className="w-4 h-4" />
+                    Update Status
+                  </button>
+                  <button
+                    onClick={() => setBulkModal({ open: true, type: "assign" })}
+                    className="flex items-center gap-2 hover:bg-gray-800 px-3 py-2 rounded-xl transition-colors text-sm font-bold text-amber-400"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    Assign Rider
+                  </button>
+                  <button
+                    onClick={() => setSelectedIds([])}
+                    className="ml-4 text-xs text-gray-400 hover:text-white transition-colors"
+                  >
+                    Deselect All
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Bulk Update Modals */}
+            {bulkModal.open && (
+              <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+                  <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                    <h3 className="text-lg font-bold text-gray-900">
+                      {bulkModal.type === 'status' ? 'Bulk Status Update' : 'Bulk Rider Assignment'}
+                    </h3>
+                    <button onClick={() => setBulkModal({ open: false, type: "" })} className="text-gray-400 hover:text-gray-600">
+                      <XCircle className="w-6 h-6" />
+                    </button>
+                  </div>
+
+                  <div className="p-6">
+                    <p className="text-sm text-gray-500 mb-6">
+                      Applying changes to <span className="font-bold text-gray-900">{selectedIds.length}</span> selected bookings.
+                    </p>
+
+                    {bulkModal.type === 'status' ? (
+                      <div className="space-y-4">
+                        <label className="block text-sm font-bold text-gray-700">New Status</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {["pending", "picked", "in-transit", "out-for-delivery", "delivered", "cancelled"].map(s => (
+                            <button
+                              key={s}
+                              onClick={() => setBulkStatus(s)}
+                              className={`px-3 py-2 rounded-xl text-xs font-bold border-2 transition-all ${bulkStatus === s
+                                ? 'border-primary-500 bg-primary-50 text-primary-700'
+                                : 'border-gray-100 hover:border-gray-200 text-gray-600'
+                                }`}
+                            >
+                              {s.toUpperCase()}
+                            </button>
+                          ))}
+                        </div>
+
+                        <div className="space-y-3 pt-2">
+                          <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Current Location (Optional)</label>
+                            <input
+                              type="text"
+                              value={bulkLocation}
+                              onChange={(e) => setBulkLocation(e.target.value)}
+                              placeholder="e.g. Hub Name, City"
+                              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 transition-all"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Tracking Note (Optional)</label>
+                            <select
+                              onChange={(e) => {
+                                if (e.target.value) setBulkDescription(e.target.value)
+                              }}
+                              className="w-full px-4 py-2 mb-2 bg-white border border-gray-200 rounded-xl text-xs font-bold text-primary-600 focus:ring-2 focus:ring-primary-500 transition-all"
+                            >
+                              <option value="">-- Choose Preset Note --</option>
+                              {PRESET_NOTES.map(note => (
+                                <option key={note} value={note}>{note}</option>
+                              ))}
+                            </select>
+                            <textarea
+                              value={bulkDescription}
+                              onChange={(e) => setBulkDescription(e.target.value)}
+                              placeholder="Or type a custom update note..."
+                              rows={2}
+                              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 transition-all resize-none"
+                            />
+                          </div>
+                        </div>
+
+                        {bulkStatus === "delivered" && (
+                          <div className="mt-4 p-3 bg-blue-50 rounded-xl border border-blue-100 flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              id="bulkNotify"
+                              checked={bulkNotify}
+                              onChange={(e) => setBulkNotify(e.target.checked)}
+                              className="h-5 w-5 text-primary-600 border-gray-300 rounded focus:ring-primary-500 cursor-pointer"
+                            />
+                            <label htmlFor="bulkNotify" className="text-xs font-bold text-blue-800 cursor-pointer">
+                              Send Delivered Message (Email) to all customers
+                            </label>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-bold text-gray-700 mb-2">Select Rider</label>
+                          <select
+                            value={bulkAssignment.riderId}
+                            onChange={(e) => setBulkAssignment(prev => ({ ...prev, riderId: e.target.value }))}
+                            className="w-full rounded-xl border-gray-200 focus:ring-primary-500 focus:border-primary-500 text-sm py-3"
+                          >
+                            <option value="">Choose a rider...</option>
+                            {riders.map(r => (
+                              <option key={r._id} value={r._id}>{r.name} ({r.role})</option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-bold text-gray-700 mb-2">Assign For</label>
+                          <div className="flex gap-2">
+                            {["pickup", "delivery", "both"].map(t => (
+                              <button
+                                key={t}
+                                onClick={() => setBulkAssignment(prev => ({ ...prev, assignedFor: t }))}
+                                className={`flex-1 px-3 py-2 rounded-xl text-xs font-bold border-2 transition-all ${bulkAssignment.assignedFor === t
+                                  ? 'border-amber-500 bg-amber-50 text-amber-700'
+                                  : 'border-gray-100 hover:border-gray-200 text-gray-600'
+                                  }`}
+                              >
+                                {t.toUpperCase()}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-6 bg-gray-50 border-t border-gray-100 flex gap-3">
+                    <button
+                      onClick={() => setBulkModal({ open: false, type: "" })}
+                      className="flex-1 px-4 py-3 border border-gray-200 rounded-xl font-bold text-gray-600 hover:bg-gray-100 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      disabled={isBulkUpdating}
+                      onClick={bulkModal.type === 'status' ? handleBulkStatusUpdate : handleBulkAssignRider}
+                      className={`flex-1 px-4 py-3 rounded-xl font-bold text-white shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 ${bulkModal.type === 'status' ? 'bg-primary-600 hover:bg-primary-700' : 'bg-amber-600 hover:bg-amber-700'
+                        }`}
+                    >
+                      {isBulkUpdating ? (
+                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <>
+                          <CheckCircle2 className="w-4 h-4" />
+                          Confirm
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Pagination Controls */}
             {totalPages > 1 && (
-              <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
-                <button
-                  disabled={currentPage === 1}
-                  onClick={() => setCurrentPage(prev => prev - 1)}
-                  className="px-4 py-2 text-sm font-bold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  Previous
-                </button>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-bold text-gray-900 px-3 py-1 bg-white border border-gray-200 rounded-lg">
+              <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-gray-500 font-medium">Show:</span>
+                  <select
+                    value={limit}
+                    onChange={(e) => {
+                      setLimit(parseInt(e.target.value))
+                      setCurrentPage(1)
+                    }}
+                    className="border border-gray-300 rounded-lg px-2 py-1 text-sm bg-white font-bold text-gray-700"
+                  >
+                    <option value={10}>10</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2 order-3 sm:order-2 w-full sm:w-auto justify-center">
+                  <span className="text-sm font-bold text-gray-900 px-3 py-1 bg-white border border-gray-200 rounded-lg shadow-sm">
                     Page {currentPage} of {totalPages}
                   </span>
                 </div>
-                <button
-                  disabled={currentPage === totalPages}
-                  onClick={() => setCurrentPage(prev => prev + 1)}
-                  className="px-4 py-2 text-sm font-bold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  Next
-                </button>
+
+                <div className="flex items-center gap-2 order-2 sm:order-3">
+                  <button
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage(prev => prev - 1)}
+                    className="px-4 py-2 text-sm font-bold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage(prev => prev + 1)}
+                    className="px-4 py-2 text-sm font-bold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                  >
+                    Next
+                  </button>
+                </div>
               </div>
             )}
           </>
