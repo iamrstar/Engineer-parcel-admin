@@ -5,6 +5,7 @@ import axios from "axios"
 import toast from "react-hot-toast"
 import { Package, LayoutDashboard, FileText, MapPin, Ticket, LogOut, Menu, X, BarChart, Bell, Users, Building, CheckSquare } from "lucide-react"
 import { socket } from "../utils/socket"
+import { Activity as ActivityIcon } from "lucide-react"
 
 const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -79,7 +80,7 @@ const Layout = ({ children }) => {
             <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Real-time Update</p>
           </div>
         </div>
-        
+
         <div className="py-1">
           <p className="text-sm text-gray-700 font-medium leading-relaxed">{message}</p>
           {(counts.newCount > 0 || counts.newPending > 0) && (
@@ -110,7 +111,7 @@ const Layout = ({ children }) => {
               }
               clearInterval(titleInterval)
               document.title = originalTitle
-              
+
               if (bookingSource === "Agent") {
                 const date = counts.date ? counts.date.split('T')[0] : new Date().toISOString().split('T')[0]
                 navigate(`/e-docket?id=${singleBookingId}&date=${date}`)
@@ -217,7 +218,7 @@ const Layout = ({ children }) => {
 
     fetchCount()
     const interval = setInterval(() => fetchCount(true), 30000) // Increase polling to 30s since we have sockets now
-    
+
     return () => {
       clearInterval(interval)
       socket.off("new_booking")
@@ -231,6 +232,7 @@ const Layout = ({ children }) => {
     { name: "Booking", href: "/bookings", icon: FileText, badge: pendingOrdersCount },
     { name: "E-Docket", href: "/e-docket", icon: Package, badge: eDocketCount },
     { name: "Sales Report", href: "/sales-report", icon: BarChart },
+    { name: "Web Analytics", href: "/analytics", icon: ActivityIcon },
     { name: "Pincodes", href: "/pincodes", icon: MapPin },
     { name: "Coupons", href: "/coupons", icon: Ticket },
     { name: "Create Order", href: "/manual-booking", icon: Ticket },

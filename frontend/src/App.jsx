@@ -14,6 +14,7 @@ import UserManagement from "./pages/UserManagement"
 import RiderDashboard from "./pages/RiderDashboard"
 import Vendors from "./pages/Vendors"
 import Tasks from "./pages/Tasks.jsx"
+import Analytics from "./pages/Analytics"
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth()
@@ -143,6 +144,16 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <Tasks />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/analytics"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Analytics />
                 </Layout>
               </ProtectedRoute>
             }

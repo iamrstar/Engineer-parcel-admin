@@ -36,6 +36,7 @@ app.use(
 app.options("*", cors());
 
 app.use(express.json());
+app.use(express.static('public'));
 
 // Debug → check incoming origin
 app.use((req, res, next) => {
@@ -64,6 +65,7 @@ const intakeRoutes = require("./routes/intake");
 const userRoutes = require("./routes/users");
 const vendorRoutes = require("./routes/vendors");
 const vendorPaymentRoutes = require("./routes/vendorPayments");
+const analyticsRoutes = require("./routes/analytics");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/bookings", bookingRoutes);
@@ -74,6 +76,7 @@ app.use("/api/email", emailRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/vendors", vendorRoutes);
 app.use("/api/vendor-payments", vendorPaymentRoutes);
+app.use("/api/analytics", analyticsRoutes);
 
 app.use("/api/intake", intakeRoutes);
 
@@ -99,7 +102,7 @@ app.set("socketio", io);
 
 io.on("connection", (socket) => {
   console.log("🟢 Admin Connected:", socket.id);
-  
+
   socket.on("disconnect", () => {
     console.log("🔴 Admin Disconnected:", socket.id);
   });
@@ -129,7 +132,7 @@ IntakeBooking.watch().on('change', (change) => {
 Booking.watch().on('change', (change) => {
   if (change.operationType === 'insert') {
     const doc = change.fullDocument;
-    
+
     // Only alert if it's NOT a manual booking
     // Website orders usually have status 'pending'
     if (doc.bookingSource !== 'Manual' || doc.status === 'pending') {
