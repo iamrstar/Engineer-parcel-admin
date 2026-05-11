@@ -1,5 +1,6 @@
 const express = require("express");
 const Booking = require("../models/Booking");
+const DocketInventory = require("../models/DocketInventory");
 const mongoose = require("mongoose");
 const authMiddleware = require("../middleware/auth");
 const adminAuth = require("../middleware/adminAuth");
@@ -622,6 +623,23 @@ router.put("/:id", authMiddleware, async (req, res) => {
 
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
+    }
+
+    // ✅ Sync with Docket Inventory
+    if (req.body.vendorTrackingId) {
+      try {
+        await DocketInventory.findOneAndUpdate(
+          { docketId: req.body.vendorTrackingId.toString().trim() },
+          { 
+            status: "used", 
+            usedBy: booking._id, 
+            epId: booking.bookingId, 
+            usedAt: new Date() 
+          }
+        );
+      } catch (inventoryErr) {
+        console.error("Inventory sync error:", inventoryErr);
+      }
     }
 
     // ✅ Trigger email if status is changed to delivered and notify is true

@@ -155,6 +155,22 @@ const BookingDetail = () => {
     }
   }
 
+  const fetchNextDocket = async (vendor) => {
+    if (!vendor || vendor === "other") return;
+    try {
+      const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/dockets/next/${vendor}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.data.docketId) {
+        handleInputChange("vendorTrackingId", res.data.docketId);
+        toast.success(`Fetched next ID for ${vendor}`);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const fetchBooking = async () => {
     try {
       const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/${id}`)
@@ -801,6 +817,7 @@ const BookingDetail = () => {
                       } else {
                         setOtherVendor(false)
                         handleInputChange("vendorName", e.target.value)
+                        fetchNextDocket(e.target.value)
                       }
                     }}
                     className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
@@ -829,13 +846,22 @@ const BookingDetail = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Vendor Tracking ID</label>
               {editMode ? (
-                <input
-                  type="text"
-                  value={booking.vendorTrackingId || ""}
-                  onChange={(e) => handleInputChange("vendorTrackingId", e.target.value)}
-                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                  placeholder="e.g. AWB Number"
-                />
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={booking.vendorTrackingId || ""}
+                    onChange={(e) => handleInputChange("vendorTrackingId", e.target.value)}
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    placeholder="e.g. AWB Number"
+                  />
+                  <button
+                    onClick={() => handleInputChange("vendorTrackingId", "")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-red-500 transition-colors"
+                    title="Clear Tracking ID"
+                  >
+                    <XCircle className="h-4 w-4" />
+                  </button>
+                </div>
               ) : (
                 <p className="text-sm sm:text-base text-gray-900">{booking.vendorTrackingId || "Not Assigned"}</p>
               )}

@@ -41,6 +41,8 @@ router.post("/", async (req, res) => {
       notes,
       isVendorBooking = false,
       vendorId = null,
+      vendorName = null,
+      vendorTrackingId = null,
       bookingSource = "Manual",
     } = req.body;
 
@@ -98,10 +100,32 @@ router.post("/", async (req, res) => {
       notes,
       isVendorBooking,
       vendorId,
+      vendorName,
+      vendorTrackingId,
       bookingSource,
     });
 
     await newBooking.save();
+
+    // If docket ID (vendorTrackingId) is used, mark it as "used" in inventory
+    if (vendorTrackingId) {
+      try {
+        const DocketInventory = require("../models/DocketInventory");
+        await DocketInventory.updateOne(
+          { docketId: vendorTrackingId },
+          { 
+            $set: { 
+              status: "used", 
+              usedBy: newBooking._id, 
+              epId: newBooking.bookingId,
+              usedAt: new Date()
+            } 
+          }
+        );
+      } catch (docketErr) {
+        console.error("Failed to update docket status:", docketErr);
+      }
+    }
 
     // Increment Coupon Usage Count if code exists
     if (newBooking.couponCode) {

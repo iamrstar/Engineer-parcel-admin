@@ -260,6 +260,12 @@ const Bookings = () => {
   const [cancelSource, setCancelSource] = useState("admin")
   const [cancelling, setCancelling] = useState(false)
 
+  // Docket Assignment State
+  const [docketModal, setDocketModal] = useState({ open: false, booking: null })
+  const [docketVendor, setDocketVendor] = useState("")
+  const [docketId, setDocketId] = useState("")
+  const [isAssigningDocket, setIsAssigningDocket] = useState(false)
+
   useEffect(() => {
     fetchBookings()
   }, [currentPage, statusFilter, serviceFilter, searchTerm, vendorNotAssigned, dateFilter, customStartDate, customEndDate])
@@ -589,35 +595,6 @@ const Bookings = () => {
                               <span className="text-xs font-bold uppercase">PDF</span>
                             </button>
                           )}
-                          <button
-                            onClick={async () => {
-                              try {
-                                const t = localStorage.getItem("adminToken") || localStorage.getItem("token")
-                                const response = await axios.get(
-                                  `${import.meta.env.VITE_API_URL}/api/bookings/${booking._id}/office-label`,
-                                  {
-                                    headers: { Authorization: `Bearer ${t}` },
-                                    responseType: "blob"
-                                  }
-                                );
-                                const url = window.URL.createObjectURL(new Blob([response.data]));
-                                const link = document.createElement("a");
-                                link.href = url;
-                                link.setAttribute("download", `Office_Label_${booking.bookingId}.pdf`);
-                                document.body.appendChild(link);
-                                link.click();
-                                link.remove();
-                                toast.success("Office label downloaded");
-                              } catch (error) {
-                                toast.error("Failed to download office label");
-                              }
-                            }}
-                            className="p-1 px-2.5 text-blue-600 hover:bg-blue-50 rounded-lg flex items-center gap-1.5 border border-blue-100 transition-colors"
-                            title="Office Label"
-                          >
-                            <Tag className="h-4 w-4" />
-                            <span className="text-xs font-bold uppercase">OFFICE</span>
-                          </button>
                           {booking.status !== 'cancelled' && (
                             <button
                               onClick={() => {
@@ -651,6 +628,18 @@ const Bookings = () => {
                               <span className="text-xs font-bold uppercase">Reschedule</span>
                             </button>
                           )}
+                          <button
+                            onClick={() => {
+                              setDocketModal({ open: true, booking: booking });
+                              setDocketVendor(booking.vendorName || "");
+                              setDocketId(booking.vendorTrackingId || "");
+                            }}
+                            className="p-1 px-2.5 text-teal-600 hover:bg-teal-50 rounded-lg flex items-center gap-1.5 border border-teal-100 transition-colors"
+                            title="Quick Assign Docket"
+                          >
+                            <Tag className="h-4 w-4" />
+                            <span className="text-xs font-bold uppercase">DOCKET</span>
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -1276,6 +1265,102 @@ const Bookings = () => {
                   Cancel
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Docket Modal */}
+      {docketModal.open && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+              <div>
+                <h3 className="text-lg font-black text-gray-900">Assign Docket</h3>
+                <p className="text-[10px] font-bold text-teal-600 uppercase tracking-widest">{docketModal.booking?.bookingId}</p>
+              </div>
+              <button onClick={() => setDocketModal({ open: false, booking: null })} className="text-gray-400 hover:text-gray-600">
+                <XCircle className="w-6 h-6" />
+              </button>
+            </div>
+
+            <div className="p-8 space-y-6">
+              <div>
+                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Shipping Partner</label>
+                <select
+                  value={docketVendor}
+                  onChange={async (e) => {
+                    const vendor = e.target.value;
+                    setDocketVendor(vendor);
+                    if (vendor && vendor !== "Other") {
+                      try {
+                        const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
+                        const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/dockets/next/${vendor}`, {
+                          headers: { Authorization: `Bearer ${token}` }
+                        });
+                        if (res.data.docketId) {
+                          setDocketId(res.data.docketId);
+                          toast.success(`ID fetched for ${vendor}`);
+                        }
+                      } catch (err) {
+                        console.error(err);
+                      }
+                    }
+                  }}
+                  className="w-full bg-gray-50 border border-gray-200 p-4 rounded-2xl outline-none focus:ring-2 focus:ring-teal-500 font-bold text-gray-900"
+                >
+                  <option value="">Select Vendor</option>
+                  <option value="BlueDart">BlueDart</option>
+                  <option value="DTDC">DTDC</option>
+                  <option value="Delhivery">Delhivery</option>
+                  <option value="Ecom Express">Ecom Express</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Tracking ID</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={docketId}
+                    onChange={(e) => setDocketId(e.target.value)}
+                    placeholder="Enter Tracking ID"
+                    className="w-full bg-gray-50 border border-gray-200 p-4 rounded-2xl outline-none focus:ring-2 focus:ring-teal-500 font-bold text-gray-900"
+                  />
+                  <button 
+                    onClick={() => setDocketId("")}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500"
+                  >
+                    <XCircle className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <button
+                onClick={async () => {
+                  try {
+                    setIsAssigningDocket(true);
+                    const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
+                    await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/${docketModal.booking._id}`, {
+                      vendorName: docketVendor,
+                      vendorTrackingId: docketId
+                    }, { headers: { Authorization: `Bearer ${token}` } });
+                    
+                    toast.success("Docket assigned successfully");
+                    setDocketModal({ open: false, booking: null });
+                    fetchBookings();
+                  } catch (err) {
+                    toast.error("Failed to assign docket");
+                  } finally {
+                    setIsAssigningDocket(false);
+                  }
+                }}
+                disabled={isAssigningDocket || !docketVendor || !docketId}
+                className="w-full bg-teal-600 disabled:bg-gray-200 text-white font-black py-4 rounded-2xl shadow-xl shadow-teal-100 hover:bg-teal-700 transition-all flex items-center justify-center gap-2"
+              >
+                {isAssigningDocket ? "Saving..." : "Save Assignment"}
+              </button>
             </div>
           </div>
         </div>

@@ -66,6 +66,7 @@ const userRoutes = require("./routes/users");
 const vendorRoutes = require("./routes/vendors");
 const vendorPaymentRoutes = require("./routes/vendorPayments");
 const analyticsRoutes = require("./routes/analytics");
+const docketRoutes = require("./routes/dockets");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/bookings", bookingRoutes);
@@ -77,6 +78,7 @@ app.use("/api/users", userRoutes);
 app.use("/api/vendors", vendorRoutes);
 app.use("/api/vendor-payments", vendorPaymentRoutes);
 app.use("/api/analytics", analyticsRoutes);
+app.use("/api/dockets", docketRoutes);
 
 app.use("/api/intake", intakeRoutes);
 

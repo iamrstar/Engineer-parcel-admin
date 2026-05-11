@@ -15,6 +15,7 @@ import RiderDashboard from "./pages/RiderDashboard"
 import Vendors from "./pages/Vendors"
 import Tasks from "./pages/Tasks.jsx"
 import Analytics from "./pages/Analytics"
+import DocketManagement from "./pages/DocketManagement"
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth()
@@ -154,6 +155,16 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <Analytics />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/docket-management"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <DocketManagement />
                 </Layout>
               </ProtectedRoute>
             }

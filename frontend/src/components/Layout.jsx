@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useAuth } from "../contexts/AuthContext"
 import axios from "axios"
 import toast from "react-hot-toast"
-import { Package, LayoutDashboard, FileText, MapPin, Ticket, LogOut, Menu, X, BarChart, Bell, Users, Building, CheckSquare } from "lucide-react"
+import { Package, LayoutDashboard, FileText, MapPin, Ticket, LogOut, Menu, X, BarChart, Bell, Users, Building, CheckSquare, ClipboardList } from "lucide-react"
 import { socket } from "../utils/socket"
 import { Activity as ActivityIcon } from "lucide-react"
 
@@ -239,6 +239,7 @@ const Layout = ({ children }) => {
     { name: "Tasks", href: "/tasks", icon: CheckSquare, badge: tasksCount },
     { name: "User Management", href: "/user-management", icon: Users },
     { name: "Vendor Management", href: "/vendors", icon: Building },
+    { name: "Docket Management", href: "/docket-management", icon: ClipboardList },
   ]
 
   const handleLogout = () => {

@@ -43,6 +43,8 @@ export default function ManualBooking() {
     isWithoutGST: false,
     isVendorBooking: false,
     vendorId: "",
+    vendorName: "",
+    vendorTrackingId: "",
   });
   const [generatedId, setGeneratedId] = useState("");
   const [isManualId, setIsManualId] = useState(false);
@@ -69,6 +71,24 @@ export default function ManualBooking() {
       const data = await res.json();
       setVendorResults(data);
       setShowVendorDropdown(true);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchNextDocket = async (vendor) => {
+    if (!vendor) return;
+    try {
+      const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/dockets/next/${vendor}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setFormData(prev => ({ ...prev, vendorTrackingId: data.docketId }));
+      } else {
+        setFormData(prev => ({ ...prev, vendorTrackingId: "" }));
+      }
     } catch (err) {
       console.error(err);
     }
@@ -181,6 +201,8 @@ export default function ManualBooking() {
       isWithoutGST: false,
       isVendorBooking: false,
       vendorId: "",
+      vendorName: "",
+      vendorTrackingId: "",
     });
     setVendorSearch("");
     setPincodeStatus({ 
@@ -250,6 +272,8 @@ export default function ManualBooking() {
       bookingSource: "admin",
       isVendorBooking: formData.isVendorBooking,
       vendorId: formData.vendorId,
+      vendorName: formData.vendorName,
+      vendorTrackingId: formData.vendorTrackingId,
       premiumItemType: formData.premiumItemType,
       otherPremiumItem: formData.premiumItemType === "Other" ? formData.otherPremiumItem : "",
       bookingId: isManualId ? `EP${formData.bookingId.replace(/^EP/i, '')}` : undefined,
@@ -376,6 +400,47 @@ export default function ManualBooking() {
               >
                 Vendor Booking
               </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in slide-in-from-top-4 duration-300">
+               <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Shipping Vendor (e.g. BlueDart)</label>
+                <select
+                  name="vendorName"
+                  value={formData.vendorName}
+                  onChange={(e) => {
+                    handleChange(e);
+                    fetchNextDocket(e.target.value);
+                  }}
+                  className="w-full border border-gray-300 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-white font-medium"
+                >
+                  <option value="">Select Shipping Partner</option>
+                  <option value="BlueDart">BlueDart</option>
+                  <option value="DTDC">DTDC</option>
+                  <option value="Delhivery">Delhivery</option>
+                  <option value="Ecom Express">Ecom Express</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 mb-1">Docket ID (Auto-fetched)</label>
+                <div className="relative">
+                  <input
+                    name="vendorTrackingId"
+                    value={formData.vendorTrackingId}
+                    onChange={handleChange}
+                    placeholder="Docket ID"
+                    className="w-full border border-orange-200 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-orange-50 font-bold"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, vendorTrackingId: "" }))}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-orange-600 hover:bg-orange-100 rounded-lg transition-colors"
+                    title="Clear Docket ID"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                  </button>
+                </div>
+              </div>
             </div>
 
             {formData.isVendorBooking && (
