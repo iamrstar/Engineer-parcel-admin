@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import axios from "axios"
 import toast from "react-hot-toast"
-import { Search, Filter, Eye, FileText, Calendar, XCircle, Tag, RotateCcw, FileDown, CheckCircle2, UserPlus, Trash2 } from "lucide-react"
+import { Search, Filter, Eye, FileText, Calendar, XCircle, Tag, RotateCcw, FileDown, CheckCircle2, UserPlus, Trash2, Plus, ArrowRight } from "lucide-react"
 import * as XLSX from "xlsx"
 
 // Helper functions for status visibility
@@ -41,6 +41,63 @@ const isRecent = (date) => {
   return diff < 3600000; // < 1 hour
 };
 
+const TrackingHistoryTooltip = ({ booking }) => {
+  const lastTrack = booking.trackingHistory && booking.trackingHistory.length > 0
+    ? booking.trackingHistory[booking.trackingHistory.length - 1]
+    : null;
+
+  return (
+    <div className="absolute hidden group-hover:flex flex-col gap-1.5 z-30 w-64 p-3 bg-slate-900/95 backdrop-blur-md text-white rounded-xl shadow-2xl border border-slate-700/80 bottom-full mb-2.5 left-1/2 -translate-x-1/2 transition-all duration-200 ease-out origin-bottom scale-95 group-hover:scale-100 pointer-events-none">
+      {/* Tooltip arrow */}
+      <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-slate-900 border-r border-b border-slate-700/80 rotate-45"></div>
+      
+      {/* Tooltip Content */}
+      <div className="flex items-center justify-between border-b border-slate-700 pb-1.5 mb-0.5">
+        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Last Status Update</span>
+        {lastTrack?.timestamp && (
+          <span className="text-[9px] text-slate-400 font-medium">
+            {getTimeAgo(lastTrack.timestamp)}
+          </span>
+        )}
+      </div>
+
+      {lastTrack ? (
+        <div className="space-y-1.5 text-left whitespace-normal">
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-[10px] font-semibold text-slate-400 select-none">Status:</span>
+            <span className="text-xs font-bold text-orange-400 capitalize">
+              {lastTrack.status === 'empty_box_delivered' ? 'Empty Box Delivered' :
+               lastTrack.status === 'filled_box_picked' ? 'Filled Box Picked' :
+               lastTrack.status}
+            </span>
+          </div>
+          {lastTrack.location && (
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-[10px] font-semibold text-slate-400 select-none">Location:</span>
+              <span className="text-xs text-slate-200 font-medium">{lastTrack.location}</span>
+            </div>
+          )}
+          {lastTrack.description && (
+            <div className="flex flex-col mt-0.5 pt-0.5 border-t border-slate-800">
+              <span className="text-[9px] font-semibold text-slate-400 uppercase select-none">Message:</span>
+              <p className="text-[11px] text-slate-300 leading-relaxed italic font-serif">
+                "{lastTrack.description}"
+              </p>
+            </div>
+          )}
+          <div className="text-[9px] text-slate-500 text-right mt-1 font-mono select-none">
+            {new Date(lastTrack.timestamp).toLocaleString()}
+          </div>
+        </div>
+      ) : (
+        <div className="text-center py-2 text-slate-400 text-xs italic">
+          No updates recorded
+        </div>
+      )}
+    </div>
+  );
+};
+
 const Bookings = () => {
   const [searchParams, setSearchParams] = useSearchParams()
 
@@ -49,9 +106,7 @@ const Bookings = () => {
   const [selectedIds, setSelectedIds] = useState([])
   const [riders, setRiders] = useState([])
   const [bulkModal, setBulkModal] = useState({ open: false, type: "" }) // type: 'status' or 'assign'
-  const [bulkStatus, setBulkStatus] = useState("pending")
-  const [bulkLocation, setBulkLocation] = useState("")
-  const [bulkDescription, setBulkDescription] = useState("")
+  const [bulkUpdates, setBulkUpdates] = useState([])
   const [bulkNotify, setBulkNotify] = useState(true)
   const [bulkAssignment, setBulkAssignment] = useState({ riderId: "", assignedFor: "pickup" })
   const [isBulkUpdating, setIsBulkUpdating] = useState(false)
@@ -125,7 +180,7 @@ const Bookings = () => {
 
       const data = response.data.map(b => ({
         "Booking ID": b.bookingId,
-        "Date": new Date(b.createdAt).toLocaleDateString(),
+        "Date": b.isVendorBooking && b.pickupDate ? new Date(b.pickupDate).toLocaleDateString() : new Date(b.createdAt).toLocaleDateString(),
         "Service": b.serviceType,
         "Status": b.status,
         "Sender": b.senderDetails?.name,
@@ -168,25 +223,40 @@ const Bookings = () => {
   }, [])
 
   const handleBulkStatusUpdate = async () => {
-    if (!bulkStatus) return
+    if (!bulkUpdates || bulkUpdates.length === 0) return toast.error("Please add at least one status update")
+    for (let i = 0; i < bulkUpdates.length; i++) {
+      if (!bulkUpdates[i].status) {
+        return toast.error(`Please select a status for entry #${i + 1}`)
+      }
+    }
+
     try {
       setIsBulkUpdating(true)
       const t = localStorage.getItem("adminToken") || localStorage.getItem("token")
+      
+      const formattedUpdates = bulkUpdates.map(up => ({
+        status: up.status,
+        location: up.location || "Hub",
+        description: up.description || `Bulk status update to ${up.status.toUpperCase()} by admin.`,
+        timestamp: up.timestamp ? new Date(up.timestamp).toISOString() : new Date().toISOString()
+      }))
+
+      const sortedUpdates = [...formattedUpdates].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+      const latestStatus = sortedUpdates[sortedUpdates.length - 1].status
+
       await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/bulk/status`, {
         bookingIds: selectedIds,
-        status: bulkStatus,
-        location: bulkLocation,
-        description: bulkDescription,
+        updates: formattedUpdates,
         notify: bulkNotify
       }, { headers: { Authorization: `Bearer ${t}` } })
 
-      toast.success(`Updated ${selectedIds.length} bookings to ${bulkStatus}`)
+      toast.success(`Updated ${selectedIds.length} bookings. Final status: ${latestStatus.toUpperCase()}`)
       setSelectedIds([])
       setBulkModal({ open: false, type: "" })
-      setBulkLocation("")
-      setBulkDescription("")
+      setBulkUpdates([])
       fetchBookings()
     } catch (error) {
+      console.error(error)
       toast.error("Bulk status update failed")
     } finally {
       setIsBulkUpdating(false)
@@ -361,7 +431,7 @@ const Bookings = () => {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
               <input
                 type="text"
-                placeholder="Search..."
+                placeholder="Search by Booking ID, Track ID, Sender/Receiver..."
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
@@ -495,6 +565,7 @@ const Bookings = () => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Booking ID</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sender</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receiver</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Route</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
@@ -539,11 +610,18 @@ const Bookings = () => {
                         <div className="text-xs text-gray-500">{booking.receiverDetails?.phone}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center text-sm font-semibold text-gray-800">
+                          <span className="capitalize">{booking.senderDetails?.city || "—"}</span>
+                          <ArrowRight className="h-3.5 w-3.5 text-gray-400 mx-1.5 flex-shrink-0" />
+                          <span className="capitalize">{booking.receiverDetails?.city || "—"}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-bold text-gray-800 capitalize">{booking.serviceType}</div>
                         <div className="text-[10px] text-gray-400 font-medium">Source: {booking.bookingSource || 'web'}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap overflow-visible">
-                        <div className="flex items-center space-x-1.5 group relative">
+                        <div className="flex items-center space-x-1.5 group relative cursor-help">
                           <span className={`inline-flex px-2 py-0.5 text-[10px] font-bold uppercase rounded-full border ${getStatusColor(booking.status)}`}>
                             {booking.serviceType?.toLowerCase() === 'campus-parcel' 
                               ? (booking.status === 'empty_box_delivered' ? 'Box Delivered (For Packing)' :
@@ -554,9 +632,7 @@ const Bookings = () => {
                           {isRecent(booking.updatedAt) && (
                             <span className="flex h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse"></span>
                           )}
-                          <div className="absolute hidden group-hover:block z-20 p-2 bg-gray-900 text-white rounded text-[10px] -top-12 left-0 w-32 shadow-xl border border-gray-800">
-                            Updated: {getTimeAgo(booking.updatedAt)}
-                          </div>
+                          <TrackingHistoryTooltip booking={booking} />
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
@@ -569,7 +645,11 @@ const Bookings = () => {
                         {booking.vendorTrackingId || "-"}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
-                        {new Date(booking.createdAt).toLocaleDateString()}
+                        {booking.isVendorBooking && booking.pickupDate ? (
+                          new Date(booking.pickupDate).toLocaleDateString()
+                        ) : (
+                          new Date(booking.createdAt).toLocaleDateString()
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                         <div className="flex items-center justify-center space-x-2">
@@ -665,7 +745,17 @@ const Bookings = () => {
 
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setBulkModal({ open: true, type: "status" })}
+                    onClick={() => {
+                      const now = new Date();
+                      now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+                      setBulkUpdates([{
+                        status: "pending",
+                        location: "",
+                        description: "",
+                        timestamp: now.toISOString().slice(0, 16)
+                      }]);
+                      setBulkModal({ open: true, type: "status" });
+                    }}
                     className="flex items-center gap-2 hover:bg-gray-800 px-3 py-2 rounded-xl transition-colors text-sm font-bold text-primary-400"
                   >
                     <CheckCircle2 className="w-4 h-4" />
@@ -691,7 +781,7 @@ const Bookings = () => {
             {/* Bulk Update Modals */}
             {bulkModal.open && (
               <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
                   <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                     <h3 className="text-lg font-bold text-gray-900">
                       {bulkModal.type === 'status' ? 'Bulk Status Update' : 'Bulk Rider Assignment'}
@@ -708,57 +798,150 @@ const Bookings = () => {
 
                     {bulkModal.type === 'status' ? (
                       <div className="space-y-4">
-                        <label className="block text-sm font-bold text-gray-700">New Status</label>
-                        <div className="grid grid-cols-2 gap-2">
-                          {["pending", "picked", "in-transit", "out-for-delivery", "delivered", "cancelled"].map(s => (
-                            <button
-                              key={s}
-                              onClick={() => setBulkStatus(s)}
-                              className={`px-3 py-2 rounded-xl text-xs font-bold border-2 transition-all ${bulkStatus === s
-                                ? 'border-primary-500 bg-primary-50 text-primary-700'
-                                : 'border-gray-100 hover:border-gray-200 text-gray-600'
-                                }`}
-                            >
-                              {s.toUpperCase()}
-                            </button>
+                        <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
+                          {bulkUpdates.map((update, index) => (
+                            <div key={index} className="p-4 bg-gray-50 border border-gray-250 rounded-2xl relative space-y-3 shadow-sm border-2">
+                              {/* Header with Card Number & Remove Button */}
+                              <div className="flex justify-between items-center border-b border-gray-200 pb-2">
+                                <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">Status Update #{index + 1}</span>
+                                {bulkUpdates.length > 1 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setBulkUpdates(prev => prev.filter((_, i) => i !== index))
+                                    }}
+                                    className="text-red-500 hover:text-red-700 text-xs font-bold flex items-center gap-1 transition-colors"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    Remove
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* Row 1: Status selection buttons */}
+                              <div>
+                                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Status</label>
+                                <div className="grid grid-cols-4 gap-1">
+                                  {["pending", "picked", "in-transit", "reached", "out-for-delivery", "delivered", "cancelled"].map(s => (
+                                    <button
+                                      key={s}
+                                      type="button"
+                                      onClick={() => {
+                                        setBulkUpdates(prev => {
+                                          const copy = [...prev];
+                                          copy[index].status = s;
+                                          return copy;
+                                        })
+                                      }}
+                                      className={`px-1.5 py-1 rounded-lg text-[9px] font-bold border transition-all truncate ${update.status === s
+                                        ? 'border-primary-500 bg-primary-50 text-primary-700 shadow-sm'
+                                        : 'border-gray-200 hover:border-gray-300 bg-white text-gray-600'
+                                        }`}
+                                    >
+                                      {s.toUpperCase()}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* Row 2: Location and DateTime */}
+                              <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Location</label>
+                                  <input
+                                    type="text"
+                                    value={update.location}
+                                    onChange={(e) => {
+                                      setBulkUpdates(prev => {
+                                        const copy = [...prev];
+                                        copy[index].location = e.target.value;
+                                        return copy;
+                                      })
+                                    }}
+                                    placeholder="Hub Name, City"
+                                    className="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-primary-500 transition-all font-medium"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Date & Time</label>
+                                  <input
+                                    type="datetime-local"
+                                    value={update.timestamp}
+                                    onChange={(e) => {
+                                      setBulkUpdates(prev => {
+                                        const copy = [...prev];
+                                        copy[index].timestamp = e.target.value;
+                                        return copy;
+                                      })
+                                    }}
+                                    className="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-primary-500 transition-all font-semibold"
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Row 3: Preset Note & Description */}
+                              <div>
+                                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Tracking Note (Optional)</label>
+                                <div className="flex gap-2">
+                                  <select
+                                    onChange={(e) => {
+                                      if (e.target.value) {
+                                        setBulkUpdates(prev => {
+                                          const copy = [...prev];
+                                          copy[index].description = e.target.value;
+                                          return copy;
+                                        })
+                                      }
+                                    }}
+                                    className="w-1/3 px-2 py-1 bg-white border border-gray-200 rounded-xl text-[10px] font-bold text-primary-600 focus:ring-2 focus:ring-primary-500 transition-all"
+                                  >
+                                    <option value="">Presets...</option>
+                                    {PRESET_NOTES.map(note => (
+                                      <option key={note} value={note}>{note}</option>
+                                    ))}
+                                  </select>
+                                  <input
+                                    type="text"
+                                    value={update.description}
+                                    onChange={(e) => {
+                                      setBulkUpdates(prev => {
+                                        const copy = [...prev];
+                                        copy[index].description = e.target.value;
+                                        return copy;
+                                      })
+                                    }}
+                                    placeholder="Or type custom note..."
+                                    className="flex-1 px-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-primary-500 transition-all font-medium"
+                                  />
+                                </div>
+                              </div>
+                            </div>
                           ))}
+
+                          {/* Add More Status Button */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const now = new Date();
+                              now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+                              setBulkUpdates(prev => [
+                                ...prev,
+                                {
+                                  status: "pending",
+                                  location: "",
+                                  description: "",
+                                  timestamp: now.toISOString().slice(0, 16)
+                                }
+                              ])
+                            }}
+                            className="w-full py-2.5 border-2 border-dashed border-gray-200 hover:border-primary-500 text-gray-500 hover:text-primary-600 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors bg-gray-50 hover:bg-primary-50/20"
+                          >
+                            <Plus className="w-4 h-4" />
+                            Add More Status
+                          </button>
                         </div>
 
-                        <div className="space-y-3 pt-2">
-                          <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Current Location (Optional)</label>
-                            <input
-                              type="text"
-                              value={bulkLocation}
-                              onChange={(e) => setBulkLocation(e.target.value)}
-                              placeholder="e.g. Hub Name, City"
-                              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 transition-all"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Tracking Note (Optional)</label>
-                            <select
-                              onChange={(e) => {
-                                if (e.target.value) setBulkDescription(e.target.value)
-                              }}
-                              className="w-full px-4 py-2 mb-2 bg-white border border-gray-200 rounded-xl text-xs font-bold text-primary-600 focus:ring-2 focus:ring-primary-500 transition-all"
-                            >
-                              <option value="">-- Choose Preset Note --</option>
-                              {PRESET_NOTES.map(note => (
-                                <option key={note} value={note}>{note}</option>
-                              ))}
-                            </select>
-                            <textarea
-                              value={bulkDescription}
-                              onChange={(e) => setBulkDescription(e.target.value)}
-                              placeholder="Or type a custom update note..."
-                              rows={2}
-                              className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary-500 transition-all resize-none"
-                            />
-                          </div>
-                        </div>
-
-                        {bulkStatus === "delivered" && (
+                        {bulkUpdates.some(up => up.status === "delivered") && (
                           <div className="mt-4 p-3 bg-blue-50 rounded-xl border border-blue-100 flex items-center gap-3">
                             <input
                               type="checkbox"

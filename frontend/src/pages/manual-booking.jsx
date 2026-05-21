@@ -601,13 +601,15 @@ export default function ManualBooking() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Pickup Date</label>
+                <label className="block text-sm font-bold text-gray-700 mb-1">
+                  {formData.isVendorBooking ? "Vendor Pickup Date" : "Pickup Date"}
+                </label>
                 <input
                   type="date"
                   name="pickupDate"
                   value={formData.pickupDate}
                   onChange={handleChange}
-                  className="w-full border border-gray-300 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none"
+                  className={`w-full border p-3 rounded-xl focus:ring-2 outline-none ${formData.isVendorBooking ? 'border-orange-300 bg-orange-50/10 focus:ring-orange-500' : 'border-gray-300 focus:ring-orange-500'}`}
                   required
                 />
               </div>

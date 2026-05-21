@@ -192,22 +192,41 @@ router.get("/", authMiddleware, async (req, res) => {
 
     // Date Filtering
     if (startDate || endDate) {
-      query.createdAt = {};
-      if (startDate) {
-        const start = new Date(startDate);
-        start.setHours(0, 0, 0, 0);
-        query.createdAt.$gte = start;
-      }
-      if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-        query.createdAt.$lte = end;
-      }
+      const start = startDate ? new Date(startDate) : null;
+      if (start) start.setHours(0, 0, 0, 0);
+      const end = endDate ? new Date(endDate) : null;
+      if (end) end.setHours(23, 59, 59, 999);
+
+      query.$and = query.$and || [];
+      query.$and.push({
+        $or: [
+          {
+            isVendorBooking: true,
+            pickupDate: {
+              ...(start && { $gte: start }),
+              ...(end && { $lte: end })
+            }
+          },
+          {
+            $or: [
+              { isVendorBooking: false },
+              { isVendorBooking: { $exists: false } },
+              { isVendorBooking: null }
+            ],
+            createdAt: {
+              ...(start && { $gte: start }),
+              ...(end && { $lte: end })
+            }
+          }
+        ]
+      });
     }
 
     if (search) {
       query.$or = [
         { bookingId: { $regex: search, $options: "i" } },
+        { trackingId: { $regex: search, $options: "i" } },
+        { vendorTrackingId: { $regex: search, $options: "i" } },
         { "senderDetails.name": { $regex: search, $options: "i" } },
         { "receiverDetails.name": { $regex: search, $options: "i" } },
         { "senderDetails.phone": { $regex: search, $options: "i" } },
@@ -265,21 +284,40 @@ router.get("/export", adminAuth, async (req, res) => {
       query.$or = [{ vendorName: { $exists: false } }, { vendorName: "" }, { vendorName: null }];
     }
     if (startDate || endDate) {
-      query.createdAt = {};
-      if (startDate) {
-        const start = new Date(startDate);
-        start.setHours(0, 0, 0, 0);
-        query.createdAt.$gte = start;
-      }
-      if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-        query.createdAt.$lte = end;
-      }
+      const start = startDate ? new Date(startDate) : null;
+      if (start) start.setHours(0, 0, 0, 0);
+      const end = endDate ? new Date(endDate) : null;
+      if (end) end.setHours(23, 59, 59, 999);
+
+      query.$and = query.$and || [];
+      query.$and.push({
+        $or: [
+          {
+            isVendorBooking: true,
+            pickupDate: {
+              ...(start && { $gte: start }),
+              ...(end && { $lte: end })
+            }
+          },
+          {
+            $or: [
+              { isVendorBooking: false },
+              { isVendorBooking: { $exists: false } },
+              { isVendorBooking: null }
+            ],
+            createdAt: {
+              ...(start && { $gte: start }),
+              ...(end && { $lte: end })
+            }
+          }
+        ]
+      });
     }
     if (search) {
       query.$or = [
         { bookingId: { $regex: search, $options: "i" } },
+        { trackingId: { $regex: search, $options: "i" } },
+        { vendorTrackingId: { $regex: search, $options: "i" } },
         { "senderDetails.name": { $regex: search, $options: "i" } },
         { "receiverDetails.name": { $regex: search, $options: "i" } },
         { "senderDetails.phone": { $regex: search, $options: "i" } },
@@ -303,28 +341,56 @@ router.get("/export", adminAuth, async (req, res) => {
  * ------------------------ */
 router.put("/bulk/status", adminAuth, async (req, res) => {
   try {
-    const { bookingIds, status, location, description } = req.body;
-    if (!bookingIds || !Array.isArray(bookingIds) || !status) {
+    const { bookingIds, status, location, description, timestamp, updates } = req.body;
+    if (!bookingIds || !Array.isArray(bookingIds)) {
       return res.status(400).json({ message: "Invalid request data" });
     }
 
-    const trackEntry = {
-      status,
-      location: location || "Hub",
-      timestamp: new Date(),
-      description: description || `Bulk status update to ${status.toUpperCase()} by admin.`
-    };
+    let trackEntries = [];
+    let finalStatus = status;
+
+    if (updates && Array.isArray(updates) && updates.length > 0) {
+      // Validate all updates have a status
+      for (const up of updates) {
+        if (!up.status) {
+          return res.status(400).json({ message: "All updates must have a status" });
+        }
+      }
+
+      trackEntries = updates.map(up => ({
+        status: up.status,
+        location: up.location || "Hub",
+        timestamp: up.timestamp ? new Date(up.timestamp) : new Date(),
+        description: up.description || `Bulk status update to ${up.status.toUpperCase()} by admin.`
+      }));
+
+      // Sort updates chronologically by timestamp
+      trackEntries.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      finalStatus = trackEntries[trackEntries.length - 1].status;
+    } else {
+      if (!status) {
+        return res.status(400).json({ message: "Status is required" });
+      }
+      const trackEntry = {
+        status,
+        location: location || "Hub",
+        timestamp: timestamp ? new Date(timestamp) : new Date(),
+        description: description || `Bulk status update to ${status.toUpperCase()} by admin.`
+      };
+      trackEntries.push(trackEntry);
+      finalStatus = status;
+    }
 
     await Booking.updateMany(
       { _id: { $in: bookingIds } },
       { 
-        $set: { status },
-        $push: { trackingHistory: trackEntry }
+        $set: { status: finalStatus },
+        $push: { trackingHistory: { $each: trackEntries } }
       }
     );
 
     // ✅ Trigger emails for bulk delivered status
-    if (status?.toLowerCase() === "delivered" && req.body.notify) {
+    if (finalStatus?.toLowerCase() === "delivered" && req.body.notify) {
       const bookings = await Booking.find({ _id: { $in: bookingIds } });
       bookings.forEach(b => sendDeliveryEmail(b));
     }
@@ -334,8 +400,8 @@ router.put("/bulk/status", adminAuth, async (req, res) => {
     if (io) {
       io.emit("status_update", {
         bookingIds,
-        status: status.toUpperCase(),
-        description: `Bulk status update to ${status.toUpperCase()}`,
+        status: finalStatus.toUpperCase(),
+        description: `Bulk status update to ${finalStatus.toUpperCase()}`,
         bookingSource: "Bulk"
       });
     }

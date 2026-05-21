@@ -31,8 +31,97 @@ import {
   ArrowLeft,
   Package,
   Check,
-  XCircle
+  XCircle,
+  FileText
 } from "lucide-react"
+
+const getTimeAgo = (date) => {
+  const seconds = Math.floor((new Date() - new Date(date)) / 1000);
+  if (isNaN(seconds)) return "N/A";
+  let interval = seconds / 31536000;
+  if (interval > 1) return Math.floor(interval) + " years ago";
+  interval = seconds / 2592000;
+  if (interval > 1) return Math.floor(interval) + " months ago";
+  interval = seconds / 86400;
+  if (interval > 1) return Math.floor(interval) + " days ago";
+  interval = seconds / 3600;
+  if (interval > 1) return Math.floor(interval) + " hours ago";
+  interval = seconds / 60;
+  if (interval > 1) return Math.floor(interval) + " minutes ago";
+  return Math.floor(seconds) + " seconds ago";
+};
+
+const getStatusColor = (status) => {
+  const colors = {
+    pending: "bg-yellow-100 text-yellow-800 border-yellow-200",
+    confirmed: "bg-blue-100 text-blue-800 border-blue-200",
+    picked: "bg-purple-100 text-purple-800 border-purple-200",
+    "in-transit": "bg-indigo-100 text-indigo-800 border-indigo-200",
+    "out-for-delivery": "bg-orange-100 text-orange-800 border-orange-200",
+    delivered: "bg-green-100 text-green-800 border-green-200",
+    cancelled: "bg-red-100 text-red-800 border-red-200",
+    empty_box_delivered: "bg-blue-100 text-blue-800 border-blue-200",
+    filled_box_picked: "bg-teal-100 text-teal-800 border-teal-200",
+  }
+  return colors[status] || "bg-gray-100 text-gray-800 border-gray-200"
+};
+
+const TrackingHistoryTooltip = ({ booking }) => {
+  const lastTrack = booking.trackingHistory && booking.trackingHistory.length > 0
+    ? booking.trackingHistory[booking.trackingHistory.length - 1]
+    : null;
+
+  return (
+    <div className="absolute hidden group-hover:flex flex-col gap-1.5 z-30 w-64 p-3 bg-slate-900/95 backdrop-blur-md text-white rounded-xl shadow-2xl border border-slate-700/80 bottom-full mb-2.5 left-1/2 -translate-x-1/2 transition-all duration-200 ease-out origin-bottom scale-95 group-hover:scale-100 pointer-events-none">
+      {/* Tooltip arrow */}
+      <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-slate-900 border-r border-b border-slate-700/80 rotate-45"></div>
+      
+      {/* Tooltip Content */}
+      <div className="flex items-center justify-between border-b border-slate-700 pb-1.5 mb-0.5">
+        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Last Status Update</span>
+        {lastTrack?.timestamp && (
+          <span className="text-[9px] text-slate-400 font-medium">
+            {getTimeAgo(lastTrack.timestamp)}
+          </span>
+        )}
+      </div>
+
+      {lastTrack ? (
+        <div className="space-y-1.5 text-left whitespace-normal">
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-[10px] font-semibold text-slate-400 select-none">Status:</span>
+            <span className="text-xs font-bold text-orange-400 capitalize">
+              {lastTrack.status === 'empty_box_delivered' ? 'Empty Box Delivered' :
+               lastTrack.status === 'filled_box_picked' ? 'Filled Box Picked' :
+               lastTrack.status}
+            </span>
+          </div>
+          {lastTrack.location && (
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-[10px] font-semibold text-slate-400 select-none">Location:</span>
+              <span className="text-xs text-slate-200 font-medium">{lastTrack.location}</span>
+            </div>
+          )}
+          {lastTrack.description && (
+            <div className="flex flex-col mt-0.5 pt-0.5 border-t border-slate-800">
+              <span className="text-[9px] font-semibold text-slate-400 uppercase select-none">Message:</span>
+              <p className="text-[11px] text-slate-300 leading-relaxed italic font-serif">
+                "{lastTrack.description}"
+              </p>
+            </div>
+          )}
+          <div className="text-[9px] text-slate-500 text-right mt-1 font-mono select-none">
+            {new Date(lastTrack.timestamp).toLocaleString()}
+          </div>
+        </div>
+      ) : (
+        <div className="text-center py-2 text-slate-400 text-xs italic">
+          No updates recorded
+        </div>
+      )}
+    </div>
+  );
+};
 
 const Vendors = () => {
   const [vendors, setVendors] = useState([])
@@ -78,6 +167,11 @@ const Vendors = () => {
     month: new Date().toISOString().substring(0, 7),
     notes: ""
   })
+
+  // PDF Options Modal States
+  const [pdfModalOpen, setPdfModalOpen] = useState(false)
+  const [pdfBooking, setPdfBooking] = useState(null)
+  const [pdfOptions, setPdfOptions] = useState({ receipt: true, label: true, declaration: true })
 
   // Form State
   const [formData, setFormData] = useState({
@@ -731,7 +825,8 @@ const Vendors = () => {
                           <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Route</th>
                           <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Total Amount</th>
                           <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Paid</th>
-                          <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
+                          <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Payment Status</th>
+                          <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Shipment Status</th>
                           <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
                         </tr>
                       </thead>
@@ -752,6 +847,14 @@ const Vendors = () => {
                                 {order.vendorPaymentStatus || 'Pending'}
                               </span>
                             </td>
+                            <td className="px-6 py-4 text-center overflow-visible">
+                              <div className="inline-flex items-center space-x-1.5 group relative cursor-help">
+                                <span className={`inline-flex px-2 py-0.5 text-[10px] font-bold uppercase rounded-full border ${getStatusColor(order.status)}`}>
+                                  {order.status}
+                                </span>
+                                <TrackingHistoryTooltip booking={order} />
+                              </div>
+                            </td>
                             <td className="px-6 py-4 text-center">
                               <div className="flex items-center justify-center gap-2">
                                 <Link
@@ -760,6 +863,17 @@ const Vendors = () => {
                                 >
                                   <Eye className="h-3 w-3" /> View Order
                                 </Link>
+                                <button
+                                  onClick={() => {
+                                    setPdfBooking(order);
+                                    setPdfOptions({ receipt: true, label: true, declaration: true });
+                                    setPdfModalOpen(true);
+                                  }}
+                                  className="p-1.5 px-3 bg-red-50 text-red-600 text-[10px] font-bold rounded-lg hover:bg-red-100 transition-all flex items-center gap-1.5 border border-red-200"
+                                  title="Print Records"
+                                >
+                                  <FileText className="h-3 w-3" /> PDF
+                                </button>
                                 <button 
                                   onClick={() => {
                                     setEditingOrder(order);
@@ -1072,6 +1186,108 @@ const Vendors = () => {
                     >Record Settlement</button>
                   </div>
                 </form>
+              </div>
+            </div>
+          )}
+
+          {/* PDF Options Modal */}
+          {pdfModalOpen && (
+            <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+              <div className="fixed inset-0 bg-black/60" onClick={() => setPdfModalOpen(false)} />
+              <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md relative z-10 p-8 border-t-8 border-red-500">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-2xl font-black text-gray-900 flex items-center gap-2">
+                    <FileText className="h-6 w-6 text-red-500" /> Print Options
+                  </h3>
+                  <button onClick={() => setPdfModalOpen(false)}><X className="h-6 w-6 text-gray-400" /></button>
+                </div>
+                <p className="text-sm text-gray-500 mb-6 leading-relaxed">
+                  Select which documents you want to include in the generated PDF for <span className="font-mono font-bold text-gray-700">{pdfBooking?.trackingId || pdfBooking?.bookingId}</span>
+                </p>
+
+                <div className="space-y-4 bg-gray-50 p-5 rounded-2xl border border-gray-200 mb-6">
+                  <label className="flex items-center p-3.5 bg-white rounded-xl border border-gray-200 hover:border-red-300 transition-colors cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={pdfOptions.receipt}
+                      onChange={(e) => setPdfOptions({ ...pdfOptions, receipt: e.target.checked })}
+                      className="h-5 w-5 text-red-600 border-gray-300 rounded focus:ring-red-500 cursor-pointer"
+                    />
+                    <div className="ml-3">
+                      <span className="block text-sm font-bold text-gray-900 group-hover:text-red-700">Booking Receipt</span>
+                      <span className="block text-xs text-gray-500">Official proof of booking and charges</span>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center p-3.5 bg-white rounded-xl border border-gray-200 hover:border-red-300 transition-colors cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={pdfOptions.label}
+                      onChange={(e) => setPdfOptions({ ...pdfOptions, label: e.target.checked })}
+                      className="h-5 w-5 text-red-600 border-gray-300 rounded focus:ring-red-500 cursor-pointer"
+                    />
+                    <div className="ml-3">
+                      <span className="block text-sm font-bold text-gray-900 group-hover:text-red-700">Shipping Label (A6)</span>
+                      <span className="block text-xs text-gray-500">Compact label with QR code for the box</span>
+                    </div>
+                  </label>
+
+                  <label className="flex items-center p-3.5 bg-white rounded-xl border border-gray-200 hover:border-red-300 transition-colors cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={pdfOptions.declaration}
+                      onChange={(e) => setPdfOptions({ ...pdfOptions, declaration: e.target.checked })}
+                      className="h-5 w-5 text-red-600 border-gray-300 rounded focus:ring-red-500 cursor-pointer"
+                    />
+                    <div className="ml-3">
+                      <span className="block text-sm font-bold text-gray-900 group-hover:text-red-700">Self-Declaration Form</span>
+                      <span className="block text-xs text-gray-500">Legal declaration signed by sender</span>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="flex gap-4">
+                  <button
+                    type="button"
+                    onClick={() => setPdfModalOpen(false)}
+                    className="flex-1 px-6 py-3.5 border border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-50 transition-all text-sm"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!pdfOptions.receipt && !pdfOptions.label && !pdfOptions.declaration) {
+                        toast.error("Please select at least one document");
+                        return;
+                      }
+                      try {
+                        const t = localStorage.getItem("adminToken") || localStorage.getItem("token")
+                        const response = await axios.get(
+                          `${import.meta.env.VITE_API_URL}/api/bookings/${pdfBooking?._id}/receipt?receipt=${pdfOptions.receipt}&label=${pdfOptions.label}&declaration=${pdfOptions.declaration}`,
+                          {
+                            headers: { Authorization: `Bearer ${t}` },
+                            responseType: "blob"
+                          }
+                        );
+                        const url = window.URL.createObjectURL(new Blob([response.data]));
+                        const link = document.createElement("a");
+                        link.href = url;
+                        link.setAttribute("download", `Booking_${pdfBooking?.trackingId || pdfBooking?.bookingId}.pdf`);
+                        document.body.appendChild(link);
+                        link.click();
+                        link.remove();
+                        setPdfModalOpen(false);
+                        toast.success("PDF generated successfully");
+                      } catch (error) {
+                        toast.error("Failed to generate PDF");
+                      }
+                    }}
+                    className="flex-[2] px-6 py-3.5 bg-red-600 text-white font-bold rounded-xl hover:bg-red-700 transition-all shadow-lg text-sm"
+                  >
+                    Download PDF
+                  </button>
+                </div>
               </div>
             </div>
           )}
