@@ -18,13 +18,13 @@ const docketInventorySchema = new mongoose.Schema(
       enum: ["available", "used"],
       default: "available",
     },
-    usedBy: {
+    usedBy: [{
       type: mongoose.Schema.Types.ObjectId,
       ref: "Booking",
-    },
-    epId: {
+    }],
+    epId: [{
       type: String, // Booking ID (e.g., EP04601)
-    },
+    }],
     usedAt: {
       type: Date,
     },

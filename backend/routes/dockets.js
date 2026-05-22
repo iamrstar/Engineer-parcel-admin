@@ -48,7 +48,9 @@ router.get("/vendor/:vendorName", async (req, res) => {
     let query = { vendorName: { $regex: new RegExp(`^${vendorName}$`, "i") } };
     if (status) query.status = status;
 
-    const dockets = await DocketInventory.find(query).sort({ createdAt: -1 });
+    const dockets = await DocketInventory.find(query)
+      .populate("usedBy", "senderDetails receiverDetails")
+      .sort({ createdAt: -1 });
     res.json(dockets);
   } catch (err) {
     res.status(500).json({ message: err.message });

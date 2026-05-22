@@ -23,6 +23,8 @@ const DocketManagement = () => {
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [showAllVendors, setShowAllVendors] = useState(false);
   const [editingDocket, setEditingDocket] = useState(null); // {id, value}
+  const [expandedDocketId, setExpandedDocketId] = useState(null);
+  const [orderListModal, setOrderListModal] = useState({ open: false, title: "", epId: [], usedBy: [] });
 
   useEffect(() => {
     fetchStats();
@@ -297,14 +299,25 @@ const DocketManagement = () => {
                       <span className="px-2.5 py-1 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold uppercase">{docket.vendorName}</span>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <Link 
-                          to={`/bookings/${docket.usedBy?._id || docket.usedBy}`} 
-                          className="text-sm font-bold text-orange-600 hover:underline hover:text-orange-700"
-                        >
-                          {docket.epId}
-                        </Link>
-                        <span className="text-[10px] text-gray-400 font-medium">{docket.usedBy?.senderDetails?.name || 'N/A'}</span>
+                      <div className="flex flex-col gap-1">
+                        {Array.isArray(docket.epId) ? (
+                          <button
+                            onClick={() => setOrderListModal({ open: true, title: docket.docketId, epId: docket.epId, usedBy: docket.usedBy })}
+                            className="text-sm font-bold text-orange-600 cursor-pointer border-b border-dashed border-orange-300 hover:text-orange-700 text-left self-start"
+                          >
+                            {docket.epId.length} Orders
+                          </button>
+                        ) : (
+                          <>
+                            <Link 
+                              to={`/bookings/${docket.usedBy?._id || docket.usedBy}`} 
+                              className="text-sm font-bold text-orange-600 hover:underline hover:text-orange-700"
+                            >
+                              {docket.epId}
+                            </Link>
+                            <span className="text-[10px] text-gray-400 font-medium">{docket.usedBy?.senderDetails?.name || 'N/A'}</span>
+                          </>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500 font-medium">
@@ -554,9 +567,23 @@ const DocketManagement = () => {
                           {docket.status}
                         </span>
                         {docket.status === 'used' && (
-                          <span className="text-[10px] font-bold text-gray-400 truncate ml-2">
-                            {docket.epId}
-                          </span>
+                          <div className="relative ml-2 flex justify-end">
+                            {Array.isArray(docket.epId) ? (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setOrderListModal({ open: true, title: docket.docketId, epId: docket.epId, usedBy: docket.usedBy });
+                                }}
+                                className="text-[10px] font-bold text-orange-600 truncate hover:text-orange-700 underline underline-offset-2 decoration-orange-300"
+                              >
+                                {docket.epId.length} Orders
+                              </button>
+                            ) : (
+                              <span className="text-[10px] font-bold text-gray-400 truncate" title={docket.epId}>
+                                {docket.epId}
+                              </span>
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>
@@ -572,6 +599,47 @@ const DocketManagement = () => {
           </div>
         </div>
       )}
+
+      {/* Order List Modal */}
+      {orderListModal.open && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+              <div>
+                <h3 className="text-lg font-black text-gray-900">Assigned Bookings</h3>
+                <p className="text-[10px] font-bold text-orange-600 uppercase tracking-widest">Docket: {orderListModal.title}</p>
+              </div>
+              <button onClick={() => setOrderListModal({ open: false, title: "", epId: [], usedBy: [] })} className="text-gray-400 hover:text-gray-600">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="p-4 max-h-[60vh] overflow-y-auto">
+              <div className="space-y-2">
+                {orderListModal.epId.map((id, idx) => {
+                  const bookingData = Array.isArray(orderListModal.usedBy) ? orderListModal.usedBy[idx] : null;
+                  const bookingId = bookingData?._id || bookingData || id;
+                  return (
+                    <Link 
+                      key={id}
+                      to={`/bookings/${bookingId}`} 
+                      className="flex items-center justify-between p-3 rounded-xl border border-gray-100 hover:border-orange-200 hover:bg-orange-50 transition-all group"
+                    >
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold text-gray-900 group-hover:text-orange-700">{id}</span>
+                        {bookingData?.senderDetails?.name && (
+                          <span className="text-xs text-gray-500 font-medium">{bookingData.senderDetails.name}</span>
+                        )}
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-orange-500" />
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

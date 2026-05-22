@@ -22,6 +22,7 @@ const PRESET_NOTES = [
 const getTimeAgo = (date) => {
   const seconds = Math.floor((new Date() - new Date(date)) / 1000);
   if (isNaN(seconds)) return "N/A";
+  if (seconds < 0) return "Just now";
   let interval = seconds / 31536000;
   if (interval > 1) return Math.floor(interval) + " years ago";
   interval = seconds / 2592000;
@@ -47,9 +48,9 @@ const TrackingHistoryTooltip = ({ booking }) => {
     : null;
 
   return (
-    <div className="absolute hidden group-hover:flex flex-col gap-1.5 z-30 w-64 p-3 bg-slate-900/95 backdrop-blur-md text-white rounded-xl shadow-2xl border border-slate-700/80 bottom-full mb-2.5 left-1/2 -translate-x-1/2 transition-all duration-200 ease-out origin-bottom scale-95 group-hover:scale-100 pointer-events-none">
+    <div className="absolute hidden group-hover:flex flex-col gap-1.5 z-30 w-64 p-3 bg-slate-900/95 backdrop-blur-md text-white rounded-xl shadow-2xl border border-slate-700/80 right-full mr-3 top-1/2 -translate-y-1/2 transition-all duration-200 ease-out origin-right scale-95 group-hover:scale-100 pointer-events-none">
       {/* Tooltip arrow */}
-      <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-slate-900 border-r border-b border-slate-700/80 rotate-45"></div>
+      <div className="absolute top-1/2 -translate-y-1/2 -right-1.5 w-3 h-3 bg-slate-900 border-t border-r border-slate-700/80 rotate-45"></div>
       
       {/* Tooltip Content */}
       <div className="flex items-center justify-between border-b border-slate-700 pb-1.5 mb-0.5">
@@ -116,7 +117,7 @@ const Bookings = () => {
   const [serviceFilter, setServiceFilter] = useState(searchParams.get("service") || "all")
   const [currentPage, setCurrentPage] = useState(parseInt(searchParams.get("page")) || 1)
   const [limit, setLimit] = useState(parseInt(searchParams.get("limit")) || 10)
-  const [vendorNotAssigned, setVendorNotAssigned] = useState(searchParams.get("noVendor") === "true")
+  const [vendorFilter, setVendorFilter] = useState(searchParams.get("vendor") || "all")
   
   // Date Filtering State
   const [dateFilter, setDateFilter] = useState(searchParams.get("date") || "all") // all, today, last7, last30, custom
@@ -142,13 +143,13 @@ const Bookings = () => {
     if (serviceFilter !== "all") params.set("service", serviceFilter)
     if (currentPage !== 1) params.set("page", currentPage.toString())
     if (limit !== 10) params.set("limit", limit.toString())
-    if (vendorNotAssigned) params.set("noVendor", "true")
+    if (vendorFilter !== "all") params.set("vendor", vendorFilter)
     if (dateFilter !== "all") params.set("date", dateFilter)
     if (customStartDate) params.set("start", customStartDate)
     if (customEndDate) params.set("end", customEndDate)
 
     setSearchParams(params, { replace: true })
-  }, [searchTerm, statusFilter, serviceFilter, currentPage, limit, vendorNotAssigned, dateFilter, customStartDate, customEndDate])
+  }, [searchTerm, statusFilter, serviceFilter, currentPage, limit, vendorFilter, dateFilter, customStartDate, customEndDate])
 
   const handleResetFilters = () => {
     setSearchInput("")
@@ -156,7 +157,7 @@ const Bookings = () => {
     setStatusFilter("all")
     setServiceFilter("all")
     setCurrentPage(1)
-    setVendorNotAssigned(false)
+    setVendorFilter("all")
     setDateFilter("all")
     setCustomStartDate("")
     setCustomEndDate("")
@@ -173,7 +174,7 @@ const Bookings = () => {
           search: searchTerm,
           startDate: customStartDate || getEffectiveStartDate(dateFilter),
           endDate: customEndDate || getEffectiveEndDate(dateFilter),
-          vendorNotAssigned: vendorNotAssigned
+          vendorFilter: vendorFilter
         },
         headers: { Authorization: `Bearer ${token}` }
       })
@@ -338,7 +339,7 @@ const Bookings = () => {
 
   useEffect(() => {
     fetchBookings()
-  }, [currentPage, statusFilter, serviceFilter, searchTerm, vendorNotAssigned, dateFilter, customStartDate, customEndDate])
+  }, [currentPage, statusFilter, serviceFilter, searchTerm, vendorFilter, dateFilter, customStartDate, customEndDate])
 
   const fetchBookings = async () => {
     try {
@@ -351,7 +352,7 @@ const Bookings = () => {
           status: statusFilter,
           serviceType: serviceFilter,
           search: searchTerm,
-          vendorNotAssigned: vendorNotAssigned,
+          vendorFilter: vendorFilter,
           startDate: getEffectiveStartDate(),
           endDate: getEffectiveEndDate(),
         },
@@ -471,16 +472,19 @@ const Bookings = () => {
               <option value="cancelled">Cancelled</option>
             </select>
 
-            <div className="flex items-center gap-2 bg-amber-50 px-3 py-2 rounded-lg border border-amber-100">
-              <input
-                type="checkbox"
-                id="vendorFilter"
-                checked={vendorNotAssigned}
-                onChange={(e) => setVendorNotAssigned(e.target.checked)}
-                className="w-4 h-4 text-primary-600"
-              />
-              <label htmlFor="vendorFilter" className="text-sm font-medium text-amber-800 whitespace-nowrap">No Vendor</label>
-            </div>
+            <select
+              value={vendorFilter}
+              onChange={(e) => setVendorFilter(e.target.value)}
+              className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-primary-500"
+            >
+              <option value="all">All Vendors</option>
+              <option value="bluedart">BlueDart</option>
+              <option value="dtdc">DTDC</option>
+              <option value="delhivery">Delhivery</option>
+              <option value="ecom express">Ecom Express</option>
+              <option value="shadowfax">Shadowfax</option>
+              <option value="none">No Vendor</option>
+            </select>
 
             <button
               onClick={handleExportExcel}
@@ -638,8 +642,24 @@ const Bookings = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
                         ₹{booking.pricing?.totalAmount || 0}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {booking.vendorName || "-"}
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-600">
+                        {booking.vendorName ? (
+                          booking.vendorName.toLowerCase() === 'bluedart' ? (
+                            <a href="https://bluedart.com/home" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline uppercase">
+                              {booking.vendorName}
+                            </a>
+                          ) : booking.vendorName.toLowerCase() === 'dtdc' ? (
+                            <a href="https://www.dtdc.com/track-your-shipment/" target="_blank" rel="noopener noreferrer" className="text-red-600 hover:underline uppercase">
+                              {booking.vendorName}
+                            </a>
+                          ) : booking.vendorName.toLowerCase() === 'delhivery' ? (
+                            <a href="https://www.delhivery.com/tracking" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline uppercase">
+                              {booking.vendorName}
+                            </a>
+                          ) : (
+                            <span className="uppercase">{booking.vendorName}</span>
+                          )
+                        ) : "-"}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 font-mono">
                         {booking.vendorTrackingId || "-"}
@@ -767,6 +787,17 @@ const Bookings = () => {
                   >
                     <UserPlus className="w-4 h-4" />
                     Assign Rider
+                  </button>
+                  <button
+                    onClick={() => {
+                      setDocketModal({ open: true, booking: "bulk" });
+                      setDocketVendor("");
+                      setDocketId("");
+                    }}
+                    className="flex items-center gap-2 hover:bg-gray-800 px-3 py-2 rounded-xl transition-colors text-sm font-bold text-teal-400"
+                  >
+                    <Tag className="w-4 h-4" />
+                    Assign Docket
                   </button>
                   <button
                     onClick={() => setSelectedIds([])}
@@ -1459,8 +1490,8 @@ const Bookings = () => {
           <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
               <div>
-                <h3 className="text-lg font-black text-gray-900">Assign Docket</h3>
-                <p className="text-[10px] font-bold text-teal-600 uppercase tracking-widest">{docketModal.booking?.bookingId}</p>
+                <h3 className="text-lg font-black text-gray-900">{docketModal.booking === "bulk" ? "Bulk Assign Docket" : "Assign Docket"}</h3>
+                <p className="text-[10px] font-bold text-teal-600 uppercase tracking-widest">{docketModal.booking === "bulk" ? `${selectedIds.length} Bookings Selected` : docketModal.booking?.bookingId}</p>
               </div>
               <button onClick={() => setDocketModal({ open: false, booking: null })} className="text-gray-400 hover:text-gray-600">
                 <XCircle className="w-6 h-6" />
@@ -1525,12 +1556,21 @@ const Bookings = () => {
                   try {
                     setIsAssigningDocket(true);
                     const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
-                    await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/${docketModal.booking._id}`, {
-                      vendorName: docketVendor,
-                      vendorTrackingId: docketId
-                    }, { headers: { Authorization: `Bearer ${token}` } });
-                    
-                    toast.success("Docket assigned successfully");
+                    if (docketModal.booking === "bulk") {
+                      await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/bulk/assign-docket`, {
+                        bookingIds: selectedIds,
+                        vendorName: docketVendor,
+                        vendorTrackingId: docketId
+                      }, { headers: { Authorization: `Bearer ${token}` } });
+                      toast.success(`Docket assigned to ${selectedIds.length} bookings successfully`);
+                      setSelectedIds([]);
+                    } else {
+                      await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/${docketModal.booking._id}`, {
+                        vendorName: docketVendor,
+                        vendorTrackingId: docketId
+                      }, { headers: { Authorization: `Bearer ${token}` } });
+                      toast.success("Docket assigned successfully");
+                    }
                     setDocketModal({ open: false, booking: null });
                     fetchBookings();
                   } catch (err) {

@@ -182,7 +182,17 @@ router.get("/", authMiddleware, async (req, res) => {
       query.serviceType = serviceType;
     }
 
-    if (req.query.vendorNotAssigned === "true") {
+    if (req.query.vendorFilter) {
+      if (req.query.vendorFilter === "none") {
+        query.$or = [
+          { vendorName: { $exists: false } },
+          { vendorName: "" },
+          { vendorName: null }
+        ];
+      } else if (req.query.vendorFilter !== "all") {
+        query.vendorName = new RegExp(req.query.vendorFilter, "i");
+      }
+    } else if (req.query.vendorNotAssigned === "true") {
       query.$or = [
         { vendorName: { $exists: false } },
         { vendorName: "" },
@@ -275,12 +285,19 @@ router.get("/", authMiddleware, async (req, res) => {
  * ------------------------ */
 router.get("/export", adminAuth, async (req, res) => {
   try {
-    const { status, serviceType, search, startDate, endDate, vendorNotAssigned } = req.query;
+    const { status, serviceType, search, startDate, endDate, vendorNotAssigned, vendorFilter } = req.query;
     const query = {};
 
     if (status && status !== "all") query.status = status;
     if (serviceType && serviceType !== "all") query.serviceType = serviceType;
-    if (vendorNotAssigned === "true") {
+    
+    if (vendorFilter) {
+      if (vendorFilter === "none") {
+        query.$or = [{ vendorName: { $exists: false } }, { vendorName: "" }, { vendorName: null }];
+      } else if (vendorFilter !== "all") {
+        query.vendorName = new RegExp(vendorFilter, "i");
+      }
+    } else if (vendorNotAssigned === "true") {
       query.$or = [{ vendorName: { $exists: false } }, { vendorName: "" }, { vendorName: null }];
     }
     if (startDate || endDate) {
@@ -465,6 +482,63 @@ router.put("/bulk/assign", adminAuth, async (req, res) => {
   } catch (error) {
     console.error("Bulk Assign Error:", error);
     res.status(500).json({ message: "Server error during bulk assignment" });
+  }
+});
+
+router.put("/bulk/assign-docket", adminAuth, async (req, res) => {
+  try {
+    const { bookingIds, vendorTrackingId, vendorName } = req.body;
+    if (!bookingIds || !Array.isArray(bookingIds) || !vendorTrackingId || !vendorName) {
+      return res.status(400).json({ message: "Invalid request data" });
+    }
+
+    // Update all bookings
+    await Booking.updateMany(
+      { _id: { $in: bookingIds } },
+      { 
+        $set: { vendorTrackingId, vendorName, isVendorBooking: true },
+        $push: {
+          trackingHistory: {
+            location: "Hub",
+            timestamp: new Date(),
+            description: `Bulk assigned to Docket ${vendorTrackingId} (${vendorName})`
+          }
+        }
+      }
+    );
+
+    // Get the bookings to get their bookingIds (epId)
+    const updatedBookings = await Booking.find({ _id: { $in: bookingIds } }).select("bookingId _id");
+    const epIds = updatedBookings.map(b => b.bookingId);
+    const ObjectIds = updatedBookings.map(b => b._id);
+
+    // Sync with Docket Inventory
+    await DocketInventory.findOneAndUpdate(
+      { docketId: vendorTrackingId.toString().trim() },
+      { 
+        $set: { status: "used", usedAt: new Date() },
+        $addToSet: { 
+          usedBy: { $each: ObjectIds },
+          epId: { $each: epIds } 
+        }
+      }
+    );
+
+    // Notify Admins
+    const io = req.app.get("socketio");
+    if (io) {
+      io.emit("status_update", {
+        bookingIds,
+        status: "DOCKET_ASSIGNED",
+        description: `Bulk assigned to Docket ${vendorTrackingId}`,
+        bookingSource: "Bulk"
+      });
+    }
+
+    res.json({ success: true, message: `Assigned docket ${vendorTrackingId} to ${bookingIds.length} bookings.` });
+  } catch (error) {
+    console.error("Bulk Assign Docket Error:", error);
+    res.status(500).json({ message: "Server error during bulk docket assignment" });
   }
 });
 
@@ -697,10 +771,8 @@ router.put("/:id", authMiddleware, async (req, res) => {
         await DocketInventory.findOneAndUpdate(
           { docketId: req.body.vendorTrackingId.toString().trim() },
           { 
-            status: "used", 
-            usedBy: booking._id, 
-            epId: booking.bookingId, 
-            usedAt: new Date() 
+            $set: { status: "used", usedAt: new Date() },
+            $addToSet: { usedBy: booking._id, epId: booking.bookingId }
           }
         );
       } catch (inventoryErr) {
