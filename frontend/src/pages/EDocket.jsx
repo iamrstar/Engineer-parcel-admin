@@ -355,8 +355,8 @@ export default function EDocket() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">E-Docket / Intake</h1>
-                    <p className="text-sm text-gray-500">Verify packages submitted by agents and map them to the main system.</p>
+                    <h1 className="text-2xl font-bold text-gray-900 dark:text-white">E-Docket / Intake</h1>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Verify packages submitted by agents and map them to the main system.</p>
                 </div>
 
                 {!selectedBooking && (
@@ -365,11 +365,11 @@ export default function EDocket() {
                             type="date"
                             value={filterDate}
                             onChange={(e) => setFilterDate(e.target.value)}
-                            className="px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
+                            className="px-3 py-2 border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:outline-none focus:ring-1 focus:ring-primary-500 focus:border-primary-500"
                         />
                         <button
                             onClick={handleDownloadExcel}
-                            className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
+                            className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-white/10 shadow-sm text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 bg-white dark:bg-[#1A1A1A] hover:bg-gray-50 dark:bg-[#111111] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500"
                         >
                             <Download className="w-4 h-4 mr-2" /> Excel
                         </button>
@@ -392,7 +392,7 @@ export default function EDocket() {
                         id="vendorFilter"
                         checked={vendorNotAssigned}
                         onChange={(e) => setVendorNotAssigned(e.target.checked)}
-                        className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500"
+                        className="w-4 h-4 text-primary-600 border-gray-300 dark:border-white/10 rounded focus:ring-primary-500"
                     />
                     <label htmlFor="vendorFilter" className="text-sm font-medium text-amber-800 cursor-pointer">
                         Show Vendor Not Assigned Only
@@ -401,73 +401,73 @@ export default function EDocket() {
             )}
 
             {!selectedBooking ? (
-                <div className="bg-white rounded-xl shadow overflow-hidden border border-gray-200">
+                <div className="bg-white dark:bg-[#1A1A1A] rounded-xl shadow overflow-hidden border border-gray-200 dark:border-white/10">
                     <div className="overflow-x-auto">
                         <table className="min-w-full divide-y divide-gray-200">
-                            <thead className="bg-gray-50">
+                            <thead className="bg-gray-50 dark:bg-[#111111]">
                                 <tr>
                                     <th className="px-6 py-3 text-left w-10">
                                         <input
                                             type="checkbox"
-                                            className="h-4 w-4 text-primary-600 border-gray-300 rounded cursor-pointer"
+                                            className="h-4 w-4 text-primary-600 border-gray-300 dark:border-white/10 rounded cursor-pointer bg-transparent dark:bg-[#111111] dark:text-white dark:border-white/10"
                                             checked={selectedIds.length === bookings.filter(b => b.adminVerified && !b.presentInMainDashboard).length && bookings.filter(b => b.adminVerified && !b.presentInMainDashboard).length > 0}
                                             onChange={toggleSelectAll}
                                         />
                                     </th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">EP ID</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Agent</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sender</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receiver</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vendor</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Track ID</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Verified</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Seeded</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receipt</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">EP ID</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Agent</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Sender</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Receiver</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Vendor</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Track ID</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Verified</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Seeded</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Action</th>
+                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Receipt</th>
                                 </tr>
                             </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
+                            <tbody className="bg-white dark:bg-[#1A1A1A] divide-y divide-gray-200">
                                 {bookings.map((booking) => (
                                     <tr key={booking._id} className={`${selectedIds.includes(booking.bookingId) ? 'bg-orange-50' : 'hover:bg-primary-50/50'} transition-colors`}>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <input
                                                 type="checkbox"
-                                                className="h-4 w-4 text-primary-600 border-gray-300 rounded cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                                                className="h-4 w-4 text-primary-600 border-gray-300 dark:border-white/10 rounded cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed bg-transparent dark:bg-[#111111] dark:text-white dark:border-white/10"
                                                 checked={selectedIds.includes(booking.bookingId)}
                                                 onChange={() => toggleSelect(booking.bookingId)}
                                                 disabled={!booking.adminVerified || booking.presentInMainDashboard}
                                             />
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-primary-600 font-mono">{booking.trackingId}</td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{booking.agentUsername || "System"}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400">{booking.agentUsername || "System"}</td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-sm font-medium text-gray-900">{booking.senderDetails?.name}</div>
-                                            <div className="text-xs text-gray-500">{booking.senderDetails?.city}</div>
+                                            <div className="text-sm font-medium text-gray-900 dark:text-white">{booking.senderDetails?.name}</div>
+                                            <div className="text-xs text-gray-500 dark:text-gray-400">{booking.senderDetails?.city}</div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            <div className="text-sm font-medium text-gray-900">{booking.receiverDetails?.name}</div>
-                                            <div className="text-xs text-gray-500">{booking.receiverDetails?.city}</div>
+                                            <div className="text-sm font-medium text-gray-900 dark:text-white">{booking.receiverDetails?.name}</div>
+                                            <div className="text-xs text-gray-500 dark:text-gray-400">{booking.receiverDetails?.city}</div>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <span
-                                                className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-700 cursor-help"
+                                                className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-gray-100 dark:bg-[#111111] text-gray-700 dark:text-gray-300 cursor-help"
                                                 title={`Current Location: ${booking.currentLocation || 'N/A'}\nLast Updated: ${new Date(booking.updatedAt).toLocaleString()}`}
                                             >
                                                 {booking.status}
                                             </span>
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 capitalize">
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 capitalize">
                                             {booking.vendorName || "-"}
                                         </td>
-                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-mono">
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 dark:text-gray-400 font-mono">
                                             {booking.vendorTrackingId || "-"}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                                             {booking.adminVerified ? (
                                                 <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">Yes</span>
                                             ) : (
-                                                <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-500">No</span>
+                                                <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-gray-100 dark:bg-[#111111] text-gray-500 dark:text-gray-400">No</span>
                                             )}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm">
@@ -540,7 +540,7 @@ export default function EDocket() {
                                 ))}
                                 {bookings.length === 0 && !loading && (
                                     <tr>
-                                        <td colSpan="12" className="px-6 py-12 text-center text-gray-500 text-sm">No intake bookings found for this date.</td>
+                                        <td colSpan="12" className="px-6 py-12 text-center text-gray-500 dark:text-gray-400 text-sm">No intake bookings found for this date.</td>
                                     </tr>
                                 )}
                             </tbody>
@@ -549,13 +549,13 @@ export default function EDocket() {
                 </div>
             ) : (
                 <div className="space-y-6 animate-in fade-in duration-300">
-                    <div className="flex items-center justify-between bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+                    <div className="flex items-center justify-between bg-white dark:bg-[#1A1A1A] p-4 rounded-xl border border-gray-200 dark:border-white/10 shadow-sm">
                         <div className="flex items-center gap-4">
-                            <button onClick={() => setSelectedBooking(null)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                                <ArrowLeft className="w-5 h-5 text-gray-600" />
+                            <button onClick={() => setSelectedBooking(null)} className="p-2 hover:bg-gray-100 dark:bg-[#111111] rounded-full transition-colors">
+                                <ArrowLeft className="w-5 h-5 text-gray-600 dark:text-gray-400" />
                             </button>
                             <div>
-                                <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                                <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
                                     Verify Booking
                                     <span className="font-mono text-primary-600 bg-primary-50 px-2 rounded-md border border-primary-100 text-base py-0.5">{selectedBooking.trackingId}</span>
                                 </h2>
@@ -569,12 +569,12 @@ export default function EDocket() {
                     </div>
 
                     {verifySuccess ? (
-                        <div className="flex flex-col items-center justify-center py-24 bg-white rounded-xl border border-gray-100 shadow-sm text-center space-y-4">
+                        <div className="flex flex-col items-center justify-center py-24 bg-white dark:bg-[#1A1A1A] rounded-xl border border-gray-100 shadow-sm text-center space-y-4">
                             <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center">
                                 <CheckCircle className="w-10 h-10 text-green-600" />
                             </div>
-                            <h3 className="text-2xl font-bold text-gray-900">Booking Verified & Locked!</h3>
-                            <p className="text-gray-500 max-w-md">The agent's submission has been checked, pricing updated, and the customer has been emailed a payment request link.</p>
+                            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Booking Verified & Locked!</h3>
+                            <p className="text-gray-500 dark:text-gray-400 max-w-md">The agent's submission has been checked, pricing updated, and the customer has been emailed a payment request link.</p>
                             <button onClick={() => { setVerifySuccess(false); setSelectedBooking(null); fetchBookings(); }} className="mt-6 px-6 py-3 bg-gray-900 text-white rounded-lg font-medium hover:bg-gray-800 transition-colors">
                                 Back to List
                             </button>
@@ -582,22 +582,22 @@ export default function EDocket() {
                     ) : (
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-20">
                             {/* Sender Card */}
-                            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
-                                <h3 className="text-lg font-bold text-gray-800 border-b border-gray-100 pb-3">Sender Details</h3>
+                            <div className="bg-white dark:bg-[#1A1A1A] p-6 rounded-xl border border-gray-200 dark:border-white/10 shadow-sm space-y-4">
+                                <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200 border-b border-gray-200 dark:border-white/10 border-gray-100 pb-3">Sender Details</h3>
                                 <div className="space-y-4">
-                                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Name</label><input value={editForm.senderDetails?.name || ''} onChange={(e) => setEditForm({ ...editForm, senderDetails: { ...editForm.senderDetails, name: e.target.value } })} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500" /></div>
-                                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Phone</label><input value={editForm.senderDetails?.phone || ''} onChange={(e) => setEditForm({ ...editForm, senderDetails: { ...editForm.senderDetails, phone: e.target.value } })} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500" /></div>
-                                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Email</label><input value={editForm.senderDetails?.email || ''} onChange={(e) => setEditForm({ ...editForm, senderDetails: { ...editForm.senderDetails, email: e.target.value } })} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500" /></div>
+                                    <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label><input value={editForm.senderDetails?.name || ''} onChange={(e) => setEditForm({ ...editForm, senderDetails: { ...editForm.senderDetails, name: e.target.value } })} className="w-full px-3 py-2.5 border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500" /></div>
+                                    <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone</label><input value={editForm.senderDetails?.phone || ''} onChange={(e) => setEditForm({ ...editForm, senderDetails: { ...editForm.senderDetails, phone: e.target.value } })} className="w-full px-3 py-2.5 border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500" /></div>
+                                    <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label><input value={editForm.senderDetails?.email || ''} onChange={(e) => setEditForm({ ...editForm, senderDetails: { ...editForm.senderDetails, email: e.target.value } })} className="w-full px-3 py-2.5 border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500" /></div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Pincode</label>
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pincode</label>
                                             <div className="relative">
                                                 <input
                                                     value={editForm.senderDetails?.pincode || ''}
                                                     onChange={(e) => setEditForm({ ...editForm, senderDetails: { ...editForm.senderDetails, pincode: e.target.value } })}
                                                     className={`w-full px-3 py-2.5 border rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 transition-colors ${pincodeStatuses.sender.status === 'success' ? 'border-green-500 bg-green-50 text-green-700' :
                                                         pincodeStatuses.sender.status === 'error' ? 'border-red-500 bg-red-50 text-red-700' :
-                                                            'border-gray-300 bg-white'
+                                                            'border-gray-300 dark:border-white/10 bg-white dark:bg-[#1A1A1A]'
                                                         }`}
                                                 />
                                                 <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
@@ -613,31 +613,31 @@ export default function EDocket() {
                                             </div>
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-                                            <input value={editForm.senderDetails?.city || ''} onChange={(e) => setEditForm({ ...editForm, senderDetails: { ...editForm.senderDetails, city: e.target.value } })} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm bg-white focus:ring-primary-500 focus:border-primary-500" />
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">City</label>
+                                            <input value={editForm.senderDetails?.city || ''} onChange={(e) => setEditForm({ ...editForm, senderDetails: { ...editForm.senderDetails, city: e.target.value } })} className="w-full px-3 py-2.5 border border-gray-300 dark:border-white/10 rounded-lg shadow-sm bg-white dark:bg-[#1A1A1A] focus:ring-primary-500 focus:border-primary-500" />
                                         </div>
                                     </div>
-                                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Full Address</label><input value={editForm.senderDetails?.address1 || ''} onChange={(e) => setEditForm({ ...editForm, senderDetails: { ...editForm.senderDetails, address1: e.target.value } })} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500" /></div>
+                                    <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Address</label><input value={editForm.senderDetails?.address1 || ''} onChange={(e) => setEditForm({ ...editForm, senderDetails: { ...editForm.senderDetails, address1: e.target.value } })} className="w-full px-3 py-2.5 border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500" /></div>
                                 </div>
                             </div>
 
                             {/* Receiver Card */}
-                            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
-                                <h3 className="text-lg font-bold text-gray-800 border-b border-gray-100 pb-3">Receiver Details</h3>
+                            <div className="bg-white dark:bg-[#1A1A1A] p-6 rounded-xl border border-gray-200 dark:border-white/10 shadow-sm space-y-4">
+                                <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200 border-b border-gray-200 dark:border-white/10 border-gray-100 pb-3">Receiver Details</h3>
                                 <div className="space-y-4">
-                                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Name</label><input value={editForm.receiverDetails?.name || ''} onChange={(e) => setEditForm({ ...editForm, receiverDetails: { ...editForm.receiverDetails, name: e.target.value } })} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500" /></div>
-                                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Phone</label><input value={editForm.receiverDetails?.phone || ''} onChange={(e) => setEditForm({ ...editForm, receiverDetails: { ...editForm.receiverDetails, phone: e.target.value } })} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500" /></div>
-                                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Email</label><input value={editForm.receiverDetails?.email || ''} onChange={(e) => setEditForm({ ...editForm, receiverDetails: { ...editForm.receiverDetails, email: e.target.value } })} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500" /></div>
+                                    <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label><input value={editForm.receiverDetails?.name || ''} onChange={(e) => setEditForm({ ...editForm, receiverDetails: { ...editForm.receiverDetails, name: e.target.value } })} className="w-full px-3 py-2.5 border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500" /></div>
+                                    <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone</label><input value={editForm.receiverDetails?.phone || ''} onChange={(e) => setEditForm({ ...editForm, receiverDetails: { ...editForm.receiverDetails, phone: e.target.value } })} className="w-full px-3 py-2.5 border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500" /></div>
+                                    <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label><input value={editForm.receiverDetails?.email || ''} onChange={(e) => setEditForm({ ...editForm, receiverDetails: { ...editForm.receiverDetails, email: e.target.value } })} className="w-full px-3 py-2.5 border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500" /></div>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Pincode</label>
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pincode</label>
                                             <div className="relative">
                                                 <input
                                                     value={editForm.receiverDetails?.pincode || ''}
                                                     onChange={(e) => setEditForm({ ...editForm, receiverDetails: { ...editForm.receiverDetails, pincode: e.target.value } })}
                                                     className={`w-full px-3 py-2.5 border rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 transition-colors ${pincodeStatuses.receiver.status === 'success' ? 'border-green-500 bg-green-50 text-green-700' :
                                                         pincodeStatuses.receiver.status === 'error' ? 'border-red-500 bg-red-50 text-red-700' :
-                                                            'border-gray-300 bg-white'
+                                                            'border-gray-300 dark:border-white/10 bg-white dark:bg-[#1A1A1A]'
                                                         }`}
                                                 />
                                                 <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
@@ -653,21 +653,21 @@ export default function EDocket() {
                                             </div>
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-                                            <input value={editForm.receiverDetails?.city || ''} onChange={(e) => setEditForm({ ...editForm, receiverDetails: { ...editForm.receiverDetails, city: e.target.value } })} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm bg-white focus:ring-primary-500 focus:border-primary-500" />
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">City</label>
+                                            <input value={editForm.receiverDetails?.city || ''} onChange={(e) => setEditForm({ ...editForm, receiverDetails: { ...editForm.receiverDetails, city: e.target.value } })} className="w-full px-3 py-2.5 border border-gray-300 dark:border-white/10 rounded-lg shadow-sm bg-white dark:bg-[#1A1A1A] focus:ring-primary-500 focus:border-primary-500" />
                                         </div>
                                     </div>
-                                    <div><label className="block text-sm font-medium text-gray-700 mb-1">Full Address</label><input value={editForm.receiverDetails?.address1 || ''} onChange={(e) => setEditForm({ ...editForm, receiverDetails: { ...editForm.receiverDetails, address1: e.target.value } })} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500" /></div>
+                                    <div><label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Address</label><input value={editForm.receiverDetails?.address1 || ''} onChange={(e) => setEditForm({ ...editForm, receiverDetails: { ...editForm.receiverDetails, address1: e.target.value } })} className="w-full px-3 py-2.5 border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500" /></div>
                                 </div>
                             </div>
 
                             {/* Package Card */}
-                            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm space-y-4">
-                                <h3 className="text-lg font-bold text-gray-800 border-b border-gray-100 pb-3">Package Logistics</h3>
+                            <div className="bg-white dark:bg-[#1A1A1A] p-6 rounded-xl border border-gray-200 dark:border-white/10 shadow-sm space-y-4">
+                                <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200 border-b border-gray-200 dark:border-white/10 border-gray-100 pb-3">Package Logistics</h3>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Service Type</label>
-                                        <select value={editForm.serviceType || ''} onChange={(e) => setEditForm({ ...editForm, serviceType: e.target.value })} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500">
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Service Type</label>
+                                        <select value={editForm.serviceType || ''} onChange={(e) => setEditForm({ ...editForm, serviceType: e.target.value })} className="w-full px-3 py-2.5 border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500">
                                             <option value="surface">Surface</option>
                                             <option value="air">Air</option>
                                             <option value="express">Express</option>
@@ -679,17 +679,17 @@ export default function EDocket() {
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Actual Weight</label>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Actual Weight</label>
                                         <div className="flex gap-2">
-                                            <input type="number" step="0.1" value={editForm.packageDetails?.weight || ''} onChange={(e) => setEditForm({ ...editForm, packageDetails: { ...editForm.packageDetails, weight: e.target.value } })} className="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500" />
-                                            <select value={editForm.packageDetails?.weightUnit || 'g'} onChange={(e) => setEditForm({ ...editForm, packageDetails: { ...editForm.packageDetails, weightUnit: e.target.value } })} className="w-20 px-2 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 bg-white">
+                                            <input type="number" step="0.1" value={editForm.packageDetails?.weight || ''} onChange={(e) => setEditForm({ ...editForm, packageDetails: { ...editForm.packageDetails, weight: e.target.value } })} className="flex-1 px-3 py-2.5 border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500" />
+                                            <select value={editForm.packageDetails?.weightUnit || 'g'} onChange={(e) => setEditForm({ ...editForm, packageDetails: { ...editForm.packageDetails, weightUnit: e.target.value } })} className="w-20 px-2 py-2.5 border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-primary-500 bg-white dark:bg-[#1A1A1A]">
                                                 <option value="g">g</option>
                                                 <option value="kg">kg</option>
                                             </select>
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Quantity (Boxes)</label>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Quantity (Boxes)</label>
                                         <select value={editForm.packageDetails?.boxQuantity || 1} onChange={(e) => {
                                             const qty = parseInt(e.target.value) || 1;
                                             const newDims = [...(editForm.packageDetails?.dimensions || [{length: 0, width: 0, height: 0}])];
@@ -701,17 +701,17 @@ export default function EDocket() {
                                                 newDims.splice(qty);
                                             }
                                             setEditForm({ ...editForm, packageDetails: { ...editForm.packageDetails, boxQuantity: qty, dimensions: newDims } });
-                                        }} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 bg-white">
+                                        }} className="w-full px-3 py-2.5 border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-[#1A1A1A]">
                                             {[...Array(15)].map((_, i) => (
                                                 <option key={i + 1} value={i + 1}>{i + 1} Box{i > 0 ? 'es' : ''}</option>
                                             ))}
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Chargeable Wt.</label>
+                                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Chargeable Wt.</label>
                                         <div className="flex gap-2">
-                                            <input type="number" step="0.1" value={editForm.packageDetails?.chargeableWeight || ''} onChange={(e) => setEditForm({ ...editForm, packageDetails: { ...editForm.packageDetails, chargeableWeight: e.target.value } })} placeholder="Auto" className="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500" />
-                                            <select value={editForm.packageDetails?.chargeableWeightUnit || 'kg'} onChange={(e) => setEditForm({ ...editForm, packageDetails: { ...editForm.packageDetails, chargeableWeightUnit: e.target.value } })} className="w-20 px-2 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 bg-white">
+                                            <input type="number" step="0.1" value={editForm.packageDetails?.chargeableWeight || ''} onChange={(e) => setEditForm({ ...editForm, packageDetails: { ...editForm.packageDetails, chargeableWeight: e.target.value } })} placeholder="Auto" className="flex-1 px-3 py-2.5 border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500" />
+                                            <select value={editForm.packageDetails?.chargeableWeightUnit || 'kg'} onChange={(e) => setEditForm({ ...editForm, packageDetails: { ...editForm.packageDetails, chargeableWeightUnit: e.target.value } })} className="w-20 px-2 py-2.5 border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-primary-500 bg-white dark:bg-[#1A1A1A]">
                                                 <option value="g">g</option>
                                                 <option value="kg">kg</option>
                                             </select>
@@ -720,7 +720,7 @@ export default function EDocket() {
                                 </div>
 
                                 <div className="pt-2">
-                                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 flex justify-between">
+                                    <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2 flex justify-between">
                                         Dimensions (L x W x H cm)
                                     </label>
                                     <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
@@ -733,51 +733,51 @@ export default function EDocket() {
                                                     const newDims = [...editForm.packageDetails.dimensions];
                                                     newDims[index] = { ...newDims[index], length: Number(e.target.value) || 0 };
                                                     setEditForm({ ...editForm, packageDetails: { ...editForm.packageDetails, dimensions: newDims } });
-                                                }} className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-1 focus:ring-primary-500" />
+                                                }} className="w-full px-3 py-2 border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-1 focus:ring-primary-500" />
                                                 
                                                 <input type="number" placeholder="W" value={dim.width || ''} onChange={(e) => {
                                                     const newDims = [...editForm.packageDetails.dimensions];
                                                     newDims[index] = { ...newDims[index], width: Number(e.target.value) || 0 };
                                                     setEditForm({ ...editForm, packageDetails: { ...editForm.packageDetails, dimensions: newDims } });
-                                                }} className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-1 focus:ring-primary-500" />
+                                                }} className="w-full px-3 py-2 border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-1 focus:ring-primary-500" />
                                                 
                                                 <input type="number" placeholder="H" value={dim.height || ''} onChange={(e) => {
                                                     const newDims = [...editForm.packageDetails.dimensions];
                                                     newDims[index] = { ...newDims[index], height: Number(e.target.value) || 0 };
                                                     setEditForm({ ...editForm, packageDetails: { ...editForm.packageDetails, dimensions: newDims } });
-                                                }} className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-1 focus:ring-primary-500" />
+                                                }} className="w-full px-3 py-2 border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-1 focus:ring-primary-500" />
                                             </div>
                                         ))}
                                     </div>
                                 </div>
 
                                 <div className="pt-4 border-t border-gray-100 grid grid-cols-2 gap-4">
-                                    <label className="flex items-center gap-2 cursor-pointer group p-2 bg-gray-50 rounded-lg border border-gray-200 hover:bg-white transition-all">
+                                    <label className="flex items-center gap-2 cursor-pointer group p-2 bg-gray-50 dark:bg-[#111111] rounded-lg border border-gray-200 dark:border-white/10 hover:bg-white dark:bg-[#1A1A1A] transition-all">
                                         <input 
                                             type="checkbox" 
                                             checked={editForm.packageDetails?.fragile || false} 
                                             onChange={(e) => setEditForm({...editForm, packageDetails: {...editForm.packageDetails, fragile: e.target.checked}})}
-                                            className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" 
+                                            className="w-4 h-4 text-primary-600 border-gray-300 dark:border-white/10 rounded focus:ring-primary-500" 
                                         />
-                                        <span className="text-sm font-bold text-gray-700 group-hover:text-primary-600 transition-colors">Fragile Item</span>
+                                        <span className="text-sm font-bold text-gray-700 dark:text-gray-300 group-hover:text-primary-600 transition-colors">Fragile Item</span>
                                     </label>
-                                    <label className="flex items-center gap-2 cursor-pointer group p-2 bg-gray-50 rounded-lg border border-gray-200 hover:bg-white transition-all">
+                                    <label className="flex items-center gap-2 cursor-pointer group p-2 bg-gray-50 dark:bg-[#111111] rounded-lg border border-gray-200 dark:border-white/10 hover:bg-white dark:bg-[#1A1A1A] transition-all">
                                         <input 
                                             type="checkbox" 
                                             checked={editForm.insuranceRequired || false} 
                                             onChange={(e) => setEditForm({...editForm, insuranceRequired: e.target.checked})}
-                                            className="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" 
+                                            className="w-4 h-4 text-primary-600 border-gray-300 dark:border-white/10 rounded focus:ring-primary-500" 
                                         />
-                                        <span className="text-sm font-bold text-gray-700 group-hover:text-primary-600 transition-colors">Insurance</span>
+                                        <span className="text-sm font-bold text-gray-700 dark:text-gray-300 group-hover:text-primary-600 transition-colors">Insurance</span>
                                     </label>
                                 </div>
 
                                 <div className="pt-2">
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">Goods Description</label>
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Goods Description</label>
                                     <textarea 
                                         value={editForm.packageDetails?.description || ''} 
                                         onChange={(e) => setEditForm({...editForm, packageDetails: {...editForm.packageDetails, description: e.target.value}})}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 text-sm"
+                                        className="w-full px-3 py-2 border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 text-sm"
                                         rows="2"
                                         placeholder="e.g. Clothes, Electronics, Documents..."
                                     />
@@ -789,10 +789,10 @@ export default function EDocket() {
                                 </div>
 
                                 <div className="pt-4 border-t border-gray-100 space-y-4">
-                                    <h4 className="text-sm font-bold text-gray-600 uppercase">Vendor Alignment</h4>
+                                    <h4 className="text-sm font-bold text-gray-600 dark:text-gray-400 uppercase">Vendor Alignment</h4>
                                     <div className="grid grid-cols-2 gap-4">
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Vendor Name</label>
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Vendor Name</label>
                                             <select
                                                 value={otherVendor ? "other" : (editForm.vendorName || "")}
                                                 onChange={(e) => {
@@ -804,7 +804,7 @@ export default function EDocket() {
                                                         setEditForm({ ...editForm, vendorName: e.target.value });
                                                     }
                                                 }}
-                                                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                                                className="w-full px-3 py-2.5 border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500"
                                             >
                                                 <option value="">No Vendor</option>
                                                 <option value="delhivery">Delhivery</option>
@@ -818,17 +818,17 @@ export default function EDocket() {
                                                     placeholder="Type Vendor Name"
                                                     value={editForm.vendorName || ""}
                                                     onChange={(e) => setEditForm({ ...editForm, vendorName: e.target.value })}
-                                                    className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-lg focus:ring-primary-500"
+                                                    className="w-full mt-2 px-3 py-2 border border-gray-300 dark:border-white/10 rounded-lg focus:ring-primary-500"
                                                 />
                                             )}
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Vendor Track ID</label>
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Vendor Track ID</label>
                                             <input
                                                 value={editForm.vendorTrackingId || ""}
                                                 onChange={(e) => setEditForm({ ...editForm, vendorTrackingId: e.target.value })}
                                                 placeholder="AWB / Track ID"
-                                                className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                                                className="w-full px-3 py-2.5 border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500"
                                             />
                                         </div>
                                     </div>
@@ -840,7 +840,7 @@ export default function EDocket() {
                                     )}
                                 </div>
                                 <div className="mt-4 pt-4 border-t border-gray-100">
-                                    <label className="block text-sm font-bold text-gray-700 mb-1">Estimated Delivery (ETD)</label>
+                                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Estimated Delivery (ETD)</label>
                                     <input
                                         value={editForm.estimatedDelivery || ""}
                                         onChange={(e) => setEditForm({ ...editForm, estimatedDelivery: e.target.value })}
@@ -852,25 +852,25 @@ export default function EDocket() {
                             </div>
 
                             {/* Pricing Card */}
-                            <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm flex flex-col justify-between space-y-4">
+                            <div className="bg-white dark:bg-[#1A1A1A] p-6 rounded-xl border border-gray-200 dark:border-white/10 shadow-sm flex flex-col justify-between space-y-4">
                                 <div>
-                                    <h3 className="text-lg font-bold text-gray-800 border-b border-gray-100 pb-3">Pricing & Verification</h3>
+                                    <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200 border-b border-gray-200 dark:border-white/10 border-gray-100 pb-3">Pricing & Verification</h3>
                                     <div className="grid grid-cols-2 gap-4 mt-4">
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Base Price ₹</label>
-                                            <input type="number" value={pricing.basePrice} onChange={(e) => updatePricing('basePrice', e.target.value)} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 font-mono text-lg text-primary-700" />
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Base Price ₹</label>
+                                            <input type="number" value={pricing.basePrice} onChange={(e) => updatePricing('basePrice', e.target.value)} className="w-full px-3 py-2.5 border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 font-mono text-lg text-primary-700" />
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Packaging Extra ₹</label>
-                                            <input type="number" value={pricing.packagingCharge} onChange={(e) => updatePricing('packagingCharge', e.target.value)} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 font-mono text-lg" />
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Packaging Extra ₹</label>
+                                            <input type="number" value={pricing.packagingCharge} onChange={(e) => updatePricing('packagingCharge', e.target.value)} className="w-full px-3 py-2.5 border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 font-mono text-lg" />
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">GST (18%) ₹</label>
-                                            <input type="number" value={pricing.tax} onChange={(e) => updatePricing('tax', e.target.value)} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 font-mono text-lg" />
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">GST (18%) ₹</label>
+                                            <input type="number" value={pricing.tax} onChange={(e) => updatePricing('tax', e.target.value)} className="w-full px-3 py-2.5 border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 font-mono text-lg" />
                                         </div>
                                         <div>
-                                            <label className="block text-sm font-medium text-gray-700 mb-1">Total Payable</label>
-                                            <input type="number" value={pricing.totalAmount} onChange={(e) => updatePricing('totalAmount', e.target.value)} className="w-full px-3 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 font-mono text-xl font-black text-green-600" />
+                                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Total Payable</label>
+                                            <input type="number" value={pricing.totalAmount} onChange={(e) => updatePricing('totalAmount', e.target.value)} className="w-full px-3 py-2.5 border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 font-mono text-xl font-black text-green-600" />
                                         </div>
                                     </div>
                                 </div>
@@ -906,67 +906,67 @@ export default function EDocket() {
 
                         <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
-                        <div className="inline-block align-bottom bg-white rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full border border-gray-100">
-                            <div className="bg-white px-6 pt-6 pb-4 sm:p-8 sm:pb-6">
+                        <div className="inline-block align-bottom bg-white dark:bg-[#1A1A1A] rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full border border-gray-100">
+                            <div className="bg-white dark:bg-[#1A1A1A] px-6 pt-6 pb-4 sm:p-8 sm:pb-6">
                                 <div className="sm:flex sm:items-start">
                                     <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
                                         <Download className="h-6 w-6 text-red-600" aria-hidden="true" />
                                     </div>
                                     <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                                        <h3 className="text-xl leading-6 font-bold text-gray-900">
+                                        <h3 className="text-xl leading-6 font-bold text-gray-900 dark:text-white">
                                             Print Options
                                         </h3>
                                         <div className="mt-2">
-                                            <p className="text-sm text-gray-500">
-                                                Select which documents you want to include in the generated PDF for <span className="font-mono font-bold text-gray-700">{pdfBooking?.trackingId}</span>
+                                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                                Select which documents you want to include in the generated PDF for <span className="font-mono font-bold text-gray-700 dark:text-gray-300">{pdfBooking?.trackingId}</span>
                                             </p>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div className="mt-6 space-y-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
-                                    <label className="flex items-center p-3 bg-white rounded-lg border border-gray-200 hover:border-red-300 transition-colors cursor-pointer group">
+                                <div className="mt-6 space-y-4 bg-gray-50 dark:bg-[#111111] p-4 rounded-xl border border-gray-200 dark:border-white/10">
+                                    <label className="flex items-center p-3 bg-white dark:bg-[#1A1A1A] rounded-lg border border-gray-200 dark:border-white/10 hover:border-red-300 transition-colors cursor-pointer group">
                                         <input
                                             type="checkbox"
                                             checked={pdfOptions.receipt}
                                             onChange={(e) => setPdfOptions({ ...pdfOptions, receipt: e.target.checked })}
-                                            className="h-5 w-5 text-red-600 border-gray-300 rounded focus:ring-red-500 cursor-pointer"
+                                            className="h-5 w-5 text-red-600 border-gray-300 dark:border-white/10 rounded focus:ring-red-500 cursor-pointer"
                                         />
                                         <div className="ml-3">
-                                            <span className="block text-sm font-bold text-gray-900 group-hover:text-red-700">Booking Receipt</span>
-                                            <span className="block text-xs text-gray-500">Official proof of booking and charges</span>
+                                            <span className="block text-sm font-bold text-gray-900 dark:text-white group-hover:text-red-700">Booking Receipt</span>
+                                            <span className="block text-xs text-gray-500 dark:text-gray-400">Official proof of booking and charges</span>
                                         </div>
                                     </label>
 
-                                    <label className="flex items-center p-3 bg-white rounded-lg border border-gray-200 hover:border-red-300 transition-colors cursor-pointer group">
+                                    <label className="flex items-center p-3 bg-white dark:bg-[#1A1A1A] rounded-lg border border-gray-200 dark:border-white/10 hover:border-red-300 transition-colors cursor-pointer group">
                                         <input
                                             type="checkbox"
                                             checked={pdfOptions.label}
                                             onChange={(e) => setPdfOptions({ ...pdfOptions, label: e.target.checked })}
-                                            className="h-5 w-5 text-red-600 border-gray-300 rounded focus:ring-red-500 cursor-pointer"
+                                            className="h-5 w-5 text-red-600 border-gray-300 dark:border-white/10 rounded focus:ring-red-500 cursor-pointer"
                                         />
                                         <div className="ml-3">
-                                            <span className="block text-sm font-bold text-gray-900 group-hover:text-red-700">Shipping Label (A6)</span>
-                                            <span className="block text-xs text-gray-500">Compact label with QR code for the box</span>
+                                            <span className="block text-sm font-bold text-gray-900 dark:text-white group-hover:text-red-700">Shipping Label (A6)</span>
+                                            <span className="block text-xs text-gray-500 dark:text-gray-400">Compact label with QR code for the box</span>
                                         </div>
                                     </label>
 
-                                    <label className="flex items-center p-3 bg-white rounded-lg border border-gray-200 hover:border-red-300 transition-colors cursor-pointer group">
+                                    <label className="flex items-center p-3 bg-white dark:bg-[#1A1A1A] rounded-lg border border-gray-200 dark:border-white/10 hover:border-red-300 transition-colors cursor-pointer group">
                                         <input
                                             type="checkbox"
                                             checked={pdfOptions.declaration}
                                             onChange={(e) => setPdfOptions({ ...pdfOptions, declaration: e.target.checked })}
-                                            className="h-5 w-5 text-red-600 border-gray-300 rounded focus:ring-red-500 cursor-pointer"
+                                            className="h-5 w-5 text-red-600 border-gray-300 dark:border-white/10 rounded focus:ring-red-500 cursor-pointer"
                                         />
                                         <div className="ml-3">
-                                            <span className="block text-sm font-bold text-gray-900 group-hover:text-red-700">Self-Declaration Form</span>
-                                            <span className="block text-xs text-gray-500">Legal declaration signed by sender</span>
+                                            <span className="block text-sm font-bold text-gray-900 dark:text-white group-hover:text-red-700">Self-Declaration Form</span>
+                                            <span className="block text-xs text-gray-500 dark:text-gray-400">Legal declaration signed by sender</span>
                                         </div>
                                     </label>
                                 </div>
                             </div>
 
-                            <div className="bg-gray-50 px-6 py-4 sm:px-8 sm:flex sm:flex-row-reverse gap-3">
+                            <div className="bg-gray-50 dark:bg-[#111111] px-6 py-4 sm:px-8 sm:flex sm:flex-row-reverse gap-3">
                                 <button
                                     type="button"
                                     onClick={async () => {
@@ -1003,7 +1003,7 @@ export default function EDocket() {
                                 <button
                                     type="button"
                                     onClick={() => setPdfModalOpen(false)}
-                                    className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                                    className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 dark:border-white/10 shadow-sm px-4 py-2 bg-white dark:bg-[#1A1A1A] text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:bg-[#111111] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                                 >
                                     Cancel
                                 </button>

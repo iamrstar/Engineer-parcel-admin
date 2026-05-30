@@ -63,7 +63,7 @@ const getStatusColor = (status) => {
     empty_box_delivered: "bg-blue-100 text-blue-800 border-blue-200",
     filled_box_picked: "bg-teal-100 text-teal-800 border-teal-200",
   }
-  return colors[status] || "bg-gray-100 text-gray-800 border-gray-200"
+  return colors[status] || "bg-gray-100 dark:bg-[#111111] text-gray-800 dark:text-gray-200 border-gray-200 dark:border-white/10"
 };
 
 const TrackingHistoryTooltip = ({ booking }) => {
@@ -74,10 +74,10 @@ const TrackingHistoryTooltip = ({ booking }) => {
   return (
     <div className="absolute hidden group-hover:flex flex-col gap-1.5 z-30 w-64 p-3 bg-slate-900/95 backdrop-blur-md text-white rounded-xl shadow-2xl border border-slate-700/80 bottom-full mb-2.5 left-1/2 -translate-x-1/2 transition-all duration-200 ease-out origin-bottom scale-95 group-hover:scale-100 pointer-events-none">
       {/* Tooltip arrow */}
-      <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-slate-900 border-r border-b border-slate-700/80 rotate-45"></div>
+      <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-slate-900 border-r border-b border-gray-200 dark:border-white/10 border-slate-700/80 rotate-45"></div>
       
       {/* Tooltip Content */}
-      <div className="flex items-center justify-between border-b border-slate-700 pb-1.5 mb-0.5">
+      <div className="flex items-center justify-between border-b border-gray-200 dark:border-white/10 border-slate-700 pb-1.5 mb-0.5">
         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Last Status Update</span>
         {lastTrack?.timestamp && (
           <span className="text-[9px] text-slate-400 font-medium">
@@ -440,11 +440,11 @@ const Vendors = () => {
     <div className="container mx-auto px-4 py-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
             <Building className="h-8 w-8 text-orange-600" />
             Vendor Management
           </h1>
-          <p className="text-gray-500 mt-1">Manage bulk shipping partners and individual vendors</p>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Manage bulk shipping partners and individual vendors</p>
         </div>
         <button
           onClick={() => handleOpenModal()}
@@ -456,7 +456,7 @@ const Vendors = () => {
       </div>
 
       {/* Control Bar */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-6">
+      <div className="bg-white dark:bg-[#1A1A1A] rounded-2xl shadow-sm border border-gray-100 p-4 mb-6">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
           <input
@@ -464,57 +464,57 @@ const Vendors = () => {
             placeholder="Search by vendor name, ID, or phone..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-orange-500 text-sm"
+            className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-[#111111] border-none rounded-xl focus:ring-2 focus:ring-orange-500 text-sm"
           />
         </div>
       </div>
 
       {/* Vendors Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white dark:bg-[#1A1A1A] rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         {loading ? (
           <div className="flex flex-col items-center justify-center h-64 gap-4">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600"></div>
-            <p className="text-gray-500 font-medium">Loading vendor data...</p>
+            <div className="animate-spin rounded-full h-12 w-12 border-b border-gray-200 dark:border-white/10-2 border-orange-600"></div>
+            <p className="text-gray-500 dark:text-gray-400 font-medium">Loading vendor data...</p>
           </div>
         ) : filteredVendors.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-gray-500">
+          <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-gray-400">
             <Building className="h-12 w-12 mb-4 opacity-20" />
             <p className="text-lg">No vendors found</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-100">
-              <thead className="bg-gray-50/50 text-left">
+              <thead className="bg-gray-50 dark:bg-[#111111]/50 text-left">
                 <tr>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Vendor Info</th>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Address</th>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Contact</th>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Vendor Info</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Address</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Contact</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredVendors.map((vendor) => (
-                  <tr key={vendor._id} className="hover:bg-gray-50/50 transition-colors">
+                  <tr key={vendor._id} className="hover:bg-gray-50 dark:bg-[#111111]/50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="h-10 w-10 rounded-full bg-orange-100 text-orange-700 flex items-center justify-center font-bold text-sm">
                           {vendor.name.charAt(0).toUpperCase()}
                         </div>
                         <div className="ml-4">
-                          <div className="text-sm font-semibold text-gray-900">{vendor.name}</div>
+                          <div className="text-sm font-semibold text-gray-900 dark:text-white">{vendor.name}</div>
                           <div className="text-xs text-orange-600 font-mono font-bold">ID: {vendor.vendorId}</div>
                         </div>
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <div className="text-xs text-gray-900 max-w-xs truncate">{vendor.address}</div>
-                      <div className="text-[10px] text-gray-500">{vendor.city}, {vendor.state} - {vendor.pincode}</div>
+                      <div className="text-xs text-gray-900 dark:text-white max-w-xs truncate">{vendor.address}</div>
+                      <div className="text-[10px] text-gray-500 dark:text-gray-400">{vendor.city}, {vendor.state} - {vendor.pincode}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900 flex items-center gap-2">
+                      <div className="text-sm text-gray-900 dark:text-white flex items-center gap-2">
                         <Phone className="h-3.5 w-3.5 text-gray-400" /> {vendor.phone}
                       </div>
-                      <div className="text-xs text-gray-500 flex items-center gap-2 mt-1">
+                      <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2 mt-1">
                         <Mail className="h-3.5 w-3.5 text-gray-400" /> {vendor.email || 'N/A'}
                       </div>
                     </td>
@@ -555,7 +555,7 @@ const Vendors = () => {
       {isModalOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setIsModalOpen(false)} />
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl relative z-10 overflow-hidden transform transition-all animate-in zoom-in duration-200">
+          <div className="bg-white dark:bg-[#1A1A1A] rounded-3xl shadow-2xl w-full max-w-2xl relative z-10 overflow-hidden transform transition-all animate-in zoom-in duration-200">
             <div className="bg-orange-600 p-6 text-white flex justify-between items-center">
               <h2 className="text-xl font-bold flex items-center gap-2">
                 {editingVendor ? <Edit2 className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
@@ -563,7 +563,7 @@ const Vendors = () => {
               </h2>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                className="p-2 hover:bg-white dark:bg-[#1A1A1A]/10 rounded-full transition-colors"
               >
                 <X className="h-6 w-6" />
               </button>
@@ -572,75 +572,75 @@ const Vendors = () => {
             <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-1">
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Vendor ID (Unique) *</label>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Vendor ID (Unique) *</label>
                   <input
                     type="text"
                     required
                     value={formData.vendorId}
                     onChange={(e) => setFormData({ ...formData, vendorId: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm"
+                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm"
                     placeholder="e.g. VEND001"
                   />
                 </div>
                 <div className="md:col-span-1">
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Vendor Name *</label>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Vendor Name *</label>
                   <input
                     type="text"
                     required
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm"
+                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm"
                     placeholder="e.g. Acme Corp"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Phone Number *</label>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Phone Number *</label>
                   <input
                     type="tel"
                     required
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm"
+                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm"
                     placeholder="10-digit phone"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Email Address</label>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Email Address</label>
                   <input
                     type="email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm"
+                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm"
                     placeholder="vendor@example.com"
                   />
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Address (Permanent/Registered) *</label>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Address (Permanent/Registered) *</label>
                   <input
                     type="text"
                     required
                     value={formData.address}
                     onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm"
+                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm"
                     placeholder="Street, Building, etc."
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Address Line 2</label>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Address Line 2</label>
                   <input
                     type="text"
                     value={formData.address2}
                     onChange={(e) => setFormData({ ...formData, address2: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm"
+                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm"
                     placeholder="Area, Colony, etc."
                   />
                 </div>
 
                 <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4 bg-orange-50/30 p-4 rounded-2xl border border-orange-100">
                   <div className="md:col-span-1">
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Pincode *</label>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Pincode *</label>
                     <div className="relative">
                       <input
                         type="text"
@@ -648,12 +648,12 @@ const Vendors = () => {
                         maxLength={6}
                         value={formData.pincode}
                         onChange={(e) => setFormData({ ...formData, pincode: e.target.value.replace(/\D/g, "") })}
-                        className={`w-full px-4 py-2.5 bg-white border-2 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm font-bold tracking-widest transition-all ${pincodeSuccess ? 'border-green-500 bg-green-50/10' : 'border-gray-200'}`}
+                        className={`w-full px-4 py-2.5 bg-white dark:bg-[#1A1A1A] border-2 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm font-bold tracking-widest transition-all ${pincodeSuccess ? 'border-green-500 bg-green-50/10' : 'border-gray-200 dark:border-white/10'}`}
                         placeholder="6-digit PIN"
                       />
                       {pincodeLoading && (
                         <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-orange-600"></div>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b border-gray-200 dark:border-white/10-2 border-orange-600"></div>
                         </div>
                       )}
                       {pincodeSuccess && !pincodeLoading && (
@@ -667,36 +667,36 @@ const Vendors = () => {
                   </div>
 
                   <div className="md:col-span-1">
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">City *</label>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">City *</label>
                     <input
                       type="text"
                       required
                       value={formData.city}
                       onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm"
+                      className="w-full px-4 py-2.5 bg-white dark:bg-[#1A1A1A] border border-gray-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm"
                       placeholder="Auto-filled"
                     />
                   </div>
                   <div className="md:col-span-1">
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">State *</label>
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">State *</label>
                     <input
                       type="text"
                       required
                       value={formData.state}
                       onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                      className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm"
+                      className="w-full px-4 py-2.5 bg-white dark:bg-[#1A1A1A] border border-gray-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm"
                       placeholder="Auto-filled"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Landmark</label>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Landmark</label>
                   <input
                     type="text"
                     value={formData.landmark}
                     onChange={(e) => setFormData({ ...formData, landmark: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm"
+                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm"
                   />
                 </div>
               </div>
@@ -705,7 +705,7 @@ const Vendors = () => {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-all"
+                  className="flex-1 px-4 py-3 bg-gray-100 dark:bg-[#111111] hover:bg-gray-200 text-gray-700 dark:text-gray-300 font-bold rounded-xl transition-all"
                 >
                   Cancel
                 </button>
@@ -723,18 +723,18 @@ const Vendors = () => {
 
       {/* Finance View Overlay */}
       {selectedVendorForFinance && (
-        <div className="fixed inset-0 z-[70] bg-gray-50 flex flex-col animate-in slide-in-from-right duration-300">
+        <div className="fixed inset-0 z-[70] bg-gray-50 dark:bg-[#111111] flex flex-col animate-in slide-in-from-right duration-300">
           {/* Local Header */}
-          <div className="bg-white border-b px-6 py-4 flex items-center justify-between shadow-sm">
+          <div className="bg-white dark:bg-[#1A1A1A] border-b border-gray-200 dark:border-white/10 px-6 py-4 flex items-center justify-between shadow-sm">
             <div className="flex items-center gap-4">
               <button 
                 onClick={() => setSelectedVendorForFinance(null)}
-                className="p-2 hover:bg-gray-100 rounded-full transition-all"
+                className="p-2 hover:bg-gray-100 dark:bg-[#111111] rounded-full transition-all"
               >
-                <ArrowLeft className="h-6 w-6 text-gray-600" />
+                <ArrowLeft className="h-6 w-6 text-gray-600 dark:text-gray-400" />
               </button>
               <div>
-                <h2 className="text-xl font-bold text-gray-900">{selectedVendorForFinance.name}</h2>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">{selectedVendorForFinance.name}</h2>
                 <p className="text-xs text-orange-600 font-mono font-bold tracking-tight">VENDOR FINANCE DASHBOARD • {selectedVendorForFinance.vendorId}</p>
               </div>
             </div>
@@ -746,7 +746,7 @@ const Vendors = () => {
                   setFinanceMonth(e.target.value);
                   fetchVendorFinances(selectedVendorForFinance, e.target.value);
                 }}
-                className="px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold text-gray-700 focus:ring-2 focus:ring-orange-500 outline-none cursor-pointer"
+                className="px-4 py-2 bg-gray-50 dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-xl text-sm font-bold text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-orange-500 outline-none cursor-pointer"
                 title="Filter by Month"
               />
               <button 
@@ -755,7 +755,7 @@ const Vendors = () => {
               >
                 <DollarSign className="h-4 w-4" /> Record Settlement
               </button>
-              <button onClick={() => setSelectedVendorForFinance(null)} className="text-gray-400 hover:text-gray-600"><X className="h-6 w-6" /></button>
+              <button onClick={() => setSelectedVendorForFinance(null)} className="text-gray-400 hover:text-gray-600 dark:text-gray-400"><X className="h-6 w-6" /></button>
             </div>
           </div>
 
@@ -763,23 +763,23 @@ const Vendors = () => {
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
+              <div className="bg-white dark:bg-[#1A1A1A] p-5 rounded-3xl border border-gray-100 shadow-sm">
                 <div className="flex justify-between items-start mb-2">
                   <div className="p-2 bg-orange-50 rounded-xl text-orange-600"><TrendingUp className="h-5 w-5" /></div>
                   <span className="text-[10px] font-bold text-orange-600 uppercase tracking-widest bg-orange-50 px-2 py-0.5 rounded">Total Due</span>
                 </div>
-                <div className="text-2xl font-black text-gray-900">₹{(financeSummary?.totalDue || 0).toLocaleString('en-IN')}</div>
+                <div className="text-2xl font-black text-gray-900 dark:text-white">₹{(financeSummary?.totalDue || 0).toLocaleString('en-IN')}</div>
                 <p className="text-[10px] text-gray-400 mt-1 font-bold italic">Cumulative across {financeSummary?.bookingCount || 0} orders</p>
               </div>
-              <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
+              <div className="bg-white dark:bg-[#1A1A1A] p-5 rounded-3xl border border-gray-100 shadow-sm">
                 <div className="flex justify-between items-start mb-2">
                   <div className="p-2 bg-green-50 rounded-xl text-green-600"><CheckCircle2 className="h-5 w-5" /></div>
                   <span className="text-[10px] font-bold text-green-600 uppercase tracking-widest bg-green-50 px-2 py-0.5 rounded">Total Paid</span>
                 </div>
-                <div className="text-2xl font-black text-gray-900">₹{((financeSummary?.totalPaidOnOrders || 0) + (financeSummary?.totalBulkPayments || 0)).toLocaleString('en-IN')}</div>
+                <div className="text-2xl font-black text-gray-900 dark:text-white">₹{((financeSummary?.totalPaidOnOrders || 0) + (financeSummary?.totalBulkPayments || 0)).toLocaleString('en-IN')}</div>
                 <p className="text-[10px] text-gray-400 mt-1 font-bold italic">Orders: ₹{financeSummary?.totalPaidOnOrders} | Bulk: ₹{financeSummary?.totalBulkPayments}</p>
               </div>
-              <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm border-l-4 border-l-red-500">
+              <div className="bg-white dark:bg-[#1A1A1A] p-5 rounded-3xl border border-gray-100 shadow-sm border-l-4 border-l-red-500">
                 <div className="flex justify-between items-start mb-2">
                   <div className="p-2 bg-red-50 rounded-xl text-red-600"><AlertCircle className="h-5 w-5" /></div>
                   <span className="text-[10px] font-bold text-red-600 uppercase tracking-widest bg-red-50 px-2 py-0.5 rounded">Net Balance</span>
@@ -787,28 +787,28 @@ const Vendors = () => {
                 <div className="text-2xl font-black text-red-600">₹{(financeSummary?.netBalance || 0).toLocaleString('en-IN')}</div>
                 <p className="text-[10px] text-gray-400 mt-1 font-bold italic underline">Outstandings to be collected</p>
               </div>
-              <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm">
+              <div className="bg-white dark:bg-[#1A1A1A] p-5 rounded-3xl border border-gray-100 shadow-sm">
                 <div className="flex justify-between items-start mb-2">
                   <div className="p-2 bg-blue-50 rounded-xl text-blue-600"><ClipboardList className="h-5 w-5" /></div>
                   <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest bg-blue-50 px-2 py-0.5 rounded">Orders</span>
                 </div>
-                <div className="text-2xl font-black text-gray-900">{financeSummary?.bookingCount || 0}</div>
+                <div className="text-2xl font-black text-gray-900 dark:text-white">{financeSummary?.bookingCount || 0}</div>
                 <p className="text-[10px] text-gray-400 mt-1 font-bold italic">Total vendor bookings</p>
               </div>
             </div>
 
             {/* Tabs */}
-            <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-              <div className="flex border-b">
+            <div className="bg-white dark:bg-[#1A1A1A] rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="flex border-b border-gray-200 dark:border-white/10">
                 <button 
                   onClick={() => setActiveTab('orders')}
-                  className={`flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 border-b-2 transition-all ${activeTab === 'orders' ? 'border-orange-600 text-orange-600 bg-orange-50/20' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                  className={`flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 border-b border-gray-200 dark:border-white/10-2 transition-all ${activeTab === 'orders' ? 'border-orange-600 text-orange-600 bg-orange-50/20' : 'border-transparent text-gray-400 hover:text-gray-600 dark:text-gray-400'}`}
                 >
                   <Package className="h-4 w-4" /> ASSOCIATED ORDERS
                 </button>
                 <button 
                   onClick={() => setActiveTab('settlements')}
-                  className={`flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 border-b-2 transition-all ${activeTab === 'settlements' ? 'border-orange-600 text-orange-600 bg-orange-50/20' : 'border-transparent text-gray-400 hover:text-gray-600'}`}
+                  className={`flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 border-b border-gray-200 dark:border-white/10-2 transition-all ${activeTab === 'settlements' ? 'border-orange-600 text-orange-600 bg-orange-50/20' : 'border-transparent text-gray-400 hover:text-gray-600 dark:text-gray-400'}`}
                 >
                   <History className="h-4 w-4" /> SETTLEMENT HISTORY
                 </button>
@@ -818,25 +818,25 @@ const Vendors = () => {
                 {activeTab === 'orders' ? (
                   <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-100">
-                      <thead className="bg-gray-50/50">
+                      <thead className="bg-gray-50 dark:bg-[#111111]/50">
                         <tr>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Order ID</th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Date</th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Route</th>
-                          <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Total Amount</th>
-                          <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Paid</th>
-                          <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Payment Status</th>
-                          <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Shipment Status</th>
-                          <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Order ID</th>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Route</th>
+                          <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Amount</th>
+                          <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Paid</th>
+                          <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Payment Status</th>
+                          <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Shipment Status</th>
+                          <th className="px-6 py-4 text-center text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
                         {vendorOrders.map(order => (
-                          <tr key={order._id} className="hover:bg-gray-50/30 transition-colors">
-                            <td className="px-6 py-4 font-mono font-bold text-sm text-gray-900">{order.trackingId || order.bookingId}</td>
-                            <td className="px-6 py-4 text-xs text-gray-500">{new Date(order.createdAt).toLocaleDateString()}</td>
-                            <td className="px-6 py-4 text-[10px] font-bold uppercase text-gray-600">{order.senderDetails?.city} ➔ {order.receiverDetails?.city}</td>
-                            <td className="px-6 py-4 text-right font-black text-gray-900">₹{(order.pricing?.totalAmount || 0).toLocaleString('en-IN')}</td>
+                          <tr key={order._id} className="hover:bg-gray-50 dark:bg-[#111111]/30 transition-colors">
+                            <td className="px-6 py-4 font-mono font-bold text-sm text-gray-900 dark:text-white">{order.trackingId || order.bookingId}</td>
+                            <td className="px-6 py-4 text-xs text-gray-500 dark:text-gray-400">{new Date(order.createdAt).toLocaleDateString()}</td>
+                            <td className="px-6 py-4 text-[10px] font-bold uppercase text-gray-600 dark:text-gray-400">{order.senderDetails?.city} ➔ {order.receiverDetails?.city}</td>
+                            <td className="px-6 py-4 text-right font-black text-gray-900 dark:text-white">₹{(order.pricing?.totalAmount || 0).toLocaleString('en-IN')}</td>
                             <td className="px-6 py-4 text-right font-bold text-green-600">₹{(order.vendorPaidAmount || 0).toLocaleString('en-IN')}</td>
                             <td className="px-6 py-4 text-center">
                               <span className={`text-[10px] font-black uppercase px-2 py-1 rounded-full ${
@@ -898,22 +898,22 @@ const Vendors = () => {
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-100">
-                      <thead className="bg-gray-50/50">
+                      <thead className="bg-gray-50 dark:bg-[#111111]/50">
                         <tr>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Date</th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Month</th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Method</th>
-                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Received By</th>
-                          <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase tracking-wider">Amount</th>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Month</th>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Method</th>
+                          <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Received By</th>
+                          <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
                         {vendorPayments.map(payment => (
-                          <tr key={payment._id} className="hover:bg-gray-50/30">
-                            <td className="px-6 py-4 text-sm text-gray-900">{new Date(payment.paymentDate).toLocaleDateString()}</td>
+                          <tr key={payment._id} className="hover:bg-gray-50 dark:bg-[#111111]/30">
+                            <td className="px-6 py-4 text-sm text-gray-900 dark:text-white">{new Date(payment.paymentDate).toLocaleDateString()}</td>
                             <td className="px-6 py-4 text-xs font-bold text-orange-600 uppercase tracking-tighter">{payment.month}</td>
-                            <td className="px-6 py-4 text-sm text-gray-600">{payment.paymentMethod}</td>
-                            <td className="px-6 py-4 text-sm text-gray-600">{payment.receivedBy}</td>
+                            <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{payment.paymentMethod}</td>
+                            <td className="px-6 py-4 text-sm text-gray-600 dark:text-gray-400">{payment.receivedBy}</td>
                             <td className="px-6 py-4 text-right font-black text-green-600">₹{(payment.amount || 0).toLocaleString('en-IN')}</td>
                           </tr>
                         ))}
@@ -932,26 +932,26 @@ const Vendors = () => {
           {editingOrder && (
             <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
               <div className="fixed inset-0 bg-black/60" onClick={() => setEditingOrder(null)} />
-              <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg relative z-10 p-8">
+              <div className="bg-white dark:bg-[#1A1A1A] rounded-3xl shadow-2xl w-full max-w-lg relative z-10 p-8">
                 <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-xl font-bold text-gray-900">Update Order Payment</h3>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">Update Order Payment</h3>
                   <button onClick={() => setEditingOrder(null)}><X className="h-6 w-6 text-gray-400" /></button>
                 </div>
                 <p className="text-xs text-orange-600 font-mono font-bold mb-6">ORDER: {editingOrder.trackingId || editingOrder.bookingId}</p>
                 
                 <form onSubmit={handleUpdateOrderPayment} className="space-y-4">
                   {/* Summary Card */}
-                  <div className="bg-gray-50 p-4 rounded-xl mb-4 flex justify-between border border-gray-100 divide-x divide-gray-200">
+                  <div className="bg-gray-50 dark:bg-[#111111] p-4 rounded-xl mb-4 flex justify-between border border-gray-100 divide-x divide-gray-200">
                      <div className="px-2 w-1/3">
-                        <span className="text-[10px] uppercase text-gray-500 font-bold tracking-wider">Total Bill</span>
-                        <div className="font-black text-gray-900 text-lg">₹{(orderPaymentData.totalAmount || 0).toLocaleString('en-IN')}</div>
+                        <span className="text-[10px] uppercase text-gray-500 dark:text-gray-400 font-bold tracking-wider">Total Bill</span>
+                        <div className="font-black text-gray-900 dark:text-white text-lg">₹{(orderPaymentData.totalAmount || 0).toLocaleString('en-IN')}</div>
                      </div>
-                     <div className="px-4 w-1/3 text-center border-l border-gray-200">
-                        <span className="text-[10px] uppercase text-gray-500 font-bold tracking-wider">Already Paid</span>
+                     <div className="px-4 w-1/3 text-center border-l border-gray-200 dark:border-white/10">
+                        <span className="text-[10px] uppercase text-gray-500 dark:text-gray-400 font-bold tracking-wider">Already Paid</span>
                         <div className="font-black text-green-600 text-lg">₹{(orderPaymentData.vendorPaidAmount || 0).toLocaleString('en-IN')}</div>
                      </div>
                      <div className="px-4 w-1/3 text-right">
-                        <span className="text-[10px] uppercase text-gray-500 font-bold tracking-wider">Remaining Due</span>
+                        <span className="text-[10px] uppercase text-gray-500 dark:text-gray-400 font-bold tracking-wider">Remaining Due</span>
                         <div className="font-black text-red-600 text-lg">₹{Math.max(0, (orderPaymentData.totalAmount || 0) - (orderPaymentData.vendorPaidAmount || 0) - (orderPaymentData.newPaymentAmount || 0)).toLocaleString('en-IN')}</div>
                      </div>
                   </div>
@@ -965,18 +965,18 @@ const Vendors = () => {
                       type="number" 
                       value={orderPaymentData.newPaymentAmount || ""}
                       onChange={(e) => setOrderPaymentData({...orderPaymentData, newPaymentAmount: Number(e.target.value)})}
-                      className="w-full px-4 py-3 bg-white border border-green-200 rounded-xl font-black text-green-700 focus:ring-2 focus:ring-green-500 outline-none text-2xl transition-all shadow-sm"
+                      className="w-full px-4 py-3 bg-white dark:bg-[#1A1A1A] border border-green-200 rounded-xl font-black text-green-700 focus:ring-2 focus:ring-green-500 outline-none text-2xl transition-all shadow-sm"
                       placeholder="0"
                     />
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Payment Method</label>
+                      <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Payment Method</label>
                       <select 
                         value={orderPaymentData.vendorPaymentMethod}
                         onChange={(e) => setOrderPaymentData({...orderPaymentData, vendorPaymentMethod: e.target.value})}
-                        className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-green-500 outline-none"
+                        className="w-full px-4 py-3 bg-gray-50 dark:bg-[#111111] border border-gray-100 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-green-500 outline-none"
                       >
                         <option value="Cash">Cash</option>
                         <option value="UPI">UPI</option>
@@ -985,22 +985,22 @@ const Vendors = () => {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Received By</label>
+                      <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Received By</label>
                       <input 
                         type="text" 
                         value={orderPaymentData.vendorReceivedBy}
                         onChange={(e) => setOrderPaymentData({...orderPaymentData, vendorReceivedBy: e.target.value})}
-                        className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-green-500 outline-none"
+                        className="w-full px-4 py-3 bg-gray-50 dark:bg-[#111111] border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-green-500 outline-none"
                       />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Payment Date</label>
+                    <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Payment Date</label>
                     <input 
                       type="date" 
                       value={orderPaymentData.vendorPaymentDate}
                       onChange={(e) => setOrderPaymentData({...orderPaymentData, vendorPaymentDate: e.target.value})}
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-green-500 outline-none"
+                      className="w-full px-4 py-3 bg-gray-50 dark:bg-[#111111] border border-gray-100 rounded-xl text-sm focus:ring-2 focus:ring-green-500 outline-none"
                     />
                   </div>
 
@@ -1018,7 +1018,7 @@ const Vendors = () => {
 
                       {/* Display the History Table directly inside here */}
                       {editingOrder.vendorPaymentHistory && editingOrder.vendorPaymentHistory.length > 0 ? (
-                        <div className="border border-orange-100/50 rounded-xl overflow-hidden shadow-sm bg-white">
+                        <div className="border border-orange-100/50 rounded-xl overflow-hidden shadow-sm bg-white dark:bg-[#1A1A1A]">
                           <div className="max-h-40 overflow-y-auto">
                             <table className="min-w-full divide-y divide-gray-50">
                               <thead className="bg-orange-50/50 sticky top-0">
@@ -1030,12 +1030,12 @@ const Vendors = () => {
                                   <th className="px-4 py-2 text-center text-[10px] font-bold text-gray-400 uppercase w-20">Actions</th>
                                 </tr>
                               </thead>
-                              <tbody className="divide-y divide-gray-50 bg-white">
+                              <tbody className="divide-y divide-gray-50 bg-white dark:bg-[#1A1A1A]">
                                 {editingOrder.vendorPaymentHistory.map((hist, idx) => (
                                   <tr key={hist._id || idx} className="hover:bg-orange-50/30 transition-colors group/row">
-                                    <td className="px-4 py-2 text-xs text-gray-500">{new Date(hist.date).toLocaleDateString()}</td>
-                                    <td className="px-4 py-2 text-xs font-semibold text-gray-700">{hist.method || '-'}</td>
-                                    <td className="px-4 py-2 text-xs text-gray-500">{hist.receivedBy || '-'}</td>
+                                    <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">{new Date(hist.date).toLocaleDateString()}</td>
+                                    <td className="px-4 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300">{hist.method || '-'}</td>
+                                    <td className="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">{hist.receivedBy || '-'}</td>
                                     <td className="px-4 py-2 text-right">
                                       {editingHistoryId === hist._id ? (
                                         <input 
@@ -1053,7 +1053,7 @@ const Vendors = () => {
                                       {editingHistoryId === hist._id ? (
                                         <div className="flex items-center justify-center gap-2">
                                           <button type="button" onClick={() => handleEditHistory(hist._id, editingHistoryAmount)} className="text-green-600 hover:text-green-800"><Check className="h-4 w-4" /></button>
-                                          <button type="button" onClick={() => setEditingHistoryId(null)} className="text-gray-400 hover:text-gray-600"><XCircle className="h-4 w-4" /></button>
+                                          <button type="button" onClick={() => setEditingHistoryId(null)} className="text-gray-400 hover:text-gray-600 dark:text-gray-400"><XCircle className="h-4 w-4" /></button>
                                         </div>
                                       ) : (
                                         <div className="flex items-center justify-center gap-2 opacity-0 group-hover/row:opacity-100 transition-opacity">
@@ -1069,7 +1069,7 @@ const Vendors = () => {
                           </div>
                         </div>
                       ) : (
-                        <div className="text-center text-xs text-gray-400 italic py-2 bg-white rounded-xl border border-orange-50">No previous collections exist for this order.</div>
+                        <div className="text-center text-xs text-gray-400 italic py-2 bg-white dark:bg-[#1A1A1A] rounded-xl border border-orange-50">No previous collections exist for this order.</div>
                       )}
 
                       <div className="grid grid-cols-2 gap-4">
@@ -1080,7 +1080,7 @@ const Vendors = () => {
                             title="Edit if the total bill was negotiated differently"
                             value={orderPaymentData.totalAmount}
                             onChange={(e) => setOrderPaymentData({...orderPaymentData, totalAmount: Number(e.target.value)})}
-                            className="w-full px-4 py-2 bg-white border border-orange-200 rounded-xl font-bold text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition-all"
+                            className="w-full px-4 py-2 bg-white dark:bg-[#1A1A1A] border border-orange-200 rounded-xl font-bold text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition-all"
                           />
                         </div>
                         <div>
@@ -1090,7 +1090,7 @@ const Vendors = () => {
                             title="Edit the historical total if there was an error in past entry"
                             value={orderPaymentData.vendorPaidAmount}
                             onChange={(e) => setOrderPaymentData({...orderPaymentData, vendorPaidAmount: Number(e.target.value)})}
-                            className="w-full px-4 py-2 bg-white border border-orange-200 rounded-xl font-bold text-gray-600 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition-all"
+                            className="w-full px-4 py-2 bg-white dark:bg-[#1A1A1A] border border-orange-200 rounded-xl font-bold text-gray-600 dark:text-gray-400 text-sm shadow-sm focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none transition-all"
                           />
                         </div>
                       </div>
@@ -1101,7 +1101,7 @@ const Vendors = () => {
                     <button 
                       type="button" 
                       onClick={() => setEditingOrder(null)}
-                      className="flex-1 px-6 py-3 border border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-50 transition-all"
+                      className="flex-1 px-6 py-3 border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 font-bold rounded-xl hover:bg-gray-50 dark:bg-[#111111] transition-all"
                     >Cancel</button>
                     <button 
                       type="submit"
@@ -1117,12 +1117,12 @@ const Vendors = () => {
           {isSettlementModalOpen && (
             <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
               <div className="fixed inset-0 bg-black/60" onClick={() => setIsSettlementModalOpen(false)} />
-              <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg relative z-10 p-8 border-t-8 border-green-500">
+              <div className="bg-white dark:bg-[#1A1A1A] rounded-3xl shadow-2xl w-full max-w-lg relative z-10 p-8 border-t-8 border-green-500">
                 <div className="flex justify-between items-center mb-6">
-                  <h3 className="text-2xl font-black text-gray-900">Record Bulk Settlement</h3>
+                  <h3 className="text-2xl font-black text-gray-900 dark:text-white">Record Bulk Settlement</h3>
                   <button onClick={() => setIsSettlementModalOpen(false)}><X className="h-6 w-6 text-gray-400" /></button>
                 </div>
-                <p className="text-sm text-gray-500 mb-8 leading-relaxed">
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-8 leading-relaxed">
                   Record a general payment made by the vendor. This will be deducted from their total net balance.
                 </p>
                 
@@ -1146,7 +1146,7 @@ const Vendors = () => {
                         type="month" 
                         value={settlementData.month}
                         onChange={(e) => setSettlementData({...settlementData, month: e.target.value})}
-                        className="w-full px-4 py-3 bg-gray-50 border border-transparent rounded-2xl text-sm font-bold focus:bg-white focus:border-green-500 transition-all"
+                        className="w-full px-4 py-3 bg-gray-50 dark:bg-[#111111] border border-transparent rounded-2xl text-sm font-bold focus:bg-white dark:bg-[#1A1A1A] focus:border-green-500 transition-all"
                       />
                     </div>
                     <div>
@@ -1154,7 +1154,7 @@ const Vendors = () => {
                       <select 
                         value={settlementData.paymentMethod}
                         onChange={(e) => setSettlementData({...settlementData, paymentMethod: e.target.value})}
-                        className="w-full px-4 py-3 bg-gray-50 border border-transparent rounded-2xl text-sm font-bold focus:bg-white focus:border-green-500 transition-all"
+                        className="w-full px-4 py-3 bg-gray-50 dark:bg-[#111111] border border-transparent rounded-2xl text-sm font-bold focus:bg-white dark:bg-[#1A1A1A] focus:border-green-500 transition-all"
                       >
                         <option value="Cash">Cash</option>
                         <option value="UPI">UPI</option>
@@ -1170,7 +1170,7 @@ const Vendors = () => {
                       value={settlementData.notes}
                       onChange={(e) => setSettlementData({...settlementData, notes: e.target.value})}
                       placeholder="Transaction details, reference numbers, etc."
-                      className="w-full px-4 py-3 bg-gray-50 border border-transparent rounded-2xl text-sm focus:bg-white focus:border-green-500 transition-all h-24"
+                      className="w-full px-4 py-3 bg-gray-50 dark:bg-[#111111] border border-transparent rounded-2xl text-sm focus:bg-white dark:bg-[#1A1A1A] focus:border-green-500 transition-all h-24"
                     />
                   </div>
                   
@@ -1178,7 +1178,7 @@ const Vendors = () => {
                     <button 
                       type="button" 
                       onClick={() => setIsSettlementModalOpen(false)}
-                      className="flex-1 px-8 py-4 text-gray-500 font-bold rounded-2xl hover:bg-gray-100 transition-all"
+                      className="flex-1 px-8 py-4 text-gray-500 dark:text-gray-400 font-bold rounded-2xl hover:bg-gray-100 dark:bg-[#111111] transition-all"
                     >Cancel</button>
                     <button 
                       type="submit"
@@ -1194,54 +1194,54 @@ const Vendors = () => {
           {pdfModalOpen && (
             <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
               <div className="fixed inset-0 bg-black/60" onClick={() => setPdfModalOpen(false)} />
-              <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md relative z-10 p-8 border-t-8 border-red-500">
+              <div className="bg-white dark:bg-[#1A1A1A] rounded-3xl shadow-2xl w-full max-w-md relative z-10 p-8 border-t-8 border-red-500">
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-2xl font-black text-gray-900 flex items-center gap-2">
+                  <h3 className="text-2xl font-black text-gray-900 dark:text-white flex items-center gap-2">
                     <FileText className="h-6 w-6 text-red-500" /> Print Options
                   </h3>
                   <button onClick={() => setPdfModalOpen(false)}><X className="h-6 w-6 text-gray-400" /></button>
                 </div>
-                <p className="text-sm text-gray-500 mb-6 leading-relaxed">
-                  Select which documents you want to include in the generated PDF for <span className="font-mono font-bold text-gray-700">{pdfBooking?.trackingId || pdfBooking?.bookingId}</span>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-6 leading-relaxed">
+                  Select which documents you want to include in the generated PDF for <span className="font-mono font-bold text-gray-700 dark:text-gray-300">{pdfBooking?.trackingId || pdfBooking?.bookingId}</span>
                 </p>
 
-                <div className="space-y-4 bg-gray-50 p-5 rounded-2xl border border-gray-200 mb-6">
-                  <label className="flex items-center p-3.5 bg-white rounded-xl border border-gray-200 hover:border-red-300 transition-colors cursor-pointer group">
+                <div className="space-y-4 bg-gray-50 dark:bg-[#111111] p-5 rounded-2xl border border-gray-200 dark:border-white/10 mb-6">
+                  <label className="flex items-center p-3.5 bg-white dark:bg-[#1A1A1A] rounded-xl border border-gray-200 dark:border-white/10 hover:border-red-300 transition-colors cursor-pointer group">
                     <input
                       type="checkbox"
                       checked={pdfOptions.receipt}
                       onChange={(e) => setPdfOptions({ ...pdfOptions, receipt: e.target.checked })}
-                      className="h-5 w-5 text-red-600 border-gray-300 rounded focus:ring-red-500 cursor-pointer"
+                      className="h-5 w-5 text-red-600 border-gray-300 dark:border-white/10 rounded focus:ring-red-500 cursor-pointer"
                     />
                     <div className="ml-3">
-                      <span className="block text-sm font-bold text-gray-900 group-hover:text-red-700">Booking Receipt</span>
-                      <span className="block text-xs text-gray-500">Official proof of booking and charges</span>
+                      <span className="block text-sm font-bold text-gray-900 dark:text-white group-hover:text-red-700">Booking Receipt</span>
+                      <span className="block text-xs text-gray-500 dark:text-gray-400">Official proof of booking and charges</span>
                     </div>
                   </label>
 
-                  <label className="flex items-center p-3.5 bg-white rounded-xl border border-gray-200 hover:border-red-300 transition-colors cursor-pointer group">
+                  <label className="flex items-center p-3.5 bg-white dark:bg-[#1A1A1A] rounded-xl border border-gray-200 dark:border-white/10 hover:border-red-300 transition-colors cursor-pointer group">
                     <input
                       type="checkbox"
                       checked={pdfOptions.label}
                       onChange={(e) => setPdfOptions({ ...pdfOptions, label: e.target.checked })}
-                      className="h-5 w-5 text-red-600 border-gray-300 rounded focus:ring-red-500 cursor-pointer"
+                      className="h-5 w-5 text-red-600 border-gray-300 dark:border-white/10 rounded focus:ring-red-500 cursor-pointer"
                     />
                     <div className="ml-3">
-                      <span className="block text-sm font-bold text-gray-900 group-hover:text-red-700">Shipping Label (A6)</span>
-                      <span className="block text-xs text-gray-500">Compact label with QR code for the box</span>
+                      <span className="block text-sm font-bold text-gray-900 dark:text-white group-hover:text-red-700">Shipping Label (A6)</span>
+                      <span className="block text-xs text-gray-500 dark:text-gray-400">Compact label with QR code for the box</span>
                     </div>
                   </label>
 
-                  <label className="flex items-center p-3.5 bg-white rounded-xl border border-gray-200 hover:border-red-300 transition-colors cursor-pointer group">
+                  <label className="flex items-center p-3.5 bg-white dark:bg-[#1A1A1A] rounded-xl border border-gray-200 dark:border-white/10 hover:border-red-300 transition-colors cursor-pointer group">
                     <input
                       type="checkbox"
                       checked={pdfOptions.declaration}
                       onChange={(e) => setPdfOptions({ ...pdfOptions, declaration: e.target.checked })}
-                      className="h-5 w-5 text-red-600 border-gray-300 rounded focus:ring-red-500 cursor-pointer"
+                      className="h-5 w-5 text-red-600 border-gray-300 dark:border-white/10 rounded focus:ring-red-500 cursor-pointer"
                     />
                     <div className="ml-3">
-                      <span className="block text-sm font-bold text-gray-900 group-hover:text-red-700">Self-Declaration Form</span>
-                      <span className="block text-xs text-gray-500">Legal declaration signed by sender</span>
+                      <span className="block text-sm font-bold text-gray-900 dark:text-white group-hover:text-red-700">Self-Declaration Form</span>
+                      <span className="block text-xs text-gray-500 dark:text-gray-400">Legal declaration signed by sender</span>
                     </div>
                   </label>
                 </div>
@@ -1250,7 +1250,7 @@ const Vendors = () => {
                   <button
                     type="button"
                     onClick={() => setPdfModalOpen(false)}
-                    className="flex-1 px-6 py-3.5 border border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-50 transition-all text-sm"
+                    className="flex-1 px-6 py-3.5 border border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 font-bold rounded-xl hover:bg-gray-50 dark:bg-[#111111] transition-all text-sm"
                   >
                     Cancel
                   </button>

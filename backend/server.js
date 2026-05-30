@@ -37,6 +37,8 @@ app.options("*", cors());
 
 app.use(express.json());
 app.use(express.static('public'));
+const path = require("path");
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // Debug → check incoming origin
 app.use((req, res, next) => {
@@ -67,6 +69,9 @@ const vendorRoutes = require("./routes/vendors");
 const vendorPaymentRoutes = require("./routes/vendorPayments");
 const analyticsRoutes = require("./routes/analytics");
 const docketRoutes = require("./routes/dockets");
+const taskRoutes = require("./routes/tasks");
+const attendanceRoutes = require("./routes/attendance");
+const queryRoutes = require("./routes/queries");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/bookings", bookingRoutes);
@@ -79,11 +84,15 @@ app.use("/api/vendors", vendorRoutes);
 app.use("/api/vendor-payments", vendorPaymentRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/dockets", docketRoutes);
+app.use("/api/tasks", taskRoutes);
+app.use("/api/attendance", attendanceRoutes);
+app.use("/api/queries", queryRoutes);
 
 app.use("/api/intake", intakeRoutes);
 
 // Initialize Background Cron Jobs
 require("./cron/trackingCron");
+require("./cronJobs"); // Initialize recurring task cron jobs
 
 // Start server
 const PORT = process.env.PORT || 8000;

@@ -22,6 +22,7 @@ import {
 
 const UserManagement = () => {
     const [users, setUsers] = useState([])
+    const [performanceStats, setPerformanceStats] = useState([])
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState("")
     const [roleFilter, setRoleFilter] = useState("all")
@@ -44,7 +45,20 @@ const UserManagement = () => {
 
     useEffect(() => {
         fetchUsers()
+        fetchPerformanceStats()
     }, [roleFilter])
+
+    const fetchPerformanceStats = async () => {
+        try {
+            const token = localStorage.getItem("adminToken") || localStorage.getItem("token")
+            const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/tasks/performance?timeframe=monthly`, {
+                headers: { Authorization: `Bearer ${token}` }
+            })
+            setPerformanceStats(res.data)
+        } catch (error) {
+            console.error("Failed to fetch performance stats:", error)
+        }
+    }
 
     const fetchUsers = async () => {
         try {
@@ -255,6 +269,7 @@ const UserManagement = () => {
                                     <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">User Info</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Contact</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Role</th>
+                                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Performance</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                                     <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
@@ -287,6 +302,19 @@ const UserManagement = () => {
                                             <span className={`px-2.5 py-1 text-xs font-bold rounded-lg uppercase tracking-wider ${getRoleBadge(user.role)}`}>
                                                 {user.role}
                                             </span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            {user.role === 'staff' ? (() => {
+                                                const stats = performanceStats.find(s => s._id === user._id)
+                                                return (
+                                                    <div className="flex flex-col">
+                                                        <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full w-fit mb-1">{stats ? stats.tasksCompleted : 0} Tasks Done</span>
+                                                        <span className="text-[10px] text-gray-500">{stats ? stats.bookingsProcessed : 0} Bookings</span>
+                                                    </div>
+                                                )
+                                            })() : (
+                                                <span className="text-xs text-gray-400 italic">N/A</span>
+                                            )}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <button

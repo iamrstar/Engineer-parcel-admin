@@ -22,6 +22,17 @@ const BookingDetail = () => {
   const [showETDPopup, setShowETDPopup] = useState(false)
   const [tempETD, setTempETD] = useState("")
   const [deliveryNotifyModal, setDeliveryNotifyModal] = useState({ open: false, type: "", data: null })
+  const [unassignModal, setUnassignModal] = useState({ open: false })
+  const [unassigning, setUnassigning] = useState(false)
+  const [initialTrackingId, setInitialTrackingId] = useState("")
+  const [isTrackingIdEditable, setIsTrackingIdEditable] = useState(false)
+
+  useEffect(() => {
+    if (editMode && booking) {
+      setInitialTrackingId(booking.vendorTrackingId || "")
+      setIsTrackingIdEditable(false)
+    }
+  }, [editMode, booking])
 
   // Reschedule State
   const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false)
@@ -115,6 +126,28 @@ const BookingDetail = () => {
       setCancelling(false)
     }
   }
+
+  const handleUnassignDocket = async () => {
+    try {
+      setUnassigning(true);
+      const t = localStorage.getItem("adminToken") || localStorage.getItem("token");
+      const response = await axios.put(
+        `${import.meta.env.VITE_API_URL}/api/bookings/${id}/unassign-docket`,
+        {},
+        { headers: { Authorization: `Bearer ${t}` } }
+      );
+      toast.success("Docket unassigned successfully!");
+      setBooking(response.data);
+      setInitialTrackingId(""); // Clear the initial tracking ID so they can type freely now
+      setIsTrackingIdEditable(true);
+      setUnassignModal({ open: false });
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to unassign docket");
+    } finally {
+      setUnassigning(false);
+    }
+  };
 
   const handleDownloadOfficeLabel = async () => {
     try {
@@ -361,7 +394,7 @@ const BookingDetail = () => {
   if (!booking) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-500">Booking not found</p>
+        <p className="text-gray-500 dark:text-gray-400">Booking not found</p>
       </div>
     )
   }
@@ -374,13 +407,13 @@ const BookingDetail = () => {
         <div className="flex items-start sm:items-center gap-3 sm:gap-4 mb-4">
           <button
             onClick={() => navigate(-1)}
-            className="p-2 text-gray-600 hover:text-gray-900 shrink-0"
+            className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:text-white shrink-0"
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
           <div className="flex-1 min-w-0">
-            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 truncate">Booking Details</h1>
-            <p className="text-sm sm:text-base text-gray-600 truncate">Booking ID: {booking.bookingId || "N/A"}</p>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white truncate">Booking Details</h1>
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 truncate">Booking ID: {booking.bookingId || "N/A"}</p>
           </div>
         </div>
 
@@ -390,7 +423,7 @@ const BookingDetail = () => {
             <>
               <button
                 onClick={() => setEditMode(false)}
-                className="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 text-sm sm:text-base"
+                className="w-full sm:w-auto px-4 py-2 border border-gray-300 dark:border-white/10 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:bg-[#111111] text-sm sm:text-base"
               >
                 Cancel
               </button>
@@ -474,22 +507,22 @@ const BookingDetail = () => {
       </div>
 
       {/* Rider Assignment Section */}
-      <div className="mb-4 sm:mb-6 bg-gradient-to-r from-orange-50 to-amber-50 rounded-lg shadow p-4 sm:p-6 border border-orange-200">
+      <div className="mb-4 sm:mb-6 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-[#111111] dark:to-[#1A1A1A] rounded-lg shadow p-4 sm:p-6 border border-orange-200 dark:border-white/10">
         <div className="flex items-center mb-3">
           <Bike className="h-5 w-5 text-orange-500 mr-2" />
-          <h3 className="text-base sm:text-lg font-medium text-gray-900">Rider Assignment</h3>
+          <h3 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white">Rider Assignment</h3>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Assignment Controls */}
           {booking.status === "pending" || (booking.serviceType === 'campus-parcel' && booking.status === 'empty_box_delivered') ? (
-            <div className="bg-white/50 p-4 rounded-xl border border-orange-100 space-y-4">
+            <div className="bg-white dark:bg-[#1A1A1A]/50 p-4 rounded-xl border border-orange-100 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Select Rider</label>
+                  <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Select Rider</label>
                   <select
                     value={assignmentData.riderId}
                     onChange={(e) => setAssignmentData({ ...assignmentData, riderId: e.target.value })}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#1A1A1A]"
                   >
                     <option value="">Unassigned</option>
                     {riders.map(r => (
@@ -498,11 +531,11 @@ const BookingDetail = () => {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Assigned For</label>
+                  <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Assigned For</label>
                   <select
                     value={assignmentData.assignedFor}
                     onChange={(e) => setAssignmentData({ ...assignmentData, assignedFor: e.target.value })}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#1A1A1A]"
                   >
                     <option value="pickup">Box Pickup</option>
                     <option value="delivery">Box Delivery</option>
@@ -519,8 +552,8 @@ const BookingDetail = () => {
               </button>
             </div>
           ) : (
-            <div className={`${booking.status === 'cancelled' ? 'bg-red-50 border-red-200' : 'bg-orange-100/50 border-orange-200'} border rounded-xl px-4 py-4 h-full flex flex-col justify-center`}>
-              <p className={`text-sm ${booking.status === 'cancelled' ? 'text-red-800' : 'text-orange-800'} flex items-center`}>
+            <div className={`${booking.status === 'cancelled' ? 'bg-red-50 border-red-200' : 'bg-orange-100/50 border-orange-200 dark:border-white/10'} border rounded-xl px-4 py-4 h-full flex flex-col justify-center`}>
+              <p className={`text-sm ${booking.status === 'cancelled' ? 'text-red-800' : 'text-orange-800 dark:text-orange-400'} flex items-center`}>
                 <span className="font-bold mr-2">Order Status:</span>
                 <span className="capitalize">
                   {booking.serviceType?.toLowerCase() === 'campus-parcel' 
@@ -531,7 +564,7 @@ const BookingDetail = () => {
                 </span>
               </p>
               {booking.status === 'cancelled' && booking.rejectionReason && (
-                <p className="mt-2 p-2 bg-white/50 border border-red-100 rounded text-sm text-red-700 italic">
+                <p className="mt-2 p-2 bg-white dark:bg-[#1A1A1A]/50 border border-red-100 rounded text-sm text-red-700 italic">
                   <span className="font-bold not-italic">REASON:</span> {booking.rejectionReason}
                 </p>
               )}
@@ -556,31 +589,31 @@ const BookingDetail = () => {
 
           {/* Current Assignment Status */}
           <div className="space-y-3">
-            <label className="block text-xs font-bold text-gray-500 uppercase px-1">
+            <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase px-1">
               Live Assignment Status
             </label>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {/* Pickup Rider Info */}
-              <div className="bg-white p-3 rounded-xl border border-blue-100 shadow-sm flex items-center gap-3">
+              <div className="bg-white dark:bg-[#1A1A1A] p-3 rounded-xl border border-blue-100 shadow-sm flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
                   <Package className="h-5 w-5 text-blue-500" />
                 </div>
                 <div className="min-w-0">
                   <p className="text-[10px] font-bold text-gray-400 uppercase leading-none mb-1">Pickup Rider</p>
-                  <p className="text-sm font-bold text-gray-900 truncate">
+                  <p className="text-sm font-bold text-gray-900 dark:text-white truncate">
                     {booking.pickupRider ? (typeof booking.pickupRider === 'object' ? booking.pickupRider.name : 'Rider Assigned') : 'Unassigned'}
                   </p>
                 </div>
               </div>
               
               {/* Delivery Rider Info */}
-              <div className="bg-white p-3 rounded-xl border border-purple-100 shadow-sm flex items-center gap-3">
+              <div className="bg-white dark:bg-[#1A1A1A] p-3 rounded-xl border border-purple-100 shadow-sm flex items-center gap-3">
                 <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center shrink-0">
                   <Truck className="h-5 w-5 text-purple-500" />
                 </div>
                 <div className="min-w-0">
                   <p className="text-[10px] font-bold text-gray-400 uppercase leading-none mb-1">Delivery Rider</p>
-                  <p className="text-sm font-bold text-gray-900 truncate">
+                  <p className="text-sm font-bold text-gray-900 dark:text-white truncate">
                     {booking.deliveryRider ? (typeof booking.deliveryRider === 'object' ? booking.deliveryRider.name : 'Rider Assigned') : 'Unassigned'}
                   </p>
                 </div>
@@ -592,102 +625,102 @@ const BookingDetail = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Sender Details */}
-        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+        <div className="bg-white dark:bg-[#1A1A1A] rounded-lg shadow p-4 sm:p-6">
           <div className="flex items-center mb-4">
             <User className="h-5 w-5 text-primary-500 mr-2" />
-            <h3 className="text-base sm:text-lg font-medium text-gray-900">Sender Details</h3>
+            <h3 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white">Sender Details</h3>
           </div>
           <div className="space-y-3 sm:space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
               {editMode ? (
                 <input
                   type="text"
                   value={booking.senderDetails.name}
                   onChange={(e) => handleInputChange("name", e.target.value, "senderDetails")}
-                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                 />
               ) : (
-                <p className="text-sm sm:text-base text-gray-900 break-words">{booking.senderDetails.name}</p>
+                <p className="text-sm sm:text-base text-gray-900 dark:text-white break-words">{booking.senderDetails.name}</p>
               )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone</label>
               {editMode ? (
                 <input
                   type="text"
                   value={booking.senderDetails.phone}
                   onChange={(e) => handleInputChange("phone", e.target.value, "senderDetails")}
-                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                 />
               ) : (
-                <p className="text-sm sm:text-base text-gray-900">{booking.senderDetails.phone}</p>
+                <p className="text-sm sm:text-base text-gray-900 dark:text-white">{booking.senderDetails.phone}</p>
               )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
               {editMode ? (
                 <input
                   type="email"
                   value={booking.senderDetails.email || ""}
                   onChange={(e) => handleInputChange("email", e.target.value, "senderDetails")}
-                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                 />
               ) : (
-                <p className="text-sm sm:text-base text-gray-900 break-words">{booking.senderDetails.email || "N/A"}</p>
+                <p className="text-sm sm:text-base text-gray-900 dark:text-white break-words">{booking.senderDetails.email || "N/A"}</p>
               )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Address Line 1</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Address Line 1</label>
               {editMode ? (
                 <textarea
                   value={booking.senderDetails.address}
                   onChange={(e) => handleInputChange("address", e.target.value, "senderDetails")}
                   rows={2}
-                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                 />
               ) : (
-                <p className="text-sm sm:text-base text-gray-900 break-words">{booking.senderDetails.address}</p>
+                <p className="text-sm sm:text-base text-gray-900 dark:text-white break-words">{booking.senderDetails.address}</p>
               )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Address Line 2 (Optional)</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Address Line 2 (Optional)</label>
               {editMode ? (
                 <input
                   type="text"
                   value={booking.senderDetails.address2 || ""}
                   onChange={(e) => handleInputChange("address2", e.target.value, "senderDetails")}
-                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                 />
               ) : (
-                <p className="text-sm sm:text-base text-gray-900 break-words">{booking.senderDetails.address2 || "N/A"}</p>
+                <p className="text-sm sm:text-base text-gray-900 dark:text-white break-words">{booking.senderDetails.address2 || "N/A"}</p>
               )}
             </div>
             <div className="grid grid-cols-2 gap-3 sm:gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Pincode</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pincode</label>
                 {editMode ? (
                   <input
                     type="text"
                     value={booking.senderDetails.pincode}
                     onChange={(e) => handleInputChange("pincode", e.target.value, "senderDetails")}
-                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                   />
                 ) : (
-                  <p className="text-sm sm:text-base text-gray-900">{booking.senderDetails.pincode}</p>
+                  <p className="text-sm sm:text-base text-gray-900 dark:text-white">{booking.senderDetails.pincode}</p>
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">City</label>
                 {editMode ? (
                   <input
                     type="text"
                     value={booking.senderDetails.city || ""}
                     onChange={(e) => handleInputChange("city", e.target.value, "senderDetails")}
-                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                   />
                 ) : (
-                  <p className="text-sm sm:text-base text-gray-900">{booking.senderDetails.city || "N/A"}</p>
+                  <p className="text-sm sm:text-base text-gray-900 dark:text-white">{booking.senderDetails.city || "N/A"}</p>
                 )}
               </div>
             </div>
@@ -695,117 +728,187 @@ const BookingDetail = () => {
         </div>
 
         {/* Receiver Details */}
-        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+        <div className="bg-white dark:bg-[#1A1A1A] rounded-lg shadow p-4 sm:p-6">
           <div className="flex items-center mb-4">
             <MapPin className="h-5 w-5 text-primary-500 mr-2" />
-            <h3 className="text-base sm:text-lg font-medium text-gray-900">Receiver Details</h3>
+            <h3 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white">Receiver Details</h3>
           </div>
           <div className="space-y-3 sm:space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Name</label>
               {editMode ? (
                 <input
                   type="text"
                   value={booking.receiverDetails.name}
                   onChange={(e) => handleInputChange("name", e.target.value, "receiverDetails")}
-                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                 />
               ) : (
-                <p className="text-sm sm:text-base text-gray-900 break-words">{booking.receiverDetails.name}</p>
+                <p className="text-sm sm:text-base text-gray-900 dark:text-white break-words">{booking.receiverDetails.name}</p>
               )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone</label>
               {editMode ? (
                 <input
                   type="text"
                   value={booking.receiverDetails.phone}
                   onChange={(e) => handleInputChange("phone", e.target.value, "receiverDetails")}
-                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                 />
               ) : (
-                <p className="text-sm sm:text-base text-gray-900">{booking.receiverDetails.phone}</p>
+                <p className="text-sm sm:text-base text-gray-900 dark:text-white">{booking.receiverDetails.phone}</p>
               )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
               {editMode ? (
                 <input
                   type="email"
                   value={booking.receiverDetails.email || ""}
                   onChange={(e) => handleInputChange("email", e.target.value, "receiverDetails")}
-                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                 />
               ) : (
-                <p className="text-sm sm:text-base text-gray-900 break-words">{booking.receiverDetails.email || "N/A"}</p>
+                <p className="text-sm sm:text-base text-gray-900 dark:text-white break-words">{booking.receiverDetails.email || "N/A"}</p>
               )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Address Line 1</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Address Line 1</label>
               {editMode ? (
                 <textarea
                   value={booking.receiverDetails.address}
                   onChange={(e) => handleInputChange("address", e.target.value, "receiverDetails")}
                   rows={2}
-                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                 />
               ) : (
-                <p className="text-sm sm:text-base text-gray-900 break-words">{booking.receiverDetails.address}</p>
+                <p className="text-sm sm:text-base text-gray-900 dark:text-white break-words">{booking.receiverDetails.address}</p>
               )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Address Line 2 (Optional)</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Address Line 2 (Optional)</label>
               {editMode ? (
                 <input
                   type="text"
                   value={booking.receiverDetails.address2 || ""}
                   onChange={(e) => handleInputChange("address2", e.target.value, "receiverDetails")}
-                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                 />
               ) : (
-                <p className="text-sm sm:text-base text-gray-900 break-words">{booking.receiverDetails.address2 || "N/A"}</p>
+                <p className="text-sm sm:text-base text-gray-900 dark:text-white break-words">{booking.receiverDetails.address2 || "N/A"}</p>
               )}
             </div>
             <div className="grid grid-cols-2 gap-3 sm:gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Pincode</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pincode</label>
                 {editMode ? (
                   <input
                     type="text"
                     value={booking.receiverDetails.pincode}
                     onChange={(e) => handleInputChange("pincode", e.target.value, "receiverDetails")}
-                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                   />
                 ) : (
-                  <p className="text-sm sm:text-base text-gray-900">{booking.receiverDetails.pincode}</p>
+                  <p className="text-sm sm:text-base text-gray-900 dark:text-white">{booking.receiverDetails.pincode}</p>
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">City</label>
                 {editMode ? (
                   <input
                     type="text"
                     value={booking.receiverDetails.city || ""}
                     onChange={(e) => handleInputChange("city", e.target.value, "receiverDetails")}
-                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                   />
                 ) : (
-                  <p className="text-sm sm:text-base text-gray-900">{booking.receiverDetails.city || "N/A"}</p>
+                  <p className="text-sm sm:text-base text-gray-900 dark:text-white">{booking.receiverDetails.city || "N/A"}</p>
                 )}
               </div>
             </div>
           </div>
         </div>
 
-        {/* Vendor & Tracking Details */}
-        <div className="bg-white rounded-lg shadow p-4 sm:p-6 lg:col-span-2">
+        {/* Billing Details */}
+        <div className="bg-white dark:bg-[#1A1A1A] rounded-lg shadow p-4 sm:p-6 lg:col-span-2">
           <div className="flex items-center mb-4">
-            <Truck className="h-5 w-5 text-primary-500 mr-2" />
-            <h3 className="text-base sm:text-lg font-medium text-gray-900">Vendor & Tracking Details</h3>
+            <User className="h-5 w-5 text-primary-500 mr-2" />
+            <h3 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white">Billing Details</h3>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Vendor Name</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Bill To</label>
+              {editMode ? (
+                <select
+                  value={booking.billingDetails?.billTo || "Sender"}
+                  onChange={(e) => handleInputChange("billTo", e.target.value, "billingDetails")}
+                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
+                >
+                  <option value="Sender">Same as Sender</option>
+                  <option value="Receiver">Same as Receiver</option>
+                  <option value="Other">Other</option>
+                </select>
+              ) : (
+                <p className="text-sm sm:text-base text-gray-900 dark:text-white">{booking.billingDetails?.billTo || "Sender"}</p>
+              )}
+            </div>
+            
+            {booking.billingDetails?.billTo === 'Other' && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Billing Name</label>
+                  {editMode ? (
+                    <input
+                      type="text"
+                      value={booking.billingDetails?.name || ""}
+                      onChange={(e) => handleInputChange("name", e.target.value, "billingDetails")}
+                      className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    />
+                  ) : (
+                    <p className="text-sm sm:text-base text-gray-900 dark:text-white">{booking.billingDetails?.name || "N/A"}</p>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Billing Phone</label>
+                  {editMode ? (
+                    <input
+                      type="text"
+                      value={booking.billingDetails?.phone || ""}
+                      onChange={(e) => handleInputChange("phone", e.target.value, "billingDetails")}
+                      className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    />
+                  ) : (
+                    <p className="text-sm sm:text-base text-gray-900 dark:text-white">{booking.billingDetails?.phone || "N/A"}</p>
+                  )}
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Billing Address</label>
+                  {editMode ? (
+                    <textarea
+                      value={booking.billingDetails?.address || ""}
+                      onChange={(e) => handleInputChange("address", e.target.value, "billingDetails")}
+                      rows={2}
+                      className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    />
+                  ) : (
+                    <p className="text-sm sm:text-base text-gray-900 dark:text-white break-words">{booking.billingDetails?.address || "N/A"}</p>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Vendor & Tracking Details */}
+        <div className="bg-white dark:bg-[#1A1A1A] rounded-lg shadow p-4 sm:p-6 lg:col-span-2">
+          <div className="flex items-center mb-4">
+            <Truck className="h-5 w-5 text-primary-500 mr-2" />
+            <h3 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white">Vendor & Tracking Details</h3>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Vendor Name</label>
               {editMode ? (
                 <>
                   <select
@@ -820,7 +923,7 @@ const BookingDetail = () => {
                         fetchNextDocket(e.target.value)
                       }
                     }}
-                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                   >
                     <option value="">Select Vendor</option>
                     <option value="delhivery">Delhivery</option>
@@ -835,137 +938,255 @@ const BookingDetail = () => {
                       value={booking.vendorName || ""}
                       onChange={(e) => handleInputChange("vendorName", e.target.value)}
                       placeholder="Type Vendor Name"
-                      className="w-full mt-2 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      className="w-full mt-2 px-3 py-2 text-sm border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                     />
                   )}
                 </>
               ) : (
-                <p className="text-sm sm:text-base text-gray-900 capitalize">{booking.vendorName || "Not Assigned"}</p>
+                <p className="text-sm sm:text-base text-gray-900 dark:text-white capitalize">{booking.vendorName || "Not Assigned"}</p>
               )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Vendor Tracking ID</label>
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Vendor Tracking ID</label>
+                {editMode && !isTrackingIdEditable && (
+                  <button
+                    onClick={() => {
+                      if (initialTrackingId) {
+                        setUnassignModal({ open: true })
+                      } else {
+                        setIsTrackingIdEditable(true)
+                        handleInputChange("vendorTrackingId", "")
+                      }
+                    }}
+                    className="text-[10px] font-bold text-teal-600 dark:text-teal-400 hover:text-teal-700 uppercase tracking-wider bg-teal-50 dark:bg-teal-500/10 px-2 py-1 rounded-md transition-colors"
+                  >
+                    Manual Entry
+                  </button>
+                )}
+              </div>
               {editMode ? (
                 <div className="relative">
                   <input
                     type="text"
                     value={booking.vendorTrackingId || ""}
                     onChange={(e) => handleInputChange("vendorTrackingId", e.target.value)}
-                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
-                    placeholder="e.g. AWB Number"
+                    readOnly={!isTrackingIdEditable}
+                    className={`w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500 pr-10 ${!isTrackingIdEditable ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    placeholder={isTrackingIdEditable ? "Enter Tracking ID manually..." : "Select Vendor to auto-fetch..."}
                   />
-                  <button
-                    onClick={() => handleInputChange("vendorTrackingId", "")}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-red-500 transition-colors"
-                    title="Clear Tracking ID"
-                  >
-                    <XCircle className="h-4 w-4" />
-                  </button>
+                  {isTrackingIdEditable && booking.vendorTrackingId && (
+                    <button
+                      onClick={() => handleInputChange("vendorTrackingId", "")}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-red-500 transition-colors"
+                      title="Clear Tracking ID"
+                    >
+                      <XCircle className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
               ) : (
-                <p className="text-sm sm:text-base text-gray-900">{booking.vendorTrackingId || "Not Assigned"}</p>
+                <p className="text-sm sm:text-base text-gray-900 dark:text-white">{booking.vendorTrackingId || "Not Assigned"}</p>
               )}
             </div>
           </div>
         </div>
 
+        {/* Shifting Details - ONLY FOR SHIFTING SERVICE */}
+        {booking.serviceType === 'shifting' && (
+          <div className="bg-white dark:bg-[#1A1A1A] rounded-lg shadow p-4 sm:p-6 lg:col-span-2">
+            <div className="flex items-center mb-4">
+              <Truck className="h-5 w-5 text-purple-500 mr-2" />
+              <h3 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white">Shifting Details</h3>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Vehicle Type</label>
+                {editMode ? (
+                  <select
+                    value={booking.shiftingDetails?.vehicleType || ""}
+                    onChange={(e) => setBooking(prev => ({ ...prev, shiftingDetails: { ...prev.shiftingDetails, vehicleType: e.target.value } }))}
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="">Select Vehicle</option>
+                    <option value="Mini Truck (Tata Ace)">Mini Truck (Tata Ace)</option>
+                    <option value="Pickup (Bolero)">Pickup (Bolero)</option>
+                    <option value="14ft Truck">14ft Truck</option>
+                    <option value="17ft Truck">17ft Truck</option>
+                    <option value="20ft Truck">20ft Truck</option>
+                    <option value="22ft Container">22ft Container</option>
+                    <option value="32ft Container">32ft Container</option>
+                    <option value="Other">Other</option>
+                  </select>
+                ) : (
+                  <p className="text-sm sm:text-base text-gray-900 dark:text-white">{booking.shiftingDetails?.vehicleType || "N/A"}</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Items to Shift</label>
+                {editMode ? (
+                  <input
+                    type="text"
+                    value={booking.shiftingDetails?.itemsDescription || ""}
+                    onChange={(e) => setBooking(prev => ({ ...prev, shiftingDetails: { ...prev.shiftingDetails, itemsDescription: e.target.value } }))}
+                    placeholder="e.g. Sofa, Fridge, Beds..."
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  />
+                ) : (
+                  <p className="text-sm sm:text-base text-gray-900 dark:text-white">{booking.shiftingDetails?.itemsDescription || "N/A"}</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pickup Floor</label>
+                {editMode ? (
+                  <select
+                    value={booking.shiftingDetails?.senderFloor || "Ground"}
+                    onChange={(e) => setBooking(prev => ({ ...prev, shiftingDetails: { ...prev.shiftingDetails, senderFloor: e.target.value } }))}
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="Ground">Ground Floor</option>
+                    <option value="1st">1st Floor</option>
+                    <option value="2nd">2nd Floor</option>
+                    <option value="3rd">3rd Floor</option>
+                    <option value="4th">4th Floor</option>
+                    <option value="5th+">5th Floor & Above</option>
+                  </select>
+                ) : (
+                  <p className="text-sm sm:text-base text-gray-900 dark:text-white">{booking.shiftingDetails?.senderFloor || "Ground"}</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Delivery Floor</label>
+                {editMode ? (
+                  <select
+                    value={booking.shiftingDetails?.receiverFloor || "Ground"}
+                    onChange={(e) => setBooking(prev => ({ ...prev, shiftingDetails: { ...prev.shiftingDetails, receiverFloor: e.target.value } }))}
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  >
+                    <option value="Ground">Ground Floor</option>
+                    <option value="1st">1st Floor</option>
+                    <option value="2nd">2nd Floor</option>
+                    <option value="3rd">3rd Floor</option>
+                    <option value="4th">4th Floor</option>
+                    <option value="5th+">5th Floor & Above</option>
+                  </select>
+                ) : (
+                  <p className="text-sm sm:text-base text-gray-900 dark:text-white">{booking.shiftingDetails?.receiverFloor || "Ground"}</p>
+                )}
+              </div>
+              <div className="flex items-center gap-6 sm:col-span-2">
+                <div className="flex items-center gap-2">
+                  <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${booking.shiftingDetails?.liftAvailable ? 'bg-green-100 text-green-700 dark:bg-green-500/10 dark:text-green-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'}`}>
+                    {booking.shiftingDetails?.liftAvailable ? '✓' : '✗'} Lift Available
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold ${booking.shiftingDetails?.laborRequired ? 'bg-orange-100 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400' : 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400'}`}>
+                    {booking.shiftingDetails?.laborRequired ? '✓' : '✗'} Labor Required
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Logistics & Timing - ONLY FOR CAMPUS PARCEL */}
         {booking.serviceType === 'campus-parcel' && (
-          <div className="bg-white rounded-lg shadow p-4 sm:p-6 lg:col-span-1">
+          <div className="bg-white dark:bg-[#1A1A1A] rounded-lg shadow p-4 sm:p-6 lg:col-span-1">
             <div className="flex items-center mb-4">
               <Truck className="h-5 w-5 text-primary-500 mr-2" />
-              <h3 className="text-base sm:text-lg font-medium text-gray-900">Logistics & Picking</h3>
+              <h3 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white">Logistics & Picking</h3>
             </div>
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Pickup Method</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pickup Method</label>
                   {editMode ? (
                     <select
                       value={booking.pickupMethod || "hub"}
                       onChange={(e) => handleInputChange("pickupMethod", e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                     >
                       <option value="hub">Self (At Hub)</option>
                       <option value="doorstep">Doorstep Pickup</option>
                     </select>
                   ) : (
-                    <p className="text-sm font-medium text-gray-900 capitalize">{booking.pickupMethod || "hub"}</p>
+                    <p className="text-sm font-medium text-gray-900 dark:text-white capitalize">{booking.pickupMethod || "hub"}</p>
                   )}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Pickup Slot</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pickup Slot</label>
                   {editMode ? (
                     <input
                       type="text"
                       value={booking.pickupSlot || ""}
                       onChange={(e) => handleInputChange("pickupSlot", e.target.value)}
                       placeholder="e.g. 10AM - 2PM"
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                     />
                   ) : (
-                    <p className="text-sm text-gray-900">{booking.pickupSlot || "N/A"}</p>
+                    <p className="text-sm text-gray-900 dark:text-white">{booking.pickupSlot || "N/A"}</p>
                   )}
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Pickup Date</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Pickup Date</label>
                 {editMode ? (
                   <input
                     type="date"
                     value={booking.pickupDate ? new Date(booking.pickupDate).toISOString().split('T')[0] : ""}
                     onChange={(e) => handleInputChange("pickupDate", e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                   />
                 ) : (
-                  <p className="text-sm text-gray-900">{booking.pickupDate ? new Date(booking.pickupDate).toLocaleDateString() : "N/A"}</p>
+                  <p className="text-sm text-gray-900 dark:text-white">{booking.pickupDate ? new Date(booking.pickupDate).toLocaleDateString() : "N/A"}</p>
                 )}
               </div>
 
               <div className="border-t pt-4">
-                <h4 className="text-sm font-bold text-gray-700 mb-3 uppercase tracking-wider">Box/Material Delivery</h4>
+                <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3 uppercase tracking-wider">Box/Material Delivery</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Type</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Delivery Type</label>
                     {editMode ? (
                       <select
                         value={booking.boxDeliveryType || "self"}
                         onChange={(e) => handleInputChange("boxDeliveryType", e.target.value)}
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                       >
                         <option value="self">Self Collection</option>
                         <option value="delivered">Company Delivered</option>
                       </select>
                     ) : (
-                      <p className="text-sm font-medium text-gray-900 capitalize">{booking.boxDeliveryType || "self"}</p>
+                      <p className="text-sm font-medium text-gray-900 dark:text-white capitalize">{booking.boxDeliveryType || "self"}</p>
                     )}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Delivery Slot</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Delivery Slot</label>
                     {editMode ? (
                       <input
                         type="text"
                         value={booking.boxDeliverySlot || ""}
                         onChange={(e) => handleInputChange("boxDeliverySlot", e.target.value)}
                         placeholder="e.g. Afternoon"
-                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                       />
                     ) : (
-                      <p className="text-sm text-gray-900">{booking.boxDeliverySlot || "N/A"}</p>
+                      <p className="text-sm text-gray-900 dark:text-white">{booking.boxDeliverySlot || "N/A"}</p>
                     )}
                   </div>
                 </div>
                 <div className="mt-4">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Box Delivery Date</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Box Delivery Date</label>
                   {editMode ? (
                     <input
                       type="date"
                       value={booking.boxDeliveryDate ? new Date(booking.boxDeliveryDate).toISOString().split('T')[0] : ""}
                       onChange={(e) => handleInputChange("boxDeliveryDate", e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                     />
                   ) : (
-                    <p className="text-sm text-gray-900">{booking.boxDeliveryDate ? new Date(booking.boxDeliveryDate).toLocaleDateString() : "N/A"}</p>
+                    <p className="text-sm text-gray-900 dark:text-white">{booking.boxDeliveryDate ? new Date(booking.boxDeliveryDate).toLocaleDateString() : "N/A"}</p>
                   )}
                 </div>
               </div>
@@ -974,71 +1195,71 @@ const BookingDetail = () => {
         )}
 
         {/* Package Details */}
-        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+        <div className="bg-white dark:bg-[#1A1A1A] rounded-lg shadow p-4 sm:p-6">
           <div className="flex items-center mb-4">
             <Package className="h-5 w-5 text-primary-500 mr-2" />
-            <h3 className="text-base sm:text-lg font-medium text-gray-900">Package Details</h3>
+            <h3 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white">Package Details</h3>
           </div>
           <div className="space-y-3 sm:space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Actual Weight</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Actual Weight</label>
                 {editMode ? (
                   <div className="flex">
                     <input
                       type="number"
                       value={booking.packageDetails.weight}
                       onChange={(e) => handleInputChange("weight", Number.parseFloat(e.target.value), "packageDetails")}
-                      className="flex-1 px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-l-lg focus:ring-2 focus:ring-primary-500"
+                      className="flex-1 px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-l-lg focus:ring-2 focus:ring-primary-500"
                     />
                     <select
                       value={booking.packageDetails.weightUnit}
                       onChange={(e) => handleInputChange("weightUnit", e.target.value, "packageDetails")}
-                      className="px-2 sm:px-3 py-2 text-sm sm:text-base border border-l-0 border-gray-300 rounded-r-lg focus:ring-2 focus:ring-primary-500"
+                      className="px-2 sm:px-3 py-2 text-sm sm:text-base border border-l-0 border-gray-300 dark:border-white/10 rounded-r-lg focus:ring-2 focus:ring-primary-500"
                     >
                       <option value="g">g</option>
                       <option value="kg">kg</option>
                     </select>
                   </div>
                 ) : (
-                  <p className="text-sm sm:text-base text-gray-900">
+                  <p className="text-sm sm:text-base text-gray-900 dark:text-white">
                     {booking.packageDetails.weight} {booking.packageDetails.weightUnit}
                   </p>
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Chargeable Weight</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Chargeable Weight</label>
                 {editMode ? (
                   <div className="flex">
                     <input
                       type="number"
                       value={booking.packageDetails.chargeableWeight || ""}
                       onChange={(e) => handleInputChange("chargeableWeight", Number.parseFloat(e.target.value), "packageDetails")}
-                      className="flex-1 px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-l-lg focus:ring-2 focus:ring-primary-500"
+                      className="flex-1 px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-l-lg focus:ring-2 focus:ring-primary-500"
                     />
                     <select
                       value={booking.packageDetails.chargeableWeightUnit || "kg"}
                       onChange={(e) => handleInputChange("chargeableWeightUnit", e.target.value, "packageDetails")}
-                      className="px-2 sm:px-3 py-2 text-sm sm:text-base border border-l-0 border-gray-300 rounded-r-lg focus:ring-2 focus:ring-primary-500"
+                      className="px-2 sm:px-3 py-2 text-sm sm:text-base border border-l-0 border-gray-300 dark:border-white/10 rounded-r-lg focus:ring-2 focus:ring-primary-500"
                     >
                       <option value="g">g</option>
                       <option value="kg">kg</option>
                     </select>
                   </div>
                 ) : (
-                  <p className="text-sm sm:text-base text-gray-900">
+                  <p className="text-sm sm:text-base text-gray-900 dark:text-white">
                     {booking.packageDetails.chargeableWeight || booking.packageDetails.weight || 0} {booking.packageDetails.chargeableWeightUnit || booking.packageDetails.weightUnit || "kg"}
                   </p>
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Service Type</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Service Type</label>
                 {editMode ? (
                   <>
                     <select
                       value={booking.serviceType}
                       onChange={(e) => handleInputChange("serviceType", e.target.value)}
-                      className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                      className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                     >
                       <option value="courier">Courier</option>
                       <option value="shifting">Shifting</option>
@@ -1055,7 +1276,7 @@ const BookingDetail = () => {
                         <select
                           value={booking.premiumItemType || ""}
                           onChange={(e) => handleInputChange("premiumItemType", e.target.value)}
-                          className="w-full px-3 py-2 text-sm border border-orange-200 rounded-lg focus:ring-2 focus:ring-orange-500 bg-orange-50 font-medium"
+                          className="w-full px-3 py-2 text-sm border border-orange-200 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-orange-500 bg-orange-50 dark:bg-[#1A1A1A] font-medium"
                         >
                           <option value="">Select Category</option>
                           <option value="Documents">Documents</option>
@@ -1070,7 +1291,7 @@ const BookingDetail = () => {
                             value={booking.otherPremiumItem || ""}
                             onChange={(e) => handleInputChange("otherPremiumItem", e.target.value)}
                             placeholder="Describe item..."
-                            className="w-full px-3 py-2 text-sm border border-orange-200 rounded-lg bg-orange-50"
+                            className="w-full px-3 py-2 text-sm border border-orange-200 dark:border-white/10 rounded-lg bg-orange-50 dark:bg-[#1A1A1A]"
                           />
                         )}
                       </div>
@@ -1078,9 +1299,9 @@ const BookingDetail = () => {
                   </>
                 ) : (
                   <div className="space-y-1">
-                    <p className="text-sm sm:text-base text-gray-900 capitalize font-bold">{booking.serviceType}</p>
+                    <p className="text-sm sm:text-base text-gray-900 dark:text-white capitalize font-bold">{booking.serviceType}</p>
                     {booking.serviceType?.toLowerCase() === "premium" && booking.premiumItemType && (
-                      <div className="bg-orange-50 px-2 py-1 rounded border border-orange-100 flex flex-col gap-1">
+                      <div className="bg-orange-50 dark:bg-[#1A1A1A] px-2 py-1 rounded border border-orange-100 flex flex-col gap-1">
                         <p className="text-[10px] text-orange-600 font-black uppercase tracking-widest">Premium Category</p>
                         <p className="text-sm font-bold text-orange-900">{booking.premiumItemType}</p>
                         {booking.premiumItemType === "Other" && booking.otherPremiumItem && (
@@ -1094,7 +1315,7 @@ const BookingDetail = () => {
             </div>
             <div className="border-t pt-4 mt-2">
               <div className="flex justify-between items-center mb-2">
-                <label className="block text-sm font-bold text-gray-700">Dimensions</label>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">Dimensions</label>
                 {editMode ? (
                   <div className="flex items-center gap-2">
                     <label className="text-[10px] uppercase font-bold text-gray-400">Box Quantity:</label>
@@ -1104,11 +1325,11 @@ const BookingDetail = () => {
                       max="50"
                       value={booking.packageDetails?.boxQuantity || 1}
                       onChange={(e) => handleBoxQuantityChange(e.target.value)}
-                      className="w-16 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-primary-500 outline-none font-bold text-center"
+                      className="w-16 px-2 py-1 text-xs border border-gray-300 dark:border-white/10 rounded focus:ring-1 focus:ring-primary-500 outline-none font-bold text-center"
                     />
                   </div>
                 ) : (
-                  <span className="text-[10px] bg-gray-100 px-2 py-0.5 rounded-full font-bold text-gray-500 border border-gray-200 uppercase">
+                  <span className="text-[10px] bg-gray-100 dark:bg-white/5 px-2 py-0.5 rounded-full font-bold text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-white/10 uppercase">
                     {booking.packageDetails?.boxQuantity || 1} Box{(booking.packageDetails?.boxQuantity || 1) > 1 ? 'es' : ''}
                   </span>
                 )}
@@ -1116,8 +1337,8 @@ const BookingDetail = () => {
               <div className="grid grid-cols-1 gap-3">
                 {editMode ? (
                   (booking.packageDetails?.dimensions || []).map((dim, idx) => (
-                    <div key={idx} className="bg-gray-50 p-3 rounded-lg border border-gray-200 shadow-sm relative pt-6">
-                      <span className="absolute top-2 left-2 bg-orange-100 text-orange-600 rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-bold border border-orange-200">
+                    <div key={idx} className="bg-gray-50 dark:bg-[#111111] p-3 rounded-lg border border-gray-200 dark:border-white/10 shadow-sm relative pt-6">
+                      <span className="absolute top-2 left-2 bg-orange-100 text-orange-600 rounded-full w-5 h-5 flex items-center justify-center text-[10px] font-bold border border-orange-200 dark:border-white/10">
                         {idx + 1}
                       </span>
                       <div className="grid grid-cols-3 gap-2">
@@ -1127,7 +1348,7 @@ const BookingDetail = () => {
                             type="number"
                             value={dim.length || 0}
                             onChange={(e) => handleDimensionChange(idx, "length", e.target.value)}
-                            className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-primary-500 outline-none"
+                            className="w-full px-2 py-1.5 text-xs border border-gray-300 dark:border-white/10 rounded focus:ring-1 focus:ring-primary-500 outline-none"
                           />
                         </div>
                         <div>
@@ -1136,7 +1357,7 @@ const BookingDetail = () => {
                             type="number"
                             value={dim.width || 0}
                             onChange={(e) => handleDimensionChange(idx, "width", e.target.value)}
-                            className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-primary-500 outline-none"
+                            className="w-full px-2 py-1.5 text-xs border border-gray-300 dark:border-white/10 rounded focus:ring-1 focus:ring-primary-500 outline-none"
                           />
                         </div>
                         <div>
@@ -1145,7 +1366,7 @@ const BookingDetail = () => {
                             type="number"
                             value={dim.height || 0}
                             onChange={(e) => handleDimensionChange(idx, "height", e.target.value)}
-                            className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-primary-500 outline-none"
+                            className="w-full px-2 py-1.5 text-xs border border-gray-300 dark:border-white/10 rounded focus:ring-1 focus:ring-primary-500 outline-none"
                           />
                         </div>
                       </div>
@@ -1154,7 +1375,7 @@ const BookingDetail = () => {
                 ) : (
                   booking.packageDetails?.dimensions && Array.isArray(booking.packageDetails.dimensions) ? (
                     booking.packageDetails.dimensions.map((dim, idx) => (
-                      <div key={idx} className="flex items-center gap-2 text-sm bg-gray-50 p-2 rounded border border-gray-100">
+                      <div key={idx} className="flex items-center gap-2 text-sm bg-gray-50 dark:bg-[#111111] p-2 rounded border border-gray-100 dark:border-white/5">
                         <span className="w-5 h-5 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center text-[10px] font-bold">{idx + 1}</span>
                         <span className="font-semibold">{dim.length || 0}</span>
                         <span className="text-gray-400">×</span>
@@ -1165,7 +1386,7 @@ const BookingDetail = () => {
                       </div>
                     ))
                   ) : (
-                    <div className="text-sm bg-gray-50 p-2 rounded border border-gray-100 flex items-center gap-2">
+                    <div className="text-sm bg-gray-50 dark:bg-[#111111] p-2 rounded border border-gray-100 dark:border-white/5 flex items-center gap-2">
                       <span className="w-5 h-5 bg-orange-100 text-orange-600 rounded-full flex items-center justify-center text-[10px] font-bold">1</span>
                       <span className="font-semibold">{booking.packageDetails?.dimensions?.length || 0}</span>
                       <span className="text-gray-400">×</span>
@@ -1179,16 +1400,16 @@ const BookingDetail = () => {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
               {editMode ? (
                 <textarea
                   value={booking.packageDetails.description || ""}
                   onChange={(e) => handleInputChange("description", e.target.value, "packageDetails")}
                   rows={2}
-                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                 />
               ) : (
-                <p className="text-sm sm:text-base text-gray-900 break-words">{booking.packageDetails.description || "N/A"}</p>
+                <p className="text-sm sm:text-base text-gray-900 dark:text-white break-words">{booking.packageDetails.description || "N/A"}</p>
               )}
             </div>
 
@@ -1199,7 +1420,7 @@ const BookingDetail = () => {
                 {booking.packageDetails?.edlContents?.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mb-2">
                     {booking.packageDetails.edlContents.map((content, idx) => (
-                      <span key={idx} className="bg-white px-2 py-0.5 rounded text-[11px] font-medium text-blue-700 border border-blue-200">
+                      <span key={idx} className="bg-white dark:bg-[#1A1A1A] px-2 py-0.5 rounded text-[11px] font-medium text-blue-700 border border-blue-200">
                         {content}
                       </span>
                     ))}
@@ -1218,7 +1439,7 @@ const BookingDetail = () => {
                   </div>
                 ) : (
                   booking.packageDetails?.otherContentText && (
-                    <p className="text-xs text-blue-800 bg-white p-2 rounded border border-blue-100 italic">
+                    <p className="text-xs text-blue-800 bg-white dark:bg-[#1A1A1A] p-2 rounded border border-blue-100 italic">
                       <span className="font-bold not-italic mr-1">Other:</span> {booking.packageDetails.otherContentText}
                     </p>
                   )
@@ -1226,12 +1447,12 @@ const BookingDetail = () => {
               </div>
             )}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
               {editMode ? (
                 <select
                   value={booking.status}
                   onChange={(e) => handleInputChange("status", e.target.value)}
-                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                  className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                 >
                   <option value="pending">Pending</option>
                   <option value="confirmed">Confirmed</option>
@@ -1271,66 +1492,66 @@ const BookingDetail = () => {
 
 
         {/* Pricing Details */}
-        <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+        <div className="bg-white dark:bg-[#1A1A1A] rounded-lg shadow p-4 sm:p-6">
           <div className="flex items-center mb-4">
             <CreditCard className="h-5 w-5 text-primary-500 mr-2" />
-            <h3 className="text-base sm:text-lg font-medium text-gray-900">Pricing & Payment</h3>
+            <h3 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white">Pricing & Payment</h3>
           </div>
           <div className="space-y-3 sm:space-y-4">
             <div className="grid grid-cols-2 gap-3 sm:gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Base Price</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Base Price</label>
                 {editMode ? (
                   <input
                     type="number"
                     value={booking.pricing?.basePrice || 0}
                     onChange={(e) => handleInputChange("basePrice", Number(e.target.value), "pricing")}
-                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                   />
                 ) : (
-                  <p className="text-sm sm:text-base text-gray-900">₹{booking.pricing?.basePrice || 0}</p>
+                  <p className="text-sm sm:text-base text-gray-900 dark:text-white">₹{booking.pricing?.basePrice || 0}</p>
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Packaging</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Packaging</label>
                 {editMode ? (
                   <input
                     type="number"
                     value={booking.pricing?.packagingCharge || 0}
                     onChange={(e) => handleInputChange("packagingCharge", Number(e.target.value), "pricing")}
-                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                   />
                 ) : (
-                  <p className="text-sm sm:text-base text-gray-900">₹{booking.pricing?.packagingCharge || 0}</p>
+                  <p className="text-sm sm:text-base text-gray-900 dark:text-white">₹{booking.pricing?.packagingCharge || 0}</p>
                 )}
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3 sm:gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">GST (18%)</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">GST (18%)</label>
                 {editMode ? (
                   <input
                     type="number"
                     value={booking.pricing?.tax || 0}
                     onChange={(e) => handleInputChange("tax", Number(e.target.value), "pricing")}
-                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                   />
                 ) : (
-                  <p className="text-sm sm:text-base text-gray-900">₹{booking.pricing?.tax || 0}</p>
+                  <p className="text-sm sm:text-base text-gray-900 dark:text-white">₹{booking.pricing?.tax || 0}</p>
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Total Amount</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Total Amount</label>
                 {editMode ? (
                   <input
                     type="number"
                     value={booking.pricing?.totalAmount || 0}
                     onChange={(e) => handleInputChange("totalAmount", Number(e.target.value), "pricing")}
-                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 font-semibold"
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500 font-semibold"
                   />
                 ) : (
-                  <p className="text-base sm:text-lg font-semibold text-gray-900">₹{booking.pricing?.totalAmount || 0}</p>
+                  <p className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">₹{booking.pricing?.totalAmount || 0}</p>
                 )}
               </div>
             </div>
@@ -1343,7 +1564,7 @@ const BookingDetail = () => {
                     <span className="text-sm font-bold text-green-800 uppercase tracking-tight">Coupon Details</span>
                   </div>
                   {!editMode && booking.couponCode && (
-                    <span className="bg-white px-2 py-0.5 rounded text-[11px] font-bold text-green-700 border border-green-200">
+                    <span className="bg-white dark:bg-[#1A1A1A] px-2 py-0.5 rounded text-[11px] font-bold text-green-700 border border-green-200">
                       {booking.couponCode}
                     </span>
                   )}
@@ -1352,7 +1573,7 @@ const BookingDetail = () => {
                   {editMode ? (
                     <>
                       <div>
-                        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Coupon Code</label>
+                        <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Coupon Code</label>
                         <input
                           type="text"
                           value={booking.couponCode || ""}
@@ -1362,7 +1583,7 @@ const BookingDetail = () => {
                         />
                       </div>
                       <div>
-                        <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Discount amount</label>
+                        <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Discount amount</label>
                         <input
                           type="number"
                           value={booking.pricing?.discount || 0}
@@ -1389,12 +1610,12 @@ const BookingDetail = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Status</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Payment Status</label>
                 {editMode ? (
                   <select
                     value={booking.paymentStatus}
                     onChange={(e) => handleInputChange("paymentStatus", e.target.value)}
-                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                   >
                     <option value="pending">Pending</option>
                     <option value="paid">Paid</option>
@@ -1415,24 +1636,24 @@ const BookingDetail = () => {
                 )}
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Payment Method</label>
                 {editMode ? (
                   <select
                     value={booking.paymentMethod}
                     onChange={(e) => handleInputChange("paymentMethod", e.target.value)}
-                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                    className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                   >
                     <option value="COD">Cash on Delivery</option>
                     <option value="online">Online</option>
                   </select>
                 ) : (
-                  <p className="text-sm sm:text-base text-gray-900">{booking.paymentMethod}</p>
+                  <p className="text-sm sm:text-base text-gray-900 dark:text-white">{booking.paymentMethod}</p>
                 )}
               </div>
             </div>
 
             {/* Payment Link Section */}
-            <div className="pt-2 border-t border-gray-100">
+            <div className="pt-2 border-t border-gray-100 dark:border-white/5">
                 <label className="block text-xs font-bold text-gray-400 uppercase mb-2">Razorpay Payment Link</label>
                 {booking.paymentLink ? (
                   <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
@@ -1473,18 +1694,18 @@ const BookingDetail = () => {
 
       {/* Notes */}
       {(booking.notes || editMode) && (
-        <div className="mt-4 sm:mt-6 bg-white rounded-lg shadow p-4 sm:p-6">
-          <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-4">Notes</h3>
+        <div className="mt-4 sm:mt-6 bg-white dark:bg-[#1A1A1A] rounded-lg shadow p-4 sm:p-6">
+          <h3 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white mb-4">Notes</h3>
           {editMode ? (
             <textarea
               value={booking.notes || ""}
               onChange={(e) => handleInputChange("notes", e.target.value)}
               rows={3}
-              className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+              className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
               placeholder="Add notes..."
             />
           ) : (
-            <p className="text-sm sm:text-base text-gray-900">{booking.notes || "No notes available"}</p>
+            <p className="text-sm sm:text-base text-gray-900 dark:text-white">{booking.notes || "No notes available"}</p>
           )}
         </div>
       )}
@@ -1498,8 +1719,8 @@ const BookingDetail = () => {
 
       {/* Tracking History Section */}
       {/* Estimated Delivery Section */}
-      <div className="mt-6 bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">
+      <div className="mt-6 bg-white dark:bg-[#1A1A1A] rounded-lg shadow p-6">
+        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">
           Estimated Delivery (ETD)
         </h3>
         {editMode ? (
@@ -1508,10 +1729,10 @@ const BookingDetail = () => {
             value={booking.estimatedDelivery || ""}
             onChange={(e) => handleInputChange("estimatedDelivery", e.target.value)}
             placeholder="e.g. 3-5 Business Days or March 30"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
           />
         ) : (
-          <p className="text-gray-900">
+          <p className="text-gray-900 dark:text-white">
             {booking.estimatedDelivery || "No ETD assigned"}
           </p>
         )}
@@ -1520,21 +1741,21 @@ const BookingDetail = () => {
       {/* ETD Missing Popup */}
       {showETDPopup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 animate-in zoom-in duration-200">
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Missing Estimated Delivery</h3>
-            <p className="text-gray-600 mb-6 text-sm">
+          <div className="bg-white dark:bg-[#1A1A1A] rounded-xl shadow-2xl max-w-md w-full p-6 animate-in zoom-in duration-200">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Missing Estimated Delivery</h3>
+            <p className="text-gray-600 dark:text-gray-400 mb-6 text-sm">
               The Estimated Delivery (ETD) has not been set for this booking yet. Please provide it now or continue anyway.
             </p>
             
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Estimated Delivery Time</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Estimated Delivery Time</label>
                 <input
                   type="text"
                   placeholder="e.g. 3-5 Business Days"
                   value={tempETD}
                   onChange={(e) => setTempETD(e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
+                  className="w-full px-4 py-2.5 border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500 outline-none"
                   autoFocus
                 />
               </div>
@@ -1557,7 +1778,7 @@ const BookingDetail = () => {
                     setShowETDPopup(false);
                     setEditMode(true);
                   }}
-                  className="w-full py-2.5 bg-gray-100 text-gray-700 font-bold rounded-lg hover:bg-gray-200 transition-colors"
+                  className="w-full py-2.5 bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 font-bold rounded-lg hover:bg-gray-200 transition-colors"
                 >
                   Edit Later
                 </button>
@@ -1571,13 +1792,13 @@ const BookingDetail = () => {
       {/* Delivery Notification Confirmation Popup */}
       {deliveryNotifyModal.open && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden animate-in zoom-in duration-300 border border-green-100">
+          <div className="bg-white dark:bg-[#1A1A1A] rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden animate-in zoom-in duration-300 border border-green-100">
             <div className="p-6 text-center">
               <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4 animate-bounce duration-1000">
                 <CheckCircle2 className="w-10 h-10" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">Marked as Delivered!</h3>
-              <p className="text-gray-600 text-sm mb-6">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Marked as Delivered!</h3>
+              <p className="text-gray-600 dark:text-gray-400 text-sm mb-6">
                 Would you like to send a delivery confirmation email (with review link) to the customer?
               </p>
               
@@ -1603,7 +1824,7 @@ const BookingDetail = () => {
                       handleTrackingSave(deliveryNotifyModal.data, false);
                     }
                   }}
-                  className="py-3 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-all"
+                  className="py-3 bg-gray-100 dark:bg-white/5 text-gray-700 dark:text-gray-300 font-bold rounded-xl hover:bg-gray-200 transition-all"
                 >
                   No, Skip
                 </button>
@@ -1613,8 +1834,8 @@ const BookingDetail = () => {
         </div>
       )}
 
-      <div className="mt-6 bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">Tracking History</h3>
+      <div className="mt-6 bg-white dark:bg-[#1A1A1A] rounded-lg shadow p-6">
+        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Tracking History</h3>
 
         {Array.isArray(booking?.trackingHistory) && booking.trackingHistory.length > 0 ? (
           <div className="space-y-4">
@@ -1700,7 +1921,7 @@ const BookingDetail = () => {
                             return { ...prev, trackingHistory: newHistory }
                           })
                         }}
-                        className="px-3 py-1 border rounded hover:bg-gray-50"
+                        className="px-3 py-1 border rounded hover:bg-gray-50 dark:bg-[#111111]"
                       >
                         Cancel
                       </button>
@@ -1708,20 +1929,20 @@ const BookingDetail = () => {
                   </>
                 ) : (
                   <>
-                    <p className="text-sm text-gray-700">
+                    <p className="text-sm text-gray-700 dark:text-gray-300">
                       <span className="font-semibold">Status:</span> {
                         track?.status === 'empty_box_delivered' ? 'Empty Box Delivered' :
                         track?.status === 'filled_box_picked' ? 'Filled Box Picked' :
                         track?.status || "—"
                       }
                     </p>
-                    <p className="text-sm text-gray-700">
+                    <p className="text-sm text-gray-700 dark:text-gray-300">
                       <span className="font-semibold">Location:</span> {track?.location || "—"}
                     </p>
-                    <p className="text-sm text-gray-700">
+                    <p className="text-sm text-gray-700 dark:text-gray-300">
                       <span className="font-semibold">Description:</span> {track?.description || "—"}
                     </p>
-                    <p className="text-xs text-gray-500">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
                       {track?.timestamp ? new Date(track.timestamp).toLocaleString() : "—"}
                     </p>
                     {editMode && (
@@ -1774,21 +1995,21 @@ const BookingDetail = () => {
             ))}
           </div>
         ) : (
-          <p className="text-gray-500">No tracking updates yet.</p>
+          <p className="text-gray-500 dark:text-gray-400">No tracking updates yet.</p>
         )}
 
         {/* Quick Tracking Entry Form (Always Visible) */}
       </div>
 
-      <div className="mt-6 bg-orange-50 border border-orange-200 rounded-lg shadow-sm p-4 sm:p-6 relative overflow-hidden">
+      <div className="mt-6 bg-orange-50 dark:bg-[#1A1A1A] border border-orange-200 dark:border-white/10 rounded-lg shadow-sm p-4 sm:p-6 relative overflow-hidden">
         <div className="absolute top-0 left-0 w-2 h-full bg-primary-500"></div>
 
         <div className="flex items-center justify-between mb-5">
-          <h3 className="text-base sm:text-lg font-semibold text-gray-900 flex items-center">
+          <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white flex items-center">
             <Truck className="w-5 h-5 mr-2 text-primary-500" />
             Quick Tracking Update
           </h3>
-          <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 border border-orange-200">
+          <span className="px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:text-orange-400 border border-orange-200 dark:border-white/10">
             Manual Entry
           </span>
         </div>
@@ -1796,11 +2017,11 @@ const BookingDetail = () => {
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4">
           {/* Status */}
           <div className="col-span-1 md:col-span-2">
-            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Status</label>
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
             <select
               value={booking?.newStatus || ""}
               onChange={(e) => setBooking((prev) => ({ ...prev, newStatus: e.target.value }))}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-1 focus:ring-primary-500 bg-white"
+              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-white/10 rounded-md focus:ring-1 focus:ring-primary-500 bg-white dark:bg-[#1A1A1A] dark:text-white"
             >
               <option value="" disabled>Select...</option>
               <option value="pending">Pending</option>
@@ -1816,25 +2037,25 @@ const BookingDetail = () => {
 
           {/* Location */}
           <div className="col-span-1 md:col-span-2">
-            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Location</label>
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Location</label>
             <input
               type="text"
               placeholder="e.g. Delhi Hub"
               value={booking?.newLocation || ""}
               onChange={(e) => setBooking((prev) => ({ ...prev, newLocation: e.target.value }))}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:ring-1 focus:ring-primary-500"
+              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-white/10 rounded-md bg-white dark:bg-[#1A1A1A] focus:ring-1 focus:ring-primary-500"
             />
           </div>
 
           {/* Description */}
           <div className="col-span-1 md:col-span-3">
-            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Notes / Description (Optional)</label>
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notes / Description (Optional)</label>
             <input
               type="text"
               placeholder="e.g. Out for delivery"
               value={booking?.newDescription || ""}
               onChange={(e) => setBooking((prev) => ({ ...prev, newDescription: e.target.value }))}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:ring-1 focus:ring-primary-500"
+              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-white/10 rounded-md bg-white dark:bg-[#1A1A1A] focus:ring-1 focus:ring-primary-500"
               list="desc-templates"
             />
             <datalist id="desc-templates">
@@ -1850,7 +2071,7 @@ const BookingDetail = () => {
 
           {/* DateTime Selection */}
           <div className="col-span-1 md:col-span-3">
-            <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Date & Time</label>
+            <label className="block text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date & Time</label>
             <input
               type="datetime-local"
               value={booking?.newTimestamp || (() => {
@@ -1859,7 +2080,7 @@ const BookingDetail = () => {
                 return now.toISOString().slice(0, 16);
               })()}
               onChange={(e) => setBooking((prev) => ({ ...prev, newTimestamp: e.target.value }))}
-              className="w-full px-3 py-2 text-sm border border-gray-300 rounded-md bg-white focus:ring-1 focus:ring-primary-500"
+              className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-white/10 rounded-md bg-white dark:bg-[#1A1A1A] focus:ring-1 focus:ring-primary-500"
             />
           </div>
 
@@ -1913,43 +2134,43 @@ const BookingDetail = () => {
           {/* ... existing reschedule modal content ... */}
           <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 transition-opacity" aria-hidden="true" onClick={() => setRescheduleModalOpen(false)}>
-              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+              <div className="absolute inset-0 bg-gray-50 dark:bg-[#111111]0 opacity-75"></div>
             </div>
 
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
-            <div className="inline-block align-bottom bg-white rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full border border-gray-100">
-              <div className="bg-white px-6 pt-6 pb-4 sm:p-8 sm:pb-6">
+            <div className="inline-block align-bottom bg-white dark:bg-[#1A1A1A] rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full border border-gray-100 dark:border-white/5">
+              <div className="bg-white dark:bg-[#1A1A1A] px-6 pt-6 pb-4 sm:p-8 sm:pb-6">
                 <div className="sm:flex sm:items-start">
                   <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-orange-100 sm:mx-0 sm:h-10 sm:w-10">
                     <Calendar className="h-6 w-6 text-orange-600" aria-hidden="true" />
                   </div>
                   <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                    <h3 className="text-xl leading-6 font-bold text-gray-900">
+                    <h3 className="text-xl leading-6 font-bold text-gray-900 dark:text-white">
                       Reschedule Campus Parcel
                     </h3>
                     <div className="mt-2">
-                      <p className="text-sm text-gray-500">
-                        Update the pickup or delivery schedule for <span className="font-mono font-bold text-gray-700">{booking?.bookingId}</span>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Update the pickup or delivery schedule for <span className="font-mono font-bold text-gray-700 dark:text-gray-300">{booking?.bookingId}</span>
                       </p>
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-6 space-y-5 bg-gray-50 p-5 rounded-xl border border-gray-200">
+                <div className="mt-6 space-y-5 bg-gray-50 dark:bg-[#111111] p-5 rounded-xl border border-gray-200 dark:border-white/10">
                   {/* Reschedule Type Selection */}
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Reschedule For:</label>
+                    <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Reschedule For:</label>
                     <div className="grid grid-cols-2 gap-2">
                         <button
                           onClick={() => setRescheduleData({ ...rescheduleData, type: "pickup" })}
-                          className={`p-2.5 rounded-lg border text-sm font-bold transition-all ${rescheduleData.type === 'pickup' ? 'bg-orange-600 border-orange-600 text-white shadow-md' : 'bg-white border-gray-200 text-gray-600 hover:border-orange-300'}`}
+                          className={`p-2.5 rounded-lg border text-sm font-bold transition-all ${rescheduleData.type === 'pickup' ? 'bg-orange-600 border-orange-600 text-white shadow-md' : 'bg-white dark:bg-[#1A1A1A] border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:border-orange-300'}`}
                         >
                           Box Pickup
                         </button>
                         <button
                           onClick={() => setRescheduleData({ ...rescheduleData, type: "delivery" })}
-                          className={`p-2.5 rounded-lg border text-sm font-bold transition-all ${rescheduleData.type === 'delivery' ? 'bg-orange-600 border-orange-600 text-white shadow-md' : 'bg-white border-gray-200 text-gray-600 hover:border-orange-300'}`}
+                          className={`p-2.5 rounded-lg border text-sm font-bold transition-all ${rescheduleData.type === 'delivery' ? 'bg-orange-600 border-orange-600 text-white shadow-md' : 'bg-white dark:bg-[#1A1A1A] border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:border-orange-300'}`}
                         >
                           Box Delivery
                         </button>
@@ -1958,18 +2179,18 @@ const BookingDetail = () => {
 
                   {/* Reschedule Source Selection */}
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Reschedule Initiated By:</label>
+                    <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Reschedule Initiated By:</label>
                     <div className="grid grid-cols-2 gap-2">
                         <button
                           onClick={() => setRescheduleData({ ...rescheduleData, source: "admin" })}
-                          className={`p-3 rounded-lg border text-xs font-bold transition-all flex flex-col items-center gap-1.5 ${rescheduleData.source === 'admin' ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-gray-200 text-gray-600 hover:border-blue-300'}`}
+                          className={`p-3 rounded-lg border text-xs font-bold transition-all flex flex-col items-center gap-1.5 ${rescheduleData.source === 'admin' ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white dark:bg-[#1A1A1A] border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:border-blue-300'}`}
                         >
                           <span className="text-center italic opacity-80 font-normal underline">Option 1</span>
                           <span>Admin/Company</span>
                         </button>
                         <button
                           onClick={() => setRescheduleData({ ...rescheduleData, source: "customer" })}
-                          className={`p-3 rounded-lg border text-xs font-bold transition-all flex flex-col items-center gap-1.5 ${rescheduleData.source === 'customer' ? 'bg-green-600 border-green-600 text-white shadow-md' : 'bg-white border-gray-200 text-gray-600 hover:border-green-300'}`}
+                          className={`p-3 rounded-lg border text-xs font-bold transition-all flex flex-col items-center gap-1.5 ${rescheduleData.source === 'customer' ? 'bg-green-600 border-green-600 text-white shadow-md' : 'bg-white dark:bg-[#1A1A1A] border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:border-green-300'}`}
                         >
                           <span className="text-center italic opacity-80 font-normal underline">Option 2</span>
                           <span>Customer Side</span>
@@ -1981,19 +2202,19 @@ const BookingDetail = () => {
                   </div>
 
                   {/* Current Schedule Info */}
-                  <div className="p-3 bg-white rounded-lg border border-gray-200 shadow-sm">
+                  <div className="p-3 bg-white dark:bg-[#1A1A1A] rounded-lg border border-gray-200 dark:border-white/10 shadow-sm">
                     <div className="flex items-center gap-2 mb-1">
                       <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
-                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Current Schedule Reference</span>
+                      <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">Current Schedule Reference</span>
                     </div>
                     <div className="flex justify-between items-end">
                       <div>
-                        <p className="text-sm font-bold text-gray-800">
+                        <p className="text-sm font-bold text-gray-800 dark:text-gray-200">
                           {rescheduleData.type === 'pickup' 
                             ? (booking?.pickupDate ? new Date(booking.pickupDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Not set')
                             : (booking?.boxDeliveryDate ? new Date(booking.boxDeliveryDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Not set')}
                         </p>
-                        <p className="text-[10px] text-gray-500 font-medium">
+                        <p className="text-[10px] text-gray-500 dark:text-gray-400 font-medium">
                           Slot: {rescheduleData.type === 'pickup' ? booking?.pickupSlot : (booking?.boxDeliverySlot || 'No slot selected')}
                         </p>
                       </div>
@@ -2005,22 +2226,22 @@ const BookingDetail = () => {
 
                   {/* New Date */}
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Select New Date:</label>
+                    <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Select New Date:</label>
                     <input
                       type="date"
                       value={rescheduleData.date}
                       onChange={(e) => setRescheduleData({ ...rescheduleData, date: e.target.value })}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 font-medium"
+                      className="w-full px-4 py-2.5 border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 font-medium"
                     />
                   </div>
 
                   {/* Slot Selection */}
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Select Time Slot:</label>
+                    <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Select Time Slot:</label>
                     <select
                       value={rescheduleData.slot}
                       onChange={(e) => setRescheduleData({ ...rescheduleData, slot: e.target.value })}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 font-medium"
+                      className="w-full px-4 py-2.5 border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 font-medium"
                     >
                       <option value="10:00 AM - 01:00 PM">10:00 AM - 01:00 PM</option>
                       <option value="02:00 PM - 05:00 PM">02:00 PM - 05:00 PM</option>
@@ -2030,7 +2251,7 @@ const BookingDetail = () => {
                 </div>
               </div>
 
-              <div className="bg-gray-50 px-6 py-4 sm:px-8 sm:flex sm:flex-row-reverse gap-3">
+              <div className="bg-gray-50 dark:bg-[#111111] px-6 py-4 sm:px-8 sm:flex sm:flex-row-reverse gap-3">
                 <button
                   type="button"
                   disabled={rescheduleLoading || !rescheduleData.date}
@@ -2065,7 +2286,7 @@ const BookingDetail = () => {
                 <button
                   type="button"
                   onClick={() => setRescheduleModalOpen(false)}
-                  className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2.5 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                  className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 dark:border-white/10 shadow-sm px-4 py-2.5 bg-white dark:bg-[#1A1A1A] text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:bg-[#111111] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                 >
                   Cancel
                 </button>
@@ -2080,42 +2301,42 @@ const BookingDetail = () => {
         <div className="fixed inset-0 z-[60] overflow-y-auto">
           <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
             <div className="fixed inset-0 transition-opacity" aria-hidden="true" onClick={() => setCancelModalOpen(false)}>
-              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+              <div className="absolute inset-0 bg-gray-50 dark:bg-[#111111]0 opacity-75"></div>
             </div>
 
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
-            <div className="inline-block align-bottom bg-white rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full border border-gray-100">
-              <div className="bg-white px-6 pt-6 pb-4 sm:p-8 sm:pb-6">
+            <div className="inline-block align-bottom bg-white dark:bg-[#1A1A1A] rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full border border-gray-100 dark:border-white/5">
+              <div className="bg-white dark:bg-[#1A1A1A] px-6 pt-6 pb-4 sm:p-8 sm:pb-6">
                 <div className="sm:flex sm:items-start">
                   <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
                     <XCircle className="h-6 w-6 text-red-600" aria-hidden="true" />
                   </div>
                   <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                    <h3 className="text-xl leading-6 font-bold text-gray-900">
+                    <h3 className="text-xl leading-6 font-bold text-gray-900 dark:text-white">
                       Cancel Booking
                     </h3>
                     <div className="mt-2">
-                      <p className="text-sm text-gray-500">
-                        Are you sure you want to cancel booking <span className="font-mono font-bold text-gray-700">{booking?.bookingId}</span>? This action cannot be undone.
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Are you sure you want to cancel booking <span className="font-mono font-bold text-gray-700 dark:text-gray-300">{booking?.bookingId}</span>? This action cannot be undone.
                       </p>
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-6 space-y-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                <div className="mt-6 space-y-4 bg-gray-50 dark:bg-[#111111] p-4 rounded-xl border border-gray-200 dark:border-white/10">
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Cancellation Initiated By:</label>
+                    <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Cancellation Initiated By:</label>
                     <div className="grid grid-cols-2 gap-2">
                         <button
                           onClick={() => setCancelSource("admin")}
-                          className={`p-2.5 rounded-lg border text-sm font-bold transition-all ${cancelSource === 'admin' ? 'bg-red-600 border-red-600 text-white shadow-md' : 'bg-white border-gray-200 text-gray-600 hover:border-red-300'}`}
+                          className={`p-2.5 rounded-lg border text-sm font-bold transition-all ${cancelSource === 'admin' ? 'bg-red-600 border-red-600 text-white shadow-md' : 'bg-white dark:bg-[#1A1A1A] border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:border-red-300'}`}
                         >
                           Admin / Company
                         </button>
                         <button
                           onClick={() => setCancelSource("customer")}
-                          className={`p-2.5 rounded-lg border text-sm font-bold transition-all ${cancelSource === 'customer' ? 'bg-red-600 border-red-600 text-white shadow-md' : 'bg-white border-gray-200 text-gray-600 hover:border-red-300'}`}
+                          className={`p-2.5 rounded-lg border text-sm font-bold transition-all ${cancelSource === 'customer' ? 'bg-red-600 border-red-600 text-white shadow-md' : 'bg-white dark:bg-[#1A1A1A] border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:border-red-300'}`}
                         >
                           Customer Side
                         </button>
@@ -2123,11 +2344,11 @@ const BookingDetail = () => {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Reason for Cancellation:</label>
+                    <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">Reason for Cancellation:</label>
                     <select
                       value={cancelReason}
                       onChange={(e) => setCancelReason(e.target.value)}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 font-medium bg-white"
+                      className="w-full px-4 py-2.5 border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-2 focus:ring-red-500 focus:border-red-500 font-medium bg-white dark:bg-[#1A1A1A]"
                     >
                       <option value="">Select a reason...</option>
                       <option value="Customer requested cancellation">Customer requested cancellation</option>
@@ -2154,7 +2375,7 @@ const BookingDetail = () => {
                 </div>
               </div>
 
-              <div className="bg-gray-50 px-6 py-4 sm:px-8 sm:flex sm:flex-row-reverse gap-3">
+              <div className="bg-gray-50 dark:bg-[#111111] px-6 py-4 sm:px-8 sm:flex sm:flex-row-reverse gap-3">
                 <button
                   type="button"
                   disabled={cancelling || !cancelReason}
@@ -2166,9 +2387,61 @@ const BookingDetail = () => {
                 <button
                   type="button"
                   onClick={() => setCancelModalOpen(false)}
-                  className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2.5 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                  className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 dark:border-white/10 shadow-sm px-4 py-2.5 bg-white dark:bg-[#1A1A1A] text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:bg-[#111111] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
                 >
                   Keep Order
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unassign Docket Modal */}
+      {unassignModal.open && (
+        <div className="fixed inset-0 z-[60] overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true" onClick={() => setUnassignModal({ open: false })}>
+              <div className="absolute inset-0 bg-gray-50 dark:bg-[#111111] opacity-75"></div>
+            </div>
+
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+            <div className="inline-block align-bottom bg-white dark:bg-[#1A1A1A] rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full border border-gray-100 dark:border-white/5">
+              <div className="bg-white dark:bg-[#1A1A1A] px-6 pt-6 pb-4 sm:p-8 sm:pb-6">
+                <div className="sm:flex sm:items-start">
+                  <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                    <XCircle className="h-6 w-6 text-red-600" aria-hidden="true" />
+                  </div>
+                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                    <h3 className="text-xl leading-6 font-bold text-gray-900 dark:text-white">
+                      Remove Tracking ID?
+                    </h3>
+                    <div className="mt-2">
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Are you sure you want to remove the tracking ID from this order? 
+                        This will instantly unassign it and mark the ID as available again in Docket Management.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 dark:bg-[#111111] px-6 py-4 sm:px-8 sm:flex sm:flex-row-reverse gap-3">
+                <button
+                  type="button"
+                  disabled={unassigning}
+                  onClick={handleUnassignDocket}
+                  className="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-6 py-2.5 bg-red-600 text-base font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm transition-all active:scale-95 disabled:opacity-50"
+                >
+                  {unassigning ? 'Removing...' : 'Yes, Remove ID'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUnassignModal({ open: false })}
+                  className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 dark:border-white/10 shadow-sm px-4 py-2.5 bg-white dark:bg-[#1A1A1A] text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:bg-[#111111] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                >
+                  Cancel
                 </button>
               </div>
             </div>

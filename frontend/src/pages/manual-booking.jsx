@@ -1,8 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
+import { useAuth } from "../contexts/AuthContext";
 
 export default function ManualBooking() {
+  const { user } = useAuth();
   const [step, setStep] = useState(1);
+  const [showPaymentLinkModal, setShowPaymentLinkModal] = useState(false);
   const [formData, setFormData] = useState({
     pickupPincode: "",
     deliveryPincode: "",
@@ -44,7 +47,18 @@ export default function ManualBooking() {
     isVendorBooking: false,
     vendorId: "",
     vendorName: "",
+    otherVendorName: "",
     vendorTrackingId: "",
+    billTo: "Sender",
+    billingName: "",
+    billingPhone: "",
+    billingAddress: "",
+    vehicleType: "",
+    shiftingItems: "",
+    senderFloor: "Ground",
+    receiverFloor: "Ground",
+    liftAvailable: false,
+    laborRequired: false,
   });
   const [generatedId, setGeneratedId] = useState("");
   const [isManualId, setIsManualId] = useState(false);
@@ -202,7 +216,14 @@ export default function ManualBooking() {
       isVendorBooking: false,
       vendorId: "",
       vendorName: "",
+      otherVendorName: "",
       vendorTrackingId: "",
+      vehicleType: "",
+      shiftingItems: "",
+      senderFloor: "Ground",
+      receiverFloor: "Ground",
+      liftAvailable: false,
+      laborRequired: false,
     });
     setVendorSearch("");
     setPincodeStatus({ 
@@ -249,9 +270,16 @@ export default function ManualBooking() {
   const handleNext = () => setStep((prev) => prev + 1);
   const handleBack = () => setStep((prev) => prev - 1);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
+    if (formData.isVendorBooking) {
+      setShowPaymentLinkModal(true);
+    } else {
+      processSubmission(true);
+    }
+  };
 
+  const processSubmission = async (sendPaymentLink) => {
     const payload = {
       serviceType: formData.serviceType.toLowerCase(),
       pickupPincode: formData.pickupPincode,
@@ -272,7 +300,7 @@ export default function ManualBooking() {
       bookingSource: "admin",
       isVendorBooking: formData.isVendorBooking,
       vendorId: formData.vendorId,
-      vendorName: formData.vendorName,
+      vendorName: formData.vendorName === "Other" ? formData.otherVendorName : formData.vendorName,
       vendorTrackingId: formData.vendorTrackingId,
       premiumItemType: formData.premiumItemType,
       otherPremiumItem: formData.premiumItemType === "Other" ? formData.otherPremiumItem : "",
@@ -307,6 +335,13 @@ export default function ManualBooking() {
         landmark: formData.senderLandmark
       },
 
+      billingDetails: {
+        billTo: formData.billTo,
+        name: formData.billTo === "Other" ? formData.billingName : "",
+        phone: formData.billTo === "Other" ? formData.billingPhone : "",
+        address: formData.billTo === "Other" ? formData.billingAddress : ""
+      },
+
       receiverDetails: {
         name: formData.receiverName,
         phone: formData.receiverPhone,
@@ -319,7 +354,13 @@ export default function ManualBooking() {
         landmark: formData.receiverLandmark
       },
 
-      packageDetails: {
+      packageDetails: formData.serviceType === "Shifting" ? {
+        weight: 0,
+        weightUnit: "kg",
+        description: formData.shiftingItems || "Shifting Service",
+        value: 0,
+        fragile: false,
+      } : {
         weight: parseFloat(formData.actualWeight),
         chargeableWeight: parseFloat(formData.chargeableWeight) || parseFloat(formData.actualWeight),
         weightUnit: formData.weightUnit,
@@ -335,6 +376,20 @@ export default function ManualBooking() {
         value: 0,
         fragile: formData.fragile,
       },
+
+      // Shifting Details
+      ...(formData.serviceType === "Shifting" && {
+        shiftingDetails: {
+          vehicleType: formData.vehicleType,
+          itemsDescription: formData.shiftingItems,
+          senderFloor: formData.senderFloor,
+          receiverFloor: formData.receiverFloor,
+          liftAvailable: formData.liftAvailable,
+          laborRequired: formData.laborRequired,
+        }
+      }),
+      sendPaymentLink,
+      createdBy: user?._id, // Track who created the booking
     };
 
     try {
@@ -362,8 +417,8 @@ export default function ManualBooking() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto p-4 sm:p-6 bg-white shadow-xl rounded-2xl border border-gray-100 my-8">
-      <h1 className="text-3xl font-extrabold mb-8 text-center bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">
+    <div className="max-w-3xl mx-auto p-4 sm:p-6 bg-white dark:bg-[#1A1A1A] shadow-xl rounded-2xl border border-gray-100 dark:border-white/5 dark:border-white/10 my-8 transition-colors duration-300">
+      <h1 className="text-3xl font-extrabold mb-8 text-center text-orange-600 dark:text-orange-500">
         Manual Order Entry
       </h1>
 
@@ -372,7 +427,7 @@ export default function ManualBooking() {
         <div className="absolute top-1/2 left-4 right-4 h-0.5 bg-gray-200 -translate-y-1/2 z-0"></div>
         {[1, 2, 3].map((s) => (
           <div key={s} className="relative z-10 flex flex-col items-center gap-2">
-            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 ${step >= s ? 'bg-orange-600 text-white shadow-lg shadow-orange-200' : 'bg-gray-200 text-gray-500'}`}>
+            <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 ${step >= s ? 'bg-orange-600 text-white shadow-lg shadow-orange-200 dark:shadow-none' : 'bg-gray-200 dark:bg-gray-800 text-gray-500 dark:text-gray-400'}`}>
               {s}
             </div>
             <span className={`text-xs font-semibold ${step >= s ? 'text-orange-600' : 'text-gray-400'}`}>
@@ -385,18 +440,18 @@ export default function ManualBooking() {
       <form onSubmit={handleSubmit}>
         {step === 1 && (
           <div className="space-y-6">
-            <div className="flex gap-4 p-1 bg-gray-100 rounded-2xl mb-6">
+            <div className="flex gap-4 p-1 bg-gray-100 dark:bg-[#1A1A1A] border border-transparent dark:border-white/10 rounded-2xl mb-6">
               <button
                 type="button"
                 onClick={() => setFormData(p => ({ ...p, isVendorBooking: false, vendorId: "" }))}
-                className={`flex-1 py-3 px-4 rounded-xl font-bold transition-all ${!formData.isVendorBooking ? 'bg-white shadow-md text-orange-600' : 'text-gray-500'}`}
+                className={`flex-1 py-3 px-4 rounded-xl font-bold transition-all ${!formData.isVendorBooking ? 'bg-white dark:bg-[#2A2A2A] shadow-md text-orange-600 dark:text-orange-500' : 'text-gray-500 dark:text-gray-400'}`}
               >
                 Normal Booking
               </button>
               <button
                 type="button"
                 onClick={() => setFormData(p => ({ ...p, isVendorBooking: true }))}
-                className={`flex-1 py-3 px-4 rounded-xl font-bold transition-all ${formData.isVendorBooking ? 'bg-white shadow-md text-orange-600' : 'text-gray-500'}`}
+                className={`flex-1 py-3 px-4 rounded-xl font-bold transition-all ${formData.isVendorBooking ? 'bg-white dark:bg-[#2A2A2A] shadow-md text-orange-600 dark:text-orange-500' : 'text-gray-500 dark:text-gray-400'}`}
               >
                 Vendor Booking
               </button>
@@ -404,7 +459,7 @@ export default function ManualBooking() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in slide-in-from-top-4 duration-300">
                <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Shipping Vendor (e.g. BlueDart)</label>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Shipping Vendor (e.g. BlueDart)</label>
                 <select
                   name="vendorName"
                   value={formData.vendorName}
@@ -412,29 +467,45 @@ export default function ManualBooking() {
                     handleChange(e);
                     fetchNextDocket(e.target.value);
                   }}
-                  className="w-full border border-gray-300 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-white font-medium"
+                  className="w-full border border-gray-300 dark:border-white/10 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-white dark:bg-[#111111] dark:text-white font-medium dark:text-white"
                 >
                   <option value="">Select Shipping Partner</option>
                   <option value="BlueDart">BlueDart</option>
                   <option value="DTDC">DTDC</option>
                   <option value="Delhivery">Delhivery</option>
-                  <option value="Ecom Express">Ecom Express</option>
+                  <option value="Safe Express">Safe Express</option>
+                  <option value="India Post">India Post</option>
+                  <option value="I Carry">I Carry</option>
+                  <option value="Other">Other</option>
                 </select>
               </div>
+              {formData.vendorName === "Other" && (
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Other Vendor Name</label>
+                  <input
+                    type="text"
+                    name="otherVendorName"
+                    value={formData.otherVendorName}
+                    onChange={handleChange}
+                    placeholder="Enter vendor name"
+                    className="w-full border border-gray-300 dark:border-white/10 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-white dark:bg-[#111111] dark:text-white font-medium placeholder-gray-400 dark:placeholder-gray-600"
+                  />
+                </div>
+              )}
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Docket ID (Auto-fetched)</label>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Docket ID (Auto-fetched)</label>
                 <div className="relative">
                   <input
                     name="vendorTrackingId"
                     value={formData.vendorTrackingId}
                     onChange={handleChange}
                     placeholder="Docket ID"
-                    className="w-full border border-orange-200 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-orange-50 font-bold"
+                    className="w-full border border-orange-200 dark:border-orange-500/20 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-orange-50 dark:bg-orange-500/10 font-bold"
                   />
                   <button
                     type="button"
                     onClick={() => setFormData(prev => ({ ...prev, vendorTrackingId: "" }))}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-orange-600 hover:bg-orange-100 rounded-lg transition-colors"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-orange-600 hover:bg-orange-100 dark:hover:bg-orange-500/20 rounded-lg transition-colors"
                     title="Clear Docket ID"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -446,11 +517,11 @@ export default function ManualBooking() {
             {formData.isVendorBooking && (
               <div className="relative mb-6 animate-in slide-in-from-top-4 duration-300">
                 <div className="flex justify-between items-end mb-1">
-                  <label className="block text-sm font-bold text-gray-700">Search Vendor (Name or ID)</label>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">Search Vendor (Name or ID)</label>
                   <button
                     type="button"
                     onClick={handleReset}
-                    className="text-[10px] font-bold text-orange-600 hover:text-orange-700 border border-orange-200 px-2 py-1 rounded-md bg-orange-50 transition-all flex items-center gap-1"
+                    className="text-[10px] font-bold text-orange-600 hover:text-orange-700 border border-orange-200 dark:border-orange-500/20 px-2 py-1 rounded-md bg-orange-50 dark:bg-orange-500/10 transition-all flex items-center gap-1"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg>
                     Start New / Reset
@@ -465,17 +536,17 @@ export default function ManualBooking() {
                       searchVendors(e.target.value);
                     }}
                     placeholder="Enter vendor name or ID..."
-                    className="w-full border border-orange-200 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-orange-50 font-medium"
+                    className="w-full border border-orange-200 dark:border-orange-500/20 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-orange-50 dark:bg-orange-500/10 dark:text-white font-medium"
                   />
                   {showVendorDropdown && vendorResults.length > 0 && (
-                    <div className="absolute z-50 left-0 right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl max-h-60 overflow-y-auto overflow-hidden">
+                    <div className="absolute z-50 left-0 right-0 mt-2 bg-white dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-xl shadow-2xl max-h-60 overflow-y-auto overflow-hidden">
                       {vendorResults.map(vendor => (
                         <div
                           key={vendor._id}
                           onClick={() => selectVendor(vendor)}
-                          className="p-3 hover:bg-orange-50 cursor-pointer border-b border-gray-50 last:border-0"
+                          className="p-3 hover:bg-orange-50 dark:bg-orange-500/10 cursor-pointer border-b border-gray-50 last:border-0"
                         >
-                          <div className="font-bold text-gray-900">{vendor.name}</div>
+                          <div className="font-bold text-gray-900 dark:text-white">{vendor.name}</div>
                           <div className="text-xs text-orange-600 font-mono">{vendor.vendorId}</div>
                         </div>
                       ))}
@@ -487,20 +558,20 @@ export default function ManualBooking() {
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="relative">
-                <label className="block text-sm font-bold text-gray-700 mb-1">Pickup Pincode</label>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Pickup Pincode</label>
                 <div className="relative">
                   <input
                     name="pickupPincode"
                     value={formData.pickupPincode}
                     onChange={handleChange}
                     placeholder="e.g. 826001"
-                    className={`w-full border-2 p-3 rounded-xl focus:ring-2 outline-none transition-all ${pincodeStatus.pickup.available === true ? 'border-green-500 ring-green-50 bg-green-50/10' : pincodeStatus.pickup.available === false ? 'border-red-500 ring-red-50 bg-red-50/10' : 'border-gray-300 focus:ring-orange-500'}`}
+                    className={`w-full border-2 p-3 rounded-xl focus:ring-2 outline-none transition-all bg-white dark:bg-[#111111] dark:text-white ${pincodeStatus.pickup.available === true ? 'border-green-500 ring-green-50 dark:ring-green-900/30 dark:bg-green-500/10' : pincodeStatus.pickup.available === false ? 'border-red-500 ring-red-50 dark:ring-red-900/30 dark:bg-red-500/10' : 'border-gray-300 dark:border-white/10 focus:ring-orange-500'}`}
                     required
                   />
                   {pincodeStatus.pickup.available === true && (
                     <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
                       {pincodeStatus.pickup.isEDL && (
-                        <span className="bg-orange-100 text-orange-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-orange-200">
+                        <span className="bg-orange-100 text-orange-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-orange-200 dark:border-orange-500/20">
                           EDL ({pincodeStatus.pickup.edl})
                         </span>
                       )}
@@ -517,20 +588,20 @@ export default function ManualBooking() {
                 </div>
               </div>
               <div className="relative">
-                <label className="block text-sm font-bold text-gray-700 mb-1">Drop Pincode</label>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Drop Pincode</label>
                 <div className="relative">
                   <input
                     name="deliveryPincode"
                     value={formData.deliveryPincode}
                     onChange={handleChange}
                     placeholder="e.g. 110001"
-                    className={`w-full border-2 p-3 rounded-xl focus:ring-2 outline-none transition-all ${pincodeStatus.drop.available === true ? 'border-green-500 ring-green-50 bg-green-50/10' : pincodeStatus.drop.available === false ? 'border-red-500 ring-red-50 bg-red-50/10' : 'border-gray-300 focus:ring-orange-500'}`}
+                    className={`w-full border-2 p-3 rounded-xl focus:ring-2 outline-none transition-all bg-white dark:bg-[#111111] dark:text-white ${pincodeStatus.drop.available === true ? 'border-green-500 ring-green-50 dark:ring-green-900/30 dark:bg-green-500/10' : pincodeStatus.drop.available === false ? 'border-red-500 ring-red-50 dark:ring-red-900/30 dark:bg-red-500/10' : 'border-gray-300 dark:border-white/10 focus:ring-orange-500'}`}
                     required
                   />
                   {pincodeStatus.drop.available === true && (
                     <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-2">
                        {pincodeStatus.drop.isEDL && (
-                        <span className="bg-orange-100 text-orange-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-orange-200">
+                        <span className="bg-orange-100 text-orange-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-orange-200 dark:border-orange-500/20">
                           EDL ({pincodeStatus.drop.edl})
                         </span>
                       )}
@@ -550,28 +621,29 @@ export default function ManualBooking() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Service Type</label>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Service Type</label>
                 <select
                   name="serviceType"
                   value={formData.serviceType}
                   onChange={handleChange}
-                  className="w-full border border-gray-300 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-white font-medium"
+                  className="w-full border border-gray-300 dark:border-white/10 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-white dark:bg-[#111111] dark:text-white font-medium dark:text-white"
                   required
                 >
                   <option value="Surface">Surface</option>
                   <option value="Air">Air</option>
                   <option value="Express">Express</option>
                   <option value="Premium">Premium</option>
+                  <option value="Shifting">Shifting</option>
                 </select>
               </div>
               {formData.serviceType === "Premium" && (
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1">Premium Category</label>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Premium Category</label>
                   <select
                     name="premiumItemType"
                     value={formData.premiumItemType}
                     onChange={handleChange}
-                    className="w-full border border-orange-200 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-orange-50 font-medium"
+                    className="w-full border border-orange-200 dark:border-orange-500/20 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-orange-50 dark:bg-orange-500/10 dark:text-white font-medium"
                   >
                     <option value="">Select Category</option>
                     <option value="Documents">Documents</option>
@@ -586,22 +658,121 @@ export default function ManualBooking() {
 
             {formData.serviceType === "Premium" && formData.premiumItemType === "Other" && (
               <div className="animate-in slide-in-from-top-2 duration-200">
-                <label className="block text-sm font-bold text-gray-700 mb-1">Item Description (Other Premium)</label>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Item Description (Other Premium)</label>
                 <input
                   type="text"
                   name="otherPremiumItem"
                   value={formData.otherPremiumItem}
                   onChange={handleChange}
                   placeholder="Describe your item..."
-                  className="w-full border border-orange-200 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-orange-50 font-medium"
+                  className="w-full border border-orange-200 dark:border-orange-500/20 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-orange-50 dark:bg-orange-500/10 dark:text-white font-medium"
                   required
                 />
               </div>
             )}
 
+            {/* Shifting-specific fields */}
+            {formData.serviceType === "Shifting" && (
+              <div className="bg-purple-50 dark:bg-purple-500/10 p-5 rounded-2xl border border-purple-200 dark:border-purple-500/20 space-y-4 animate-in slide-in-from-top-4 duration-300">
+                <h3 className="text-base font-bold text-purple-700 dark:text-purple-400 flex items-center gap-2">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+                  Shifting Details
+                </h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Vehicle Type</label>
+                    <select
+                      name="vehicleType"
+                      value={formData.vehicleType}
+                      onChange={handleChange}
+                      className="w-full border border-purple-200 dark:border-purple-500/20 p-3 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none bg-white dark:bg-[#111111] dark:text-white font-medium"
+                      required
+                    >
+                      <option value="">Select Vehicle</option>
+                      <option value="Mini Truck (Tata Ace)">Mini Truck (Tata Ace)</option>
+                      <option value="Pickup (Bolero)">Pickup (Bolero)</option>
+                      <option value="14ft Truck">14ft Truck</option>
+                      <option value="17ft Truck">17ft Truck</option>
+                      <option value="20ft Truck">20ft Truck</option>
+                      <option value="22ft Container">22ft Container</option>
+                      <option value="32ft Container">32ft Container</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Items to Shift</label>
+                    <input
+                      name="shiftingItems"
+                      value={formData.shiftingItems}
+                      onChange={handleChange}
+                      placeholder="e.g. Sofa, Fridge, Beds, Boxes..."
+                      className="w-full border border-purple-200 dark:border-purple-500/20 p-3 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none bg-white dark:bg-[#111111] dark:text-white font-medium"
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Sender Floor</label>
+                    <select
+                      name="senderFloor"
+                      value={formData.senderFloor}
+                      onChange={handleChange}
+                      className="w-full border border-purple-200 dark:border-purple-500/20 p-3 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none bg-white dark:bg-[#111111] dark:text-white font-medium"
+                    >
+                      <option value="Ground">Ground Floor</option>
+                      <option value="1st">1st Floor</option>
+                      <option value="2nd">2nd Floor</option>
+                      <option value="3rd">3rd Floor</option>
+                      <option value="4th">4th Floor</option>
+                      <option value="5th+">5th Floor & Above</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Receiver Floor</label>
+                    <select
+                      name="receiverFloor"
+                      value={formData.receiverFloor}
+                      onChange={handleChange}
+                      className="w-full border border-purple-200 dark:border-purple-500/20 p-3 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none bg-white dark:bg-[#111111] dark:text-white font-medium"
+                    >
+                      <option value="Ground">Ground Floor</option>
+                      <option value="1st">1st Floor</option>
+                      <option value="2nd">2nd Floor</option>
+                      <option value="3rd">3rd Floor</option>
+                      <option value="4th">4th Floor</option>
+                      <option value="5th+">5th Floor & Above</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-6 pt-1">
+                  <label className="flex items-center gap-3 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      name="liftAvailable"
+                      checked={formData.liftAvailable}
+                      onChange={handleChange}
+                      className="w-5 h-5 rounded-md border-purple-300 text-purple-600 focus:ring-purple-500"
+                    />
+                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 group-hover:text-purple-600 transition-colors">Lift Available</span>
+                  </label>
+                  <label className="flex items-center gap-3 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      name="laborRequired"
+                      checked={formData.laborRequired}
+                      onChange={handleChange}
+                      className="w-5 h-5 rounded-md border-purple-300 text-purple-600 focus:ring-purple-500"
+                    />
+                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 group-hover:text-purple-600 transition-colors">Labor / Packing Required</span>
+                  </label>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">
                   {formData.isVendorBooking ? "Vendor Pickup Date" : "Pickup Date"}
                 </label>
                 <input
@@ -609,17 +780,17 @@ export default function ManualBooking() {
                   name="pickupDate"
                   value={formData.pickupDate}
                   onChange={handleChange}
-                  className={`w-full border p-3 rounded-xl focus:ring-2 outline-none ${formData.isVendorBooking ? 'border-orange-300 bg-orange-50/10 focus:ring-orange-500' : 'border-gray-300 focus:ring-orange-500'}`}
+                  className={`w-full border p-3 rounded-xl focus:ring-2 outline-none bg-white dark:bg-[#111111] dark:text-white ${formData.isVendorBooking ? 'border-orange-300 dark:border-orange-500/30 dark:bg-orange-500/10 focus:ring-orange-500' : 'border-gray-300 dark:border-white/10 focus:ring-orange-500'}`}
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Pickup Slot</label>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Pickup Slot</label>
                 <select
                   name="pickupSlot"
                   value={formData.pickupSlot}
                   onChange={handleChange}
-                  className="w-full border border-gray-300 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-white"
+                  className="w-full border border-gray-300 dark:border-white/10 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-white dark:bg-[#111111] dark:text-white"
                 >
                   <option value="Anytime">Anytime</option>
                   <option value="Morning">Morning (10AM - 1PM)</option>
@@ -629,14 +800,15 @@ export default function ManualBooking() {
               </div>
             </div>
 
+            {formData.serviceType !== "Shifting" && (
             <div className="border-t pt-6">
-              <label className="block text-sm font-bold text-gray-700 mb-3">Shipment Boxes</label>
+              <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-3">Shipment Boxes</label>
               <div className="mb-4">
                 <select
                   name="boxQuantity"
                   value={formData.boxQuantity}
                   onChange={handleBoxQuantityChange}
-                  className="w-full sm:w-48 border border-gray-300 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-white mb-4"
+                  className="w-full sm:w-48 border border-gray-300 dark:border-white/10 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-white dark:bg-[#111111] mb-4 dark:text-white"
                 >
                   {[...Array(15)].map((_, i) => (
                     <option key={i + 1} value={i + 1}>{i + 1} Box{i > 0 ? 'es' : ''}</option>
@@ -646,8 +818,8 @@ export default function ManualBooking() {
 
               <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
                 {formData.dimensions.map((dim, index) => (
-                  <div key={index} className="p-4 bg-gray-50 rounded-2xl border border-gray-200 relative group">
-                    <span className="absolute -top-3 left-4 bg-white px-2 text-[10px] font-bold text-gray-400 border rounded-full">Box {index + 1}</span>
+                  <div key={index} className="p-4 bg-gray-50 dark:bg-[#111111] rounded-2xl border border-gray-200 dark:border-white/10 relative group">
+                    <span className="absolute -top-3 left-4 bg-white dark:bg-[#111111] px-2 text-[10px] font-bold text-gray-400 border rounded-full">Box {index + 1}</span>
                     <div className="grid grid-cols-3 gap-3 pt-2">
                       <div>
                         <input
@@ -656,7 +828,7 @@ export default function ManualBooking() {
                           value={dim.length}
                           onChange={(e) => handleDimensionChange(index, e)}
                           placeholder="L (cm)"
-                          className="w-full border border-gray-300 p-2.5 rounded-lg text-sm outline-none focus:ring-1 focus:ring-orange-500"
+                          className="w-full border border-gray-300 dark:border-white/10 p-2.5 rounded-lg text-sm outline-none focus:ring-1 focus:ring-orange-500 bg-white dark:bg-[#111111] dark:text-white"
                           required
                         />
                       </div>
@@ -667,7 +839,7 @@ export default function ManualBooking() {
                           value={dim.width}
                           onChange={(e) => handleDimensionChange(index, e)}
                           placeholder="W (cm)"
-                          className="w-full border border-gray-300 p-2.5 rounded-lg text-sm outline-none focus:ring-1 focus:ring-orange-500"
+                          className="w-full border border-gray-300 dark:border-white/10 p-2.5 rounded-lg text-sm outline-none focus:ring-1 focus:ring-orange-500 bg-white dark:bg-[#111111] dark:text-white"
                           required
                         />
                       </div>
@@ -678,7 +850,7 @@ export default function ManualBooking() {
                           value={dim.height}
                           onChange={(e) => handleDimensionChange(index, e)}
                           placeholder="H (cm)"
-                          className="w-full border border-gray-300 p-2.5 rounded-lg text-sm outline-none focus:ring-1 focus:ring-orange-500"
+                          className="w-full border border-gray-300 dark:border-white/10 p-2.5 rounded-lg text-sm outline-none focus:ring-1 focus:ring-orange-500 bg-white dark:bg-[#111111] dark:text-white"
                           required
                         />
                       </div>
@@ -687,10 +859,12 @@ export default function ManualBooking() {
                 ))}
               </div>
             </div>
+            )}
 
+            {formData.serviceType !== "Shifting" && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t pt-6">
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Actual Weight ({formData.weightUnit})</label>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Actual Weight ({formData.weightUnit})</label>
                 <div className="flex gap-2">
                   <input
                     name="actualWeight"
@@ -699,14 +873,14 @@ export default function ManualBooking() {
                     value={formData.actualWeight}
                     onChange={handleChange}
                     placeholder="Actual"
-                    className="flex-1 border border-gray-300 p-3 rounded-xl outline-none focus:ring-2 focus:ring-orange-500"
+                    className="flex-1 border border-gray-300 dark:border-white/10 p-3 rounded-xl outline-none focus:ring-2 focus:ring-orange-500 bg-white dark:bg-[#111111] dark:text-white"
                     required
                   />
                   <select
                     name="weightUnit"
                     value={formData.weightUnit}
                     onChange={handleChange}
-                    className="w-20 border border-gray-300 p-3 rounded-xl outline-none bg-white font-medium text-xs"
+                    className="w-20 border border-gray-300 dark:border-gray-600 p-3 rounded-xl outline-none bg-white dark:bg-[#2A2A2A] dark:text-white font-bold text-xs cursor-pointer hover:bg-gray-50 dark:hover:bg-[#333333] transition-colors"
                   >
                     <option value="kg">kg</option>
                     <option value="g">g</option>
@@ -714,7 +888,7 @@ export default function ManualBooking() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Chargeable Weight</label>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Chargeable Weight</label>
                 <div className="flex gap-2">
                   <input
                     name="chargeableWeight"
@@ -723,14 +897,14 @@ export default function ManualBooking() {
                     value={formData.chargeableWeight}
                     onChange={handleChange}
                     placeholder="Chargeable"
-                    className="flex-1 border border-gray-300 p-3 rounded-xl outline-none focus:ring-2 focus:ring-orange-500"
+                    className="flex-1 border border-gray-300 dark:border-white/10 p-3 rounded-xl outline-none focus:ring-2 focus:ring-orange-500 bg-white dark:bg-[#111111] dark:text-white"
                     required
                   />
                   <select
                     name="chargeableWeightUnit"
                     value={formData.chargeableWeightUnit}
                     onChange={handleChange}
-                    className="w-20 border border-gray-300 p-3 rounded-xl outline-none bg-white font-medium text-xs"
+                    className="w-20 border border-gray-300 dark:border-gray-600 p-3 rounded-xl outline-none bg-white dark:bg-[#2A2A2A] dark:text-white font-bold text-xs cursor-pointer hover:bg-gray-50 dark:hover:bg-[#333333] transition-colors"
                   >
                     <option value="kg">kg</option>
                     <option value="g">g</option>
@@ -738,22 +912,23 @@ export default function ManualBooking() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-bold text-gray-700 mb-1">Description</label>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Description</label>
                 <input
                   name="goodsDescription"
                   value={formData.goodsDescription}
                   onChange={handleChange}
                   placeholder="e.g. Books, Clothes"
-                  className="w-full border border-gray-300 p-3 rounded-xl outline-none focus:ring-2 focus:ring-orange-500"
+                  className="w-full border border-gray-300 dark:border-white/10 p-3 rounded-xl outline-none focus:ring-2 focus:ring-orange-500 bg-white dark:bg-[#111111] dark:text-white"
                   required
                 />
               </div>
             </div>
+            )}
 
             <button
               type="button"
               onClick={handleNext}
-              className="w-full bg-orange-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-orange-200 hover:bg-orange-700 transition-all hover:-translate-y-0.5"
+              className="w-full bg-orange-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-orange-200 dark:shadow-none hover:bg-orange-700 transition-all hover:-translate-y-0.5"
             >
               Continue to Addresses
             </button>
@@ -763,9 +938,9 @@ export default function ManualBooking() {
         {step === 2 && (
           <div className="space-y-6">
             {['sender', 'receiver'].map((type) => (
-              <div key={type} className="bg-gray-50 p-5 rounded-2xl border border-gray-200 shadow-sm transition-all hover:bg-white hover:shadow-md">
+              <div key={type} className="bg-gray-50 dark:bg-[#111111] p-5 rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm transition-all hover:bg-white dark:hover:bg-[#2A2A2A] hover:shadow-md">
                 <h2 className="text-lg font-bold mb-4 capitalize flex items-center gap-2 text-orange-700">
-                  <div className="w-2 h-6 bg-orange-500 rounded-full"></div>
+                  <div className="w-2 h-6 bg-orange-50 dark:bg-orange-500/100 rounded-full"></div>
                   {type} details
                 </h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -776,7 +951,7 @@ export default function ManualBooking() {
                         value={formData[`${type}${field}`]}
                         onChange={handleChange}
                         placeholder={`${type.charAt(0).toUpperCase() + type.slice(1)} ${field}`}
-                        className="w-full border border-gray-300 p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 bg-white"
+                        className="w-full border border-gray-300 dark:border-white/10 p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 bg-white dark:bg-[#111111] dark:text-white"
                         required={!["Email", "Landmark", "Address2"].includes(field)}
                       />
                     </div>
@@ -785,7 +960,41 @@ export default function ManualBooking() {
               </div>
             ))}
 
-            <div className="bg-orange-50 p-6 rounded-2xl border border-orange-100 space-y-4">
+            <div className="bg-gray-50 dark:bg-[#111111] p-5 rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm transition-all hover:bg-white dark:hover:bg-[#2A2A2A] hover:shadow-md">
+              <h2 className="text-lg font-bold mb-4 capitalize flex items-center gap-2 text-orange-700">
+                <div className="w-2 h-6 bg-orange-50 dark:bg-orange-500/100 rounded-full"></div>
+                Billing Details
+              </h2>
+              <div className="mb-4">
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Bill To</label>
+                <select
+                  name="billTo"
+                  value={formData.billTo}
+                  onChange={handleChange}
+                  className="w-full border border-gray-300 dark:border-white/10 p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 bg-white dark:bg-[#111111] dark:text-white"
+                >
+                  <option value="Sender">Same as Sender</option>
+                  <option value="Receiver">Same as Receiver</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+
+              {formData.billTo === "Other" && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 animate-in slide-in-from-top-2">
+                  <div>
+                    <input name="billingName" value={formData.billingName} onChange={handleChange} placeholder="Billing Name" className="w-full border border-gray-300 dark:border-white/10 p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 bg-white dark:bg-[#111111] dark:text-white" required />
+                  </div>
+                  <div>
+                    <input name="billingPhone" value={formData.billingPhone} onChange={handleChange} placeholder="Billing Mobile" className="w-full border border-gray-300 dark:border-white/10 p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 bg-white dark:bg-[#111111] dark:text-white" required />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <input name="billingAddress" value={formData.billingAddress} onChange={handleChange} placeholder="Billing Address" className="w-full border border-gray-300 dark:border-white/10 p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 bg-white dark:bg-[#111111] dark:text-white" required />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-orange-50 dark:bg-orange-500/10 p-6 rounded-2xl border border-orange-100 dark:border-orange-500/10 space-y-4">
               <h2 className="text-lg font-bold text-orange-800 mb-2">Additional Options</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <div className="space-y-3">
@@ -795,9 +1004,9 @@ export default function ManualBooking() {
                       name="fragile"
                       checked={formData.fragile}
                       onChange={handleChange}
-                      className="w-5 h-5 rounded-md border-gray-300 text-orange-600 focus:ring-orange-500"
+                      className="w-5 h-5 rounded-md border-gray-300 dark:border-white/10 text-orange-600 focus:ring-orange-500"
                     />
-                    <span className="text-sm font-semibold text-gray-700 group-hover:text-orange-600 transition-colors">Fragile Item</span>
+                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 group-hover:text-orange-600 transition-colors">Fragile Item</span>
                   </label>
                   <label className="flex items-center gap-3 cursor-pointer group">
                     <input
@@ -805,9 +1014,9 @@ export default function ManualBooking() {
                       name="insuranceRequired"
                       checked={formData.insuranceRequired}
                       onChange={handleChange}
-                      className="w-5 h-5 rounded-md border-gray-300 text-orange-600 focus:ring-orange-500"
+                      className="w-5 h-5 rounded-md border-gray-300 dark:border-white/10 text-orange-600 focus:ring-orange-500"
                     />
-                    <span className="text-sm font-semibold text-gray-700 group-hover:text-orange-600 transition-colors">Insurance Required</span>
+                    <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 group-hover:text-orange-600 transition-colors">Insurance Required</span>
                   </label>
                 </div>
                 <div className="sm:col-span-2">
@@ -816,7 +1025,7 @@ export default function ManualBooking() {
                     <button 
                       type="button" 
                       onClick={() => setFormData(prev => ({...prev, isWithoutGST: !prev.isWithoutGST}))}
-                      className={`text-[10px] px-2 py-1 rounded font-bold transition-all border ${formData.isWithoutGST ? 'bg-orange-600 text-white border-orange-600' : 'bg-white text-orange-600 border-orange-200'}`}
+                      className={`text-[10px] px-2 py-1 rounded font-bold transition-all border ${formData.isWithoutGST ? 'bg-orange-600 text-white border-orange-600' : 'bg-white dark:bg-[#111111] text-orange-600 border-orange-200 dark:border-orange-500/20'}`}
                     >
                       {formData.isWithoutGST ? "✓ Without GST" : "Add Without GST?"}
                     </button>
@@ -827,12 +1036,12 @@ export default function ManualBooking() {
                     value={formData.totalAmount}
                     onChange={handleChange}
                     placeholder="Enter Amount"
-                    className="w-full border border-orange-200 p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 bg-white font-bold"
+                    className="w-full border border-orange-200 dark:border-orange-500/20 p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 bg-white dark:bg-[#111111] font-bold"
                     required
                   />
                   {formData.totalAmount && (
                     <div className="flex justify-between items-center mt-2 px-1">
-                       <p className="text-[10px] text-gray-500 italic">
+                       <p className="text-[10px] text-gray-500 dark:text-gray-400 italic">
                         {formData.isWithoutGST ? `+ ₹${(parseFloat(formData.totalAmount) * 0.18).toFixed(2)} GST will be added` : `Incl. ₹${(parseFloat(formData.totalAmount) - parseFloat(formData.totalAmount)/1.18).toFixed(2)} GST`}
                       </p>
                       <p className="text-xs font-extrabold text-orange-600">
@@ -849,27 +1058,27 @@ export default function ManualBooking() {
                   value={formData.notes}
                   onChange={handleChange}
                   placeholder="Special instructions for the team..."
-                  className="w-full border border-orange-200 p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 bg-white text-sm"
+                  className="w-full border border-orange-200 dark:border-orange-500/20 p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 bg-white dark:bg-[#111111] text-sm"
                   rows="2"
                 />
               </div>
             </div>
 
-            <div className="bg-gray-100 p-4 rounded-xl space-y-3 border-l-4 border-orange-500">
+            <div className="bg-gray-100 dark:bg-[#2A2A2A] p-4 rounded-xl space-y-3 border-l-4 border-orange-500">
               <div className="flex justify-between items-center mb-1">
-                <label className="block text-xs font-bold text-gray-700 uppercase">
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase">
                   Booking ID {isManualId ? "(Manual)" : "(Auto-Generated)"}
                 </label>
                 <button
                   type="button"
                   onClick={() => setIsManualId(!isManualId)}
-                  className={`text-[10px] font-bold px-2 py-1 rounded border transition-all ${isManualId ? 'bg-orange-600 text-white border-orange-600' : 'bg-white text-gray-600 border-gray-300'}`}
+                  className={`text-[10px] font-bold px-2 py-1 rounded border transition-all ${isManualId ? 'bg-orange-600 text-white border-orange-600' : 'bg-white dark:bg-[#2A2A2A] text-gray-600 dark:text-gray-400 border-gray-300 dark:border-white/10'}`}
                 >
                   {isManualId ? "Switch to Auto" : "Enter Manually"}
                 </button>
               </div>
               <div className="flex items-center gap-0">
-                <div className="bg-gray-200 border border-gray-300 border-r-0 p-2.5 rounded-l-lg text-sm font-bold text-gray-600 px-4">
+                <div className="bg-gray-200 border border-gray-300 dark:border-white/10 border-r-0 p-2.5 rounded-l-lg text-sm font-bold text-gray-600 dark:text-gray-400 px-4">
                   EP
                 </div>
                 <input
@@ -882,20 +1091,20 @@ export default function ManualBooking() {
                   }}
                   placeholder={isManualId ? "e.g. 04410" : "AUTO"}
                   disabled={!isManualId}
-                  className={`flex-1 border border-gray-300 p-2.5 rounded-r-lg outline-none focus:ring-2 focus:ring-orange-500 text-sm font-mono font-bold ${!isManualId ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : 'bg-white text-gray-900'}`}
+                  className={`flex-1 border border-gray-300 dark:border-white/10 p-2.5 rounded-r-lg outline-none focus:ring-2 focus:ring-orange-500 text-sm font-mono font-bold ${!isManualId ? 'bg-gray-50 dark:bg-[#111111] text-gray-400 cursor-not-allowed' : 'bg-white dark:bg-[#111111] text-gray-900 dark:text-white'}`}
                   required={isManualId}
                 />
                 <select
                   name="deliveryStatus"
                   value={formData.deliveryStatus}
                   onChange={handleChange}
-                  className="ml-2 w-32 border border-gray-300 p-2.5 rounded-lg outline-none bg-white text-xs font-bold appearance-none text-center"
+                  className="ml-2 w-32 border border-gray-300 dark:border-white/10 p-2.5 rounded-lg outline-none bg-white dark:bg-[#111111] text-xs font-bold appearance-none text-center dark:text-white"
                 >
                   <option value="confirmed">Confirmed</option>
                   <option value="pending">Pending</option>
                 </select>
               </div>
-              <p className="text-[10px] text-gray-500 italic">
+              <p className="text-[10px] text-gray-500 dark:text-gray-400 italic">
                 {isManualId ? "Enter only the numeric part after EP." : "ID will be automatically assigned sequentially."}
               </p>
             </div>
@@ -904,14 +1113,14 @@ export default function ManualBooking() {
               <button
                 type="button"
                 onClick={handleBack}
-                className="flex-1 bg-gray-100 text-gray-600 font-bold py-4 rounded-xl hover:bg-gray-200 transition-all border border-gray-200"
+                className="flex-1 bg-gray-100 dark:bg-[#2A2A2A] text-gray-600 dark:text-gray-400 font-bold py-4 rounded-xl hover:bg-gray-200 transition-all border border-gray-200 dark:border-white/10"
               >
                 Back
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className={`flex-[2] bg-orange-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-orange-200 transition-all ${isSubmitting ? 'opacity-70 cursor-not-allowed' : 'hover:bg-orange-700 hover:-translate-y-0.5'}`}
+                className={`flex-[2] bg-orange-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-orange-200 dark:shadow-none transition-all ${isSubmitting ? 'opacity-70 cursor-not-allowed' : 'hover:bg-orange-700 hover:-translate-y-0.5'}`}
               >
                 {isSubmitting ? (
                   <div className="flex items-center justify-center gap-2">
@@ -937,40 +1146,40 @@ export default function ManualBooking() {
               </svg>
             </div>
             <div>
-              <h2 className="text-3xl font-extrabold text-gray-900">Booking Confirmed!</h2>
-              <p className="text-gray-500 mt-2">Manual entry has been successfully recorded.</p>
+              <h2 className="text-3xl font-extrabold text-gray-900 dark:text-white">Booking Confirmed!</h2>
+              <p className="text-gray-500 dark:text-gray-400 mt-2">Manual entry has been successfully recorded.</p>
             </div>
 
-            <div className="bg-gray-50 rounded-2xl p-6 border border-gray-200 text-left space-y-4 shadow-inner">
+            <div className="bg-gray-50 dark:bg-[#111111] rounded-2xl p-6 border border-gray-200 dark:border-white/10 text-left space-y-4 shadow-inner">
               <div className="grid grid-cols-2 gap-4 text-sm">
-                <div className="bg-white p-3 rounded-xl border border-gray-100">
+                <div className="bg-white dark:bg-[#111111] p-3 rounded-xl border border-gray-100 dark:border-white/5">
                   <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Booking ID</p>
                   <p className="font-mono font-bold text-lg text-orange-600">{generatedId || (isManualId ? `EP${formData.bookingId.replace(/^EP/i, '')}` : 'PENDING')}</p>
                 </div>
-                <div className="bg-white p-3 rounded-xl border border-gray-100">
+                <div className="bg-white dark:bg-[#111111] p-3 rounded-xl border border-gray-100 dark:border-white/5">
                   <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Service Type</p>
-                  <p className="font-bold text-lg text-gray-800">{formData.serviceType}</p>
+                  <p className="font-bold text-lg text-gray-800 dark:text-gray-200">{formData.serviceType}</p>
                 </div>
-                <div className="bg-white p-3 rounded-xl border border-gray-100 border-l-4 border-l-green-500">
+                <div className="bg-white dark:bg-[#111111] p-3 rounded-xl border border-gray-100 dark:border-white/5 border-l-4 border-l-green-500">
                   <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Total Amount</p>
                   <p className="font-bold text-lg text-green-600">{formData.isVendorBooking ? 'CREDIT' : `₹${formData.totalAmount}`}</p>
                 </div>
               </div>
               <div className="space-y-2 border-t pt-4">
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Sender:</span>
+                  <span className="text-gray-500 dark:text-gray-400">Sender:</span>
                   <span className="font-bold">{formData.senderName} ({formData.senderPhone})</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Receiver:</span>
+                  <span className="text-gray-500 dark:text-gray-400">Receiver:</span>
                   <span className="font-bold">{formData.receiverName} ({formData.receiverPhone})</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Route:</span>
+                  <span className="text-gray-500 dark:text-gray-400">Route:</span>
                   <span className="font-bold">{formData.pickupPincode} ➔ {formData.deliveryPincode}</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span className="text-gray-500">Quantity:</span>
+                  <span className="text-gray-500 dark:text-gray-400">Quantity:</span>
                   <span className="font-bold">{formData.boxQuantity} Box{formData.boxQuantity > 1 ? 'es' : ''}</span>
                 </div>
               </div>
@@ -1023,6 +1232,37 @@ export default function ManualBooking() {
           </div>
         )}
       </form>
+
+      {showPaymentLinkModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-[#1A1A1A] rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 p-6 max-w-md w-full mx-4 transform transition-all animate-in zoom-in-95 duration-200">
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Generate Payment Link?</h3>
+            <p className="text-gray-500 dark:text-gray-400 text-sm mb-6">
+              Do you want to generate and send a Razorpay payment link to the customer for this vendor booking?
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowPaymentLinkModal(false);
+                  processSubmission(false);
+                }}
+                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-white/5 dark:hover:bg-white/10 text-gray-700 dark:text-gray-300 font-bold rounded-xl transition-colors"
+              >
+                No, Skip Link
+              </button>
+              <button
+                onClick={() => {
+                  setShowPaymentLinkModal(false);
+                  processSubmission(true);
+                }}
+                className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl shadow-lg shadow-orange-500/30 transition-all flex items-center gap-2"
+              >
+                Yes, Send Link
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

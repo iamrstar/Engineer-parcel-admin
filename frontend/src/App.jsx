@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom"
 import { AuthProvider, useAuth } from "./contexts/AuthContext"
+import { ThemeProvider } from "./contexts/ThemeContext"
 import Login from "./pages/Login"
 import Dashboard from "./pages/Dashboard"
 import Bookings from "./pages/Bookings"
@@ -16,6 +17,10 @@ import Vendors from "./pages/Vendors"
 import Tasks from "./pages/Tasks.jsx"
 import Analytics from "./pages/Analytics"
 import DocketManagement from "./pages/DocketManagement"
+import TrackingTasks from "./pages/TrackingTasks"
+import Queries from "./pages/Queries"
+import Attendance from "./pages/Attendance"
+import AttendanceReport from "./pages/AttendanceReport"
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth()
@@ -36,8 +41,9 @@ function HomeRedirect() {
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
+    <ThemeProvider>
+      <AuthProvider>
+        <Router>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route
@@ -150,6 +156,36 @@ function App() {
             }
           />
           <Route
+            path="/tracking-tasks"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <TrackingTasks />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/attendance"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Attendance />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/attendance-report"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <AttendanceReport />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/analytics"
             element={
               <ProtectedRoute>
@@ -169,9 +205,21 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/queries"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Queries />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </Router>
     </AuthProvider>
+    </ThemeProvider>
   )
 }
 

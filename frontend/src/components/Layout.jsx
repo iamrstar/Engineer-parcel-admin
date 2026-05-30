@@ -3,9 +3,10 @@ import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useAuth } from "../contexts/AuthContext"
 import axios from "axios"
 import toast from "react-hot-toast"
-import { Package, LayoutDashboard, FileText, MapPin, Ticket, LogOut, Menu, X, BarChart, Bell, Users, Building, CheckSquare, ClipboardList } from "lucide-react"
+import { Package, LayoutDashboard, FileText, MapPin, Ticket, LogOut, Menu, X, BarChart, Bell, Users, Building, CheckSquare, ClipboardList, UserCheck, MessageCircle, CheckCircle, Moon, Sun } from "lucide-react"
 import { socket } from "../utils/socket"
 import { Activity as ActivityIcon } from "lucide-react"
+import { useTheme } from "../contexts/ThemeContext"
 
 const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -15,6 +16,7 @@ const Layout = ({ children }) => {
   const [recentOrders, setRecentOrders] = useState([])
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const { logout } = useAuth()
+  const { isDarkMode, toggleDarkMode } = useTheme()
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -51,9 +53,8 @@ const Layout = ({ children }) => {
     };
   }, []);
 
-  // Function to show the persistent alert (Refactored from the polling logic)
+  // Function to show the persistent alert
   const showAlert = (message, updateCount, singleBookingId, counts = {}, bookingSource = null) => {
-    // Play sound if not already playing
     if (!audioRef.current) {
       const audio = new Audio("/notification.mp3")
       audio.loop = true
@@ -61,7 +62,6 @@ const Layout = ({ children }) => {
       audioRef.current = audio
     }
 
-    // Flash the tab title
     const originalTitle = document.title
     let isAlertTitle = false
     const titleInterval = setInterval(() => {
@@ -175,7 +175,6 @@ const Layout = ({ children }) => {
       setRecentOrders(resRecent.data || [])
 
       if (!silent && !isFirstLoadRef.current) {
-        // Polling-based alert logic remains as a fallback but we prefer socket events now
         if (newCount > prevCountRef.current || newPending > prevPendingRef.current) {
           const msg = newCount > prevCountRef.current ? "New E-Docket intake bookings have arrived." : "New Online Orders have arrived."
           showAlert(msg, 1, null, { newCount, newPending })
@@ -206,18 +205,17 @@ const Layout = ({ children }) => {
       socket.on("new_booking", (data) => {
         console.log("🔥 Real-time Booking:", data)
         showAlert(`New ${data.serviceType} Booking ${data.bookingId} from ${data.senderName}`, 1, data.bookingId, { date: data.createdAt }, data.bookingSource)
-        fetchCount(true) // Silent fetch to update counters
+        fetchCount(true)
       })
 
       socket.on("status_update", (data) => {
         console.log("🚚 Real-time Status (Silent Refresh):", data)
-        // showAlert is removed here to prevent annoying popups for transit updates
         fetchCount(true)
       })
     }
 
     fetchCount()
-    const interval = setInterval(() => fetchCount(true), 30000) // Increase polling to 30s since we have sockets now
+    const interval = setInterval(() => fetchCount(true), 30000)
 
     return () => {
       clearInterval(interval)
@@ -227,7 +225,10 @@ const Layout = ({ children }) => {
     }
   }, [])
 
-  const navigation = [
+  const { user } = useAuth()
+  const isAdmin = user && (!user.role || user.role === 'admin')
+
+  const allNavigation = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
     { name: "Booking", href: "/bookings", icon: FileText, badge: pendingOrdersCount },
     { name: "E-Docket", href: "/e-docket", icon: Package, badge: eDocketCount },
@@ -237,32 +238,51 @@ const Layout = ({ children }) => {
     { name: "Coupons", href: "/coupons", icon: Ticket },
     { name: "Create Order", href: "/manual-booking", icon: Ticket },
     { name: "Tasks", href: "/tasks", icon: CheckSquare, badge: tasksCount },
+    { name: "Staff Tasks", href: "/tracking-tasks", icon: ClipboardList },
+    { name: "Attendance", href: "/attendance", icon: UserCheck },
+    { name: "Attendance Report", href: "/attendance-report", icon: FileText },
     { name: "User Management", href: "/user-management", icon: Users },
     { name: "Vendor Management", href: "/vendors", icon: Building },
     { name: "Docket Management", href: "/docket-management", icon: ClipboardList },
+    { name: "Manage Queries", href: "/queries", icon: MessageCircle },
   ]
+
+  const staffAllowedNames = ["Dashboard", "Booking", "E-Docket", "Pincodes", "Create Order", "Vendor Management", "Staff Tasks", "Manage Queries"];
+  
+  const navigation = isAdmin 
+    ? allNavigation 
+    : allNavigation.filter(item => staffAllowedNames.includes(item.name)).map(item => {
+        if (item.name === "Manage Queries") return { ...item, name: "My Queries" }
+        if (item.name === "Staff Tasks") return { ...item, name: "My Tasks" }
+        return item
+      });
 
   const handleLogout = () => {
     logout()
     navigate("/login")
   }
 
+  // Find active route name for dynamic header
+  const activeRouteName = navigation.find(n => n.href === location.pathname)?.name || "Dashboard"
+
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#f8fafc] font-sans selection:bg-primary-200 selection:text-primary-900">
       {/* Mobile sidebar */}
       <div className={`fixed inset-0 z-50 lg:hidden ${sidebarOpen ? "block" : "hidden"}`}>
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-75" onClick={() => setSidebarOpen(false)} />
-        <div className="fixed inset-y-0 left-0 flex w-64 flex-col bg-white">
-          <div className="flex h-16 items-center justify-between px-4 border-b">
+        <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm transition-opacity" onClick={() => setSidebarOpen(false)} />
+        <div className="fixed inset-y-0 left-0 flex w-64 flex-col bg-white shadow-2xl transform transition-transform duration-300">
+          <div className="flex h-16 items-center justify-between px-6 border-b border-gray-100">
             <div className="flex items-center">
-              <Package className="h-8 w-8 text-primary-500" />
-              <span className="ml-2 text-xl font-bold text-gray-900">EngineersParcel</span>
+              <div className="p-2 bg-gradient-to-br from-primary-600 to-primary-500 rounded-xl shadow-lg shadow-primary-500/30">
+                <Package className="h-6 w-6 text-white" />
+              </div>
+              <span className="ml-3 text-xl font-black bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600 tracking-tight">EngineersParcel</span>
             </div>
-            <button onClick={() => setSidebarOpen(false)}>
+            <button onClick={() => setSidebarOpen(false)} className="p-2 rounded-full hover:bg-gray-100 transition-colors">
               <X className="h-6 w-6 text-gray-500" />
             </button>
           </div>
-          <nav className="flex-1 px-4 py-4 space-y-2">
+          <nav className="flex-1 px-3 py-2 space-y-0.5 overflow-y-auto custom-scrollbar">
             {navigation.map((item) => {
               const isActive = location.pathname === item.href
               return (
@@ -270,15 +290,18 @@ const Layout = ({ children }) => {
                   key={item.name}
                   to={item.href}
                   onClick={() => setSidebarOpen(false)}
-                  className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors ${isActive ? "bg-primary-100 text-primary-700" : "text-gray-700 hover:bg-gray-100"
-                    }`}
+                  className={`group flex items-center justify-between px-3 py-1.5 rounded-xl text-sm font-bold transition-all duration-300 ${
+                    isActive 
+                      ? "bg-gradient-to-r from-primary-600 to-primary-500 text-white shadow-lg shadow-primary-500/25" 
+                      : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                  }`}
                 >
                   <div className="flex items-center">
-                    <item.icon className="h-5 w-5 mr-3" />
+                    <item.icon className={`h-5 w-5 mr-3 transition-transform duration-300 ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-primary-500 group-hover:scale-110'}`} />
                     {item.name}
                   </div>
                   {item.badge > 0 && (
-                    <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-medium rounded-full bg-red-500 text-white">
+                    <span className={`inline-flex items-center justify-center px-2 py-0.5 text-[10px] font-black rounded-full ${isActive ? 'bg-white text-primary-600' : 'bg-red-500 text-white shadow-sm shadow-red-500/30'}`}>
                       {item.badge}
                     </span>
                   )}
@@ -286,41 +309,46 @@ const Layout = ({ children }) => {
               )
             })}
           </nav>
-          <div className="p-4 border-t">
+          <div className="p-3 border-t border-gray-100 bg-gray-50/50 flex items-center justify-between mt-auto">
             <button
               onClick={handleLogout}
-              className="flex items-center w-full px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              className="flex items-center justify-center w-full px-3 py-2 text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 hover:text-red-700 rounded-xl transition-all duration-300 group shadow-sm hover:shadow-md"
             >
-              <LogOut className="h-5 w-5 mr-3" />
-              Logout
+              <LogOut className="h-4 w-4 mr-2 group-hover:scale-110 transition-transform" />
+              Sign Out
             </button>
           </div>
         </div>
       </div>
 
       {/* Desktop sidebar */}
-      <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
-        <div className="flex flex-col flex-grow bg-white border-r border-gray-200">
-          <div className="flex h-16 items-center px-4 border-b">
-            <Package className="h-8 w-8 text-primary-500" />
-            <span className="ml-2 text-xl font-bold text-gray-900">EngineersParcel</span>
+      <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col z-40">
+        <div className="flex flex-col h-full bg-white dark:bg-[#0A0A0A] border-r border-gray-100 dark:border-white/10 shadow-[4px_0_24px_rgba(0,0,0,0.02)] transition-colors duration-300">
+          <div className="flex h-16 items-center px-6 border-b border-gray-100/80 dark:border-white/10 bg-white dark:bg-[#0A0A0A] transition-colors duration-300">
+            <div className="p-2 bg-gradient-to-br from-primary-600 to-primary-500 rounded-xl shadow-lg shadow-primary-500/30">
+              <Package className="h-6 w-6 text-white" />
+            </div>
+            <span className="ml-3 text-xl font-black bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 tracking-tight">EngineersParcel</span>
           </div>
-          <nav className="flex-1 px-4 py-4 space-y-2">
+          <nav className="flex-1 px-3 py-2 space-y-0.5 overflow-y-auto custom-scrollbar">
             {navigation.map((item) => {
               const isActive = location.pathname === item.href
               return (
                 <Link
                   key={item.name}
                   to={item.href}
-                  className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-colors ${isActive ? "bg-primary-100 text-primary-700" : "text-gray-700 hover:bg-gray-100"
-                    }`}
+                  className={`group flex items-center justify-between px-3 py-1.5 rounded-xl text-sm font-bold transition-all duration-300 ${
+                    isActive 
+                      ? "bg-gradient-to-r from-primary-600 to-primary-500 text-white shadow-lg shadow-primary-500/25 transform scale-[1.02]" 
+                      : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white hover:scale-[1.01]"
+                  }`}
                 >
                   <div className="flex items-center">
-                    <item.icon className="h-5 w-5 mr-3" />
+                    <item.icon className={`h-5 w-5 mr-3 transition-transform duration-300 ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-primary-500 group-hover:scale-110'}`} />
                     {item.name}
                   </div>
                   {item.badge > 0 && (
-                    <span className="inline-flex items-center justify-center px-2 py-0.5 text-xs font-medium rounded-full bg-red-500 text-white">
+                    <span className={`inline-flex items-center justify-center px-2 py-0.5 text-[10px] font-black rounded-full ${isActive ? 'bg-white text-primary-600' : 'bg-red-500 text-white shadow-sm shadow-red-500/30'}`}>
                       {item.badge}
                     </span>
                   )}
@@ -328,99 +356,133 @@ const Layout = ({ children }) => {
               )
             })}
           </nav>
-          <div className="p-4 border-t">
+          <div className="p-3 border-t border-gray-100 dark:border-white/10 bg-gray-50/50 dark:bg-black/50 flex items-center justify-between mt-auto transition-colors duration-300">
+            {/* Compact User Profile Snippet */}
+            <div className="flex items-center gap-2 overflow-hidden max-w-[70%]">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-800 dark:to-gray-900 border border-white dark:border-white/10 shadow-sm overflow-hidden flex items-center justify-center shrink-0">
+                <span className="font-black text-gray-500 dark:text-gray-400 text-sm uppercase">
+                   {user?.name ? user.name.charAt(0) : (user?.username ? user.username.charAt(0) : 'A')}
+                </span>
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <p className="text-sm font-extrabold text-gray-900 dark:text-white truncate capitalize leading-tight">{user?.name || user?.username || 'Admin'}</p>
+                <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider leading-none mt-0.5">{user?.role || 'System Admin'}</p>
+              </div>
+            </div>
+
             <button
               onClick={handleLogout}
-              className="flex items-center w-full px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+              title="Sign Out"
+              className="p-2 text-red-500 hover:text-red-700 dark:hover:text-red-400 bg-red-50 dark:bg-red-500/10 hover:bg-red-100 dark:hover:bg-red-500/20 rounded-lg transition-all duration-300 shadow-sm border border-red-100 dark:border-red-500/10 hover:shadow-md group shrink-0"
             >
-              <LogOut className="h-5 w-5 mr-3" />
-              Logout
+              <LogOut className="h-4 w-4 group-hover:scale-110 transition-transform" />
             </button>
           </div>
         </div>
       </div>
 
       {/* Main content */}
-      <div className="lg:pl-64">
-        {/* Top bar */}
-        <div className="sticky top-0 z-40 flex h-16 items-center gap-x-4 border-b border-gray-200 bg-white px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8">
-          <button type="button" className="-m-2.5 p-2.5 text-gray-700 lg:hidden" onClick={() => setSidebarOpen(true)}>
+      <div className="lg:pl-64 flex flex-col min-h-screen bg-gray-50 dark:bg-[#0A0A0A] transition-colors duration-300">
+        
+        {/* Top bar (Glassmorphism) */}
+        <div className="sticky top-0 z-30 flex h-16 items-center gap-x-4 bg-white/70 dark:bg-[#0A0A0A]/70 backdrop-blur-xl border-b border-gray-100/50 dark:border-white/10 px-4 shadow-[0_4px_30px_rgba(0,0,0,0.02)] sm:gap-x-6 sm:px-6 lg:px-8 transition-colors duration-300">
+          <button type="button" className="-m-2.5 p-2.5 text-gray-700 dark:text-gray-300 lg:hidden hover:bg-gray-100 dark:hover:bg-white/5 rounded-full transition-colors" onClick={() => setSidebarOpen(true)}>
             <Menu className="h-6 w-6" />
           </button>
-          <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
+          <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6 items-center">
+            
+            {/* Dynamic Page Title */}
             <div className="flex items-center gap-x-4 lg:gap-x-6">
-              <h1 className="text-xl font-semibold text-gray-900">Admin Dashboard</h1>
+              <h1 className="text-lg sm:text-xl font-extrabold text-gray-900 dark:text-white tracking-tight capitalize">
+                {activeRouteName}
+              </h1>
             </div>
 
-            {/* Right side - Notifications */}
+            {/* Right side - Notifications & Theme */}
             <div className="flex flex-1 justify-end items-center gap-x-4">
+              
+              {/* Dark Mode Toggle */}
+              <button
+                onClick={toggleDarkMode}
+                className="relative p-2.5 text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-500 bg-gray-50 dark:bg-white/5 hover:bg-primary-50 dark:hover:bg-white/10 border border-gray-100 dark:border-white/5 rounded-full transition-all duration-300 shadow-sm"
+              >
+                {isDarkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+              </button>
+
               <div className="relative">
                 <button
                   onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                  className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-colors"
+                  className="relative p-2.5 text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-500 bg-gray-50 dark:bg-white/5 hover:bg-primary-50 dark:hover:bg-white/10 border border-gray-100 dark:border-white/5 rounded-full transition-all duration-300 shadow-sm"
                 >
                   <span className="sr-only">View notifications</span>
-                  <Bell className="h-6 w-6" />
+                  <Bell className="h-5 w-5" />
                   {pendingOrdersCount > 0 && (
-                    <span className="absolute top-1 right-1 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold text-white bg-red-500 border-2 border-white rounded-full">
+                    <span className="absolute -top-1 -right-1 inline-flex items-center justify-center w-5 h-5 text-[10px] font-black text-white bg-red-500 border-2 border-white rounded-full shadow-sm">
                       {pendingOrdersCount}
                     </span>
                   )}
                 </button>
 
-                {/* Dropdown Menu */}
+                {/* Dropdown Menu (Glassmorphism) */}
                 {isDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border border-gray-100 z-50 overflow-hidden">
-                    <div className="flex justify-between items-center p-3 border-b border-gray-100 bg-gray-50">
-                      <h3 className="text-sm font-semibold text-gray-900">New Orders / Online Orders</h3>
-                      <button onClick={() => setIsDropdownOpen(false)}>
-                        <X className="h-4 w-4 text-gray-500 hover:text-gray-700" />
+                  <div className="absolute right-0 mt-3 w-80 sm:w-96 bg-white/95 dark:bg-[#111111]/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-gray-100/80 dark:border-white/10 z-50 overflow-hidden transform origin-top-right transition-all animate-in fade-in zoom-in-95 duration-200">
+                    <div className="flex justify-between items-center p-4 border-b border-gray-100 dark:border-white/10 bg-gray-50/50 dark:bg-white/5">
+                      <h3 className="text-sm font-extrabold text-gray-900 dark:text-white tracking-tight">System Alerts</h3>
+                      <button onClick={() => setIsDropdownOpen(false)} className="p-1 rounded-full hover:bg-gray-200 dark:hover:bg-white/10 transition-colors">
+                        <X className="h-4 w-4 text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white" />
                       </button>
                     </div>
 
-                    <div className="max-h-96 overflow-y-auto">
+                    <div className="max-h-96 overflow-y-auto custom-scrollbar p-2">
                       {recentOrders.length === 0 ? (
-                        <div className="p-4 text-center text-sm text-gray-500">
-                          No pending orders.
+                        <div className="p-8 text-center text-sm font-medium text-gray-500 dark:text-gray-400">
+                          <CheckCircle className="h-10 w-10 text-green-400 dark:text-green-500 mx-auto mb-3 opacity-50" />
+                          No pending alerts right now.
                         </div>
                       ) : (
                         recentOrders.map((order) => (
                           <div
                             key={order._id}
                             onClick={() => { setIsDropdownOpen(false); navigate(`/bookings/${order._id}`) }}
-                            className="p-3 border-b border-gray-50 hover:bg-primary-50 transition-colors cursor-pointer"
+                            className="p-3 mb-1 rounded-xl hover:bg-primary-50 dark:hover:bg-white/5 transition-colors cursor-pointer border border-transparent hover:border-primary-100 dark:hover:border-white/10 group"
                           >
-                            <div className="flex justify-between items-start mb-1">
-                              <span className="text-sm font-bold text-gray-900">{order.bookingId}</span>
-                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                            <div className="flex justify-between items-start mb-1.5">
+                              <span className="text-sm font-extrabold text-gray-900 dark:text-white group-hover:text-primary-700 dark:group-hover:text-primary-400 transition-colors">{order.bookingId}</span>
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-black bg-yellow-100 dark:bg-yellow-500/20 text-yellow-800 dark:text-yellow-400 uppercase tracking-wider shadow-sm">
                                 Pending
                               </span>
                             </div>
-                            <div className="text-xs text-gray-600 mb-0.5">
-                              From: <span className="text-gray-900">{order.senderDetails?.name || 'Unknown'}</span>
+                            <div className="space-y-1">
+                              <div className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-400 dark:bg-blue-500"></span>
+                                <span className="text-gray-900 dark:text-gray-200 font-medium truncate">{order.senderDetails?.name || 'Unknown'}</span>
+                              </div>
+                              <div className="text-xs text-gray-600 dark:text-gray-400 flex items-center gap-1.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-green-400 dark:bg-green-500"></span>
+                                <span className="text-gray-900 dark:text-gray-200 font-medium truncate">{order.receiverDetails?.name || 'Unknown'}</span>
+                              </div>
                             </div>
-                            <div className="text-xs text-gray-600 mb-1">
-                              To: <span className="text-gray-900">{order.receiverDetails?.name || 'Unknown'}</span>
-                            </div>
-                            <div className="text-xs text-gray-500 mb-1">
-                              Service: {order.serviceType === 'campus-parcel' ? 'Campus-Parcel' : 'Courier'}
-                            </div>
-                            <div className="flex justify-between items-center text-xs text-gray-500">
-                              <span>₹{order.pricing?.totalAmount || 0}</span>
-                              <span className="text-primary-600 font-medium">View →</span>
+                            
+                            <div className="mt-3 pt-2 border-t border-gray-100/50 flex justify-between items-center text-xs text-gray-500">
+                              <span className="font-bold text-gray-700">₹{order.pricing?.totalAmount || 0}</span>
+                              <span className="text-primary-600 font-extrabold text-[10px] uppercase tracking-wider flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                                View Details <span aria-hidden="true">&rarr;</span>
+                              </span>
                             </div>
                           </div>
                         ))
                       )}
                     </div>
 
-                    <Link
-                      to="/bookings"
-                      onClick={() => setIsDropdownOpen(false)}
-                      className="block w-full text-center p-3 text-sm font-medium text-primary-600 hover:bg-primary-50 transition-colors border-t border-gray-100"
-                    >
-                      View All Pending Orders →
-                    </Link>
+                    <div className="p-3 border-t border-gray-100 bg-gray-50/50">
+                      <Link
+                        to="/bookings"
+                        onClick={() => setIsDropdownOpen(false)}
+                        className="block w-full text-center py-2.5 text-sm font-bold text-primary-700 bg-primary-100 hover:bg-primary-200 rounded-xl transition-colors"
+                      >
+                        View All Pending Orders
+                      </Link>
+                    </div>
                   </div>
                 )}
               </div>
@@ -429,8 +491,17 @@ const Layout = ({ children }) => {
         </div>
 
         {/* Page content */}
-        <main className="py-6">
-          <div className="px-4 sm:px-6 lg:px-8">{children}</div>
+        <main className="flex-1 py-8 relative">
+          
+          {/* Subtle background gradient blob for the whole app */}
+          <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none -z-10">
+            <div className="absolute top-0 right-1/4 w-96 h-96 bg-primary-200 rounded-full mix-blend-multiply filter blur-[128px] opacity-20"></div>
+            <div className="absolute top-40 left-1/4 w-72 h-72 bg-blue-200 rounded-full mix-blend-multiply filter blur-[128px] opacity-20"></div>
+          </div>
+
+          <div className="px-4 sm:px-6 lg:px-8 max-w-[1600px] mx-auto">
+            {children}
+          </div>
         </main>
       </div>
     </div>

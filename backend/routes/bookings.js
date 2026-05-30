@@ -1479,5 +1479,50 @@ router.put("/:id/finalize", adminAuth, async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 });
+/** ------------------------
+ * ✅ Unassign Docket ID
+ * ------------------------ */
+router.put("/:id/unassign-docket", authMiddleware, async (req, res) => {
+  try {
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+    const docketIdToUnassign = booking.vendorTrackingId;
+    
+    if (docketIdToUnassign) {
+      // 1. Release the docket in DocketInventory
+      await DocketInventory.findOneAndUpdate(
+        { docketId: docketIdToUnassign.toString().trim() },
+        { 
+          $set: { status: "available" },
+          $unset: { usedAt: "" },
+          $pull: { usedBy: booking._id, epId: booking.bookingId }
+        }
+      );
+    }
+
+    // 2. Clear from booking
+    const updated = await Booking.findByIdAndUpdate(
+      req.params.id,
+      { 
+        $set: { vendorTrackingId: "" },
+        $push: {
+          trackingHistory: {
+            status: booking.status,
+            location: booking.currentLocation || "Hub",
+            timestamp: new Date(),
+            description: `Docket ID ${docketIdToUnassign || 'unassigned'} removed by Admin.`
+          }
+        }
+      },
+      { new: true, runValidators: false }
+    );
+
+    res.json(updated);
+  } catch (error) {
+    console.error("Error unassigning docket:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
 
 module.exports = router;

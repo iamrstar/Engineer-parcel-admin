@@ -28,18 +28,35 @@ export const AuthProvider = ({ children }) => {
       if (savedUser) {
         setUser(JSON.parse(savedUser))
       }
+      // Silently mark attendance
+      axios.post(`${API_BASE_URL}/api/attendance/mark`).catch(e => console.log("Attendance not marked", e))
     }
     setLoading(false)
   }, [])
 
   const login = async (identifier, password) => {
     try {
-      // Check if it's a numeric phone number (for new User model) or alphanumeric (for Admin model)
+      // Check if it's a numeric phone number (for new User model)
       const isPhone = /^\d+$/.test(identifier)
-      const loginEndpoint = isPhone ? "/api/users/login" : "/api/auth/login"
-      const payload = isPhone ? { phone: identifier, password } : { username: identifier, password }
+      let response;
 
-      const response = await axios.post(`${API_BASE_URL}${loginEndpoint}`, payload)
+      if (isPhone) {
+        // Must be a user
+        response = await axios.post(`${API_BASE_URL}/api/users/login`, { phone: identifier, password })
+      } else {
+        // Alphanumeric: Could be Admin or User (Staff)
+        try {
+          // Try Admin first
+          response = await axios.post(`${API_BASE_URL}/api/auth/login`, { username: identifier, password })
+        } catch (error) {
+          // If Admin fails, try User
+          if (error.response?.status === 400 || error.response?.status === 401 || error.response?.status === 404) {
+            response = await axios.post(`${API_BASE_URL}/api/users/login`, { username: identifier, password })
+          } else {
+            throw error; // Unexpected server error
+          }
+        }
+      }
 
       const { token, admin, user: userData } = response.data
       const finalUser = userData || admin // handle both response formats
@@ -52,6 +69,9 @@ export const AuthProvider = ({ children }) => {
 
       setIsAuthenticated(true)
       setUser(finalUser)
+
+      // Silently mark attendance
+      axios.post(`${API_BASE_URL}/api/attendance/mark`).catch(e => console.log("Attendance not marked", e))
 
       return { success: true, user: finalUser }
     } catch (error) {

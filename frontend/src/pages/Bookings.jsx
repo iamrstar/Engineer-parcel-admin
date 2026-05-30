@@ -334,8 +334,12 @@ const Bookings = () => {
   // Docket Assignment State
   const [docketModal, setDocketModal] = useState({ open: false, booking: null })
   const [docketVendor, setDocketVendor] = useState("")
+  const [otherDocketVendor, setOtherDocketVendor] = useState("")
   const [docketId, setDocketId] = useState("")
   const [isAssigningDocket, setIsAssigningDocket] = useState(false)
+  const [isTrackingIdEditable, setIsTrackingIdEditable] = useState(false)
+  const [unassignModal, setUnassignModal] = useState({ open: false })
+  const [unassigning, setUnassigning] = useState(false)
 
   useEffect(() => {
     fetchBookings()
@@ -417,15 +421,37 @@ const Bookings = () => {
     fetchBookings()
   }
 
+  const handleUnassignDocket = async () => {
+    try {
+      setUnassigning(true);
+      const t = localStorage.getItem("adminToken") || localStorage.getItem("token");
+      await axios.put(
+        `${import.meta.env.VITE_API_URL}/api/bookings/${unassignModal.id}/unassign-docket`,
+        {},
+        { headers: { Authorization: `Bearer ${t}` } }
+      );
+      toast.success("Docket unassigned successfully!");
+      setDocketId("");
+      setIsTrackingIdEditable(true);
+      setUnassignModal({ open: false, id: null });
+      fetchBookings(); // Refresh list to show it's unassigned
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to unassign docket");
+    } finally {
+      setUnassigning(false);
+    }
+  };
+
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Bookings Management</h1>
-        <p className="text-gray-600">Manage all courier bookings</p>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Bookings Management</h1>
+        <p className="text-gray-600 dark:text-gray-400">Manage all courier bookings</p>
       </div>
 
       {/* Filters Section */}
-      <div className="bg-white rounded-lg shadow p-6 mb-6">
+      <div className="bg-white dark:bg-[#111111] rounded-lg shadow border border-transparent dark:border-white/10 p-6 mb-6 transition-colors">
         <div className="flex flex-col sm:flex-row gap-4 mb-4">
           <form onSubmit={handleSearch} className="flex-1">
             <div className="relative">
@@ -435,7 +461,7 @@ const Bookings = () => {
                 placeholder="Search by Booking ID, Track ID, Sender/Receiver..."
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1A1A1A] dark:text-white rounded-lg focus:ring-2 focus:ring-primary-500 placeholder-gray-400 dark:placeholder-gray-500 transition-colors"
               />
             </div>
           </form>
@@ -444,7 +470,7 @@ const Bookings = () => {
             <select
               value={serviceFilter}
               onChange={(e) => setServiceFilter(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              className="border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1A1A1A] dark:text-white rounded-lg px-3 py-2 text-sm transition-colors"
             >
               <option value="all">All Services</option>
               <option value="campus-parcel">Campus Parcel</option>
@@ -460,7 +486,7 @@ const Bookings = () => {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+              className="border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1A1A1A] dark:text-white rounded-lg px-3 py-2 text-sm transition-colors"
             >
               <option value="all">All Status</option>
               <option value="pending">Pending</option>
@@ -475,20 +501,22 @@ const Bookings = () => {
             <select
               value={vendorFilter}
               onChange={(e) => setVendorFilter(e.target.value)}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-primary-500"
+              className="border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1A1A1A] dark:text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 transition-colors"
             >
               <option value="all">All Vendors</option>
               <option value="bluedart">BlueDart</option>
               <option value="dtdc">DTDC</option>
               <option value="delhivery">Delhivery</option>
-              <option value="ecom express">Ecom Express</option>
-              <option value="shadowfax">Shadowfax</option>
+              <option value="safe express">Safe Express</option>
+              <option value="india post">India Post</option>
+              <option value="i carry">I Carry</option>
+              <option value="other">Other</option>
               <option value="none">No Vendor</option>
             </select>
 
             <button
               onClick={handleExportExcel}
-              className="flex items-center gap-2 px-3 py-2 bg-green-50 text-green-700 rounded-lg hover:bg-green-100 transition-colors text-sm font-medium border border-green-200"
+              className="flex items-center gap-2 px-3 py-2 bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-100 dark:hover:bg-green-500/20 transition-colors text-sm font-medium border border-green-200 dark:border-green-500/20"
               title="Export All Filtered to Excel"
             >
               <FileDown className="h-4 w-4" />
@@ -497,7 +525,7 @@ const Bookings = () => {
 
             <button
               onClick={handleResetFilters}
-              className="flex items-center gap-2 px-3 py-2 bg-gray-100 text-gray-600 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium border border-gray-200"
+              className="flex items-center gap-2 px-3 py-2 bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-white/10 transition-colors text-sm font-medium border border-gray-200 dark:border-white/10"
               title="Reset All Filters"
             >
               <RotateCcw className="h-4 w-4" />
@@ -506,8 +534,8 @@ const Bookings = () => {
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-4 pt-4 border-t border-gray-100">
-          <div className="flex items-center gap-2 font-medium text-gray-500">
+        <div className="flex flex-wrap items-center gap-4 pt-4 border-t border-gray-100 dark:border-white/10">
+          <div className="flex items-center gap-2 font-medium text-gray-500 dark:text-gray-400">
             <Calendar className="h-4 w-4" />
             <span className="text-sm">Date Filter:</span>
             <select
@@ -516,7 +544,7 @@ const Bookings = () => {
                 setDateFilter(e.target.value)
                 setCurrentPage(1)
               }}
-              className="border border-gray-300 rounded-lg px-3 py-2 text-sm ml-1"
+              className="border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1A1A1A] dark:text-white rounded-lg px-3 py-2 text-sm ml-1 transition-colors"
             >
               <option value="all">Anytime</option>
               <option value="today">Today</option>
@@ -532,14 +560,14 @@ const Bookings = () => {
                 type="date"
                 value={customStartDate}
                 onChange={(e) => setCustomStartDate(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                className="border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1A1A1A] dark:text-white color-scheme-light dark:color-scheme-dark rounded-lg px-3 py-2 text-sm transition-colors"
               />
-              <span className="text-gray-400">to</span>
+              <span className="text-gray-400 dark:text-gray-500">to</span>
               <input
                 type="date"
                 value={customEndDate}
                 onChange={(e) => setCustomEndDate(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                className="border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1A1A1A] dark:text-white color-scheme-light dark:color-scheme-dark rounded-lg px-3 py-2 text-sm transition-colors"
               />
             </div>
           )}
@@ -547,7 +575,7 @@ const Bookings = () => {
       </div>
 
       {/* Bookings Table Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white dark:bg-[#111111] rounded-lg shadow overflow-hidden transition-colors border border-transparent dark:border-white/10">
         {loading ? (
           <div className="flex items-center justify-center h-64">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
@@ -555,73 +583,102 @@ const Bookings = () => {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-white/10">
+                <thead className="bg-gray-50 dark:bg-white/5 transition-colors">
                   <tr>
                     <th className="px-6 py-3 text-left">
                       <input
                         type="checkbox"
                         checked={selectedIds.length === bookings.length && bookings.length > 0}
                         onChange={toggleSelectAll}
-                        className="rounded border-gray-300 text-primary-600 focus:ring-primary-500 h-4 w-4"
+                        className="rounded border-gray-300 dark:border-white/10 bg-white dark:bg-transparent text-primary-600 focus:ring-primary-500 h-4 w-4"
                       />
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Booking ID</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sender</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receiver</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Route</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vendor</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Track ID</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Booking ID</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Sender</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Receiver</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Bill To</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Item Name</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Service</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Chargeable Wt.</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Vendor</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Track ID</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white dark:bg-[#111111] divide-y divide-gray-200 dark:divide-white/10">
                   {bookings.map((booking) => (
-                    <tr key={booking._id} className={`hover:bg-gray-50 transition-colors ${selectedIds.includes(booking._id) ? 'bg-primary-50/30' : ''}`}>
+                    <tr key={booking._id} className={`hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${selectedIds.includes(booking._id) ? 'bg-primary-50/30 dark:bg-primary-500/10' : ''}`}>
                       <td className="px-6 py-4">
                         <input
                           type="checkbox"
                           checked={selectedIds.includes(booking._id)}
                           onChange={() => toggleSelect(booking._id)}
-                          className="rounded border-gray-300 text-primary-600 focus:ring-primary-500 h-4 w-4"
+                          className="rounded border-gray-300 dark:border-white/10 bg-white dark:bg-transparent text-primary-600 focus:ring-primary-500 h-4 w-4"
                         />
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{booking.bookingId}</div>
+                        <div className="text-sm font-medium text-gray-900 dark:text-white">{booking.bookingId}</div>
                         <div className="flex flex-wrap gap-1 mt-1">
                           {booking.edl > 0 && (
-                            <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-700 border border-orange-200">
+                            <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-orange-100 dark:bg-orange-500/20 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-500/20">
                               EDL {booking.edl}
                             </span>
                           )}
                           {booking.km > 0 && (
-                            <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">
+                            <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-500/20">
                               {booking.km} KM
                             </span>
                           )}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-bold text-gray-900">{booking.senderDetails?.name}</div>
-                        <div className="text-xs text-gray-500">{booking.senderDetails?.phone}</div>
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-bold text-gray-900 dark:text-white w-48 line-clamp-2" title={booking.senderDetails?.name}>
+                          {booking.senderDetails?.name}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{booking.senderDetails?.phone}</div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-bold text-gray-900 dark:text-white w-48 line-clamp-2" title={booking.receiverDetails?.name}>
+                          {booking.receiverDetails?.name}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{booking.receiverDetails?.phone}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-bold text-gray-900">{booking.receiverDetails?.name}</div>
-                        <div className="text-xs text-gray-500">{booking.receiverDetails?.phone}</div>
+                        {booking.billingDetails?.billTo === 'Sender' && (
+                           <span className="inline-flex px-2 py-1 text-[10px] font-bold rounded-full bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400 uppercase">
+                             Sender
+                           </span>
+                        )}
+                        {booking.billingDetails?.billTo === 'Receiver' && (
+                           <span className="inline-flex px-2 py-1 text-[10px] font-bold rounded-full bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400 uppercase">
+                             Receiver
+                           </span>
+                        )}
+                        {booking.billingDetails?.billTo === 'Other' && (
+                           <div className="flex flex-col">
+                             <span className="inline-flex px-2 py-1 text-[10px] font-bold rounded-full bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400 w-max mb-1 uppercase">
+                               Other
+                             </span>
+                             <span className="text-[10px] text-gray-500 font-medium w-32 line-clamp-1" title={booking.billingDetails?.address || booking.billingDetails?.name}>
+                               {booking.billingDetails?.name}
+                             </span>
+                           </div>
+                        )}
+                        {(!booking.billingDetails || !booking.billingDetails.billTo) && (
+                           <span className="text-gray-400 text-xs">—</span>
+                        )}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center text-sm font-semibold text-gray-800">
-                          <span className="capitalize">{booking.senderDetails?.city || "—"}</span>
-                          <ArrowRight className="h-3.5 w-3.5 text-gray-400 mx-1.5 flex-shrink-0" />
-                          <span className="capitalize">{booking.receiverDetails?.city || "—"}</span>
+                      <td className="px-6 py-4">
+                        <div className="text-sm font-bold text-gray-900 dark:text-white w-48 line-clamp-2 capitalize" title={booking.packageDetails?.description || "—"}>
+                          {booking.packageDetails?.description || "—"}
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-bold text-gray-800 capitalize">{booking.serviceType}</div>
+                        <div className="text-sm font-bold text-gray-800 dark:text-gray-200 capitalize">{booking.serviceType}</div>
                         <div className="text-[10px] text-gray-400 font-medium">Source: {booking.bookingSource || 'web'}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap overflow-visible">
@@ -639,10 +696,13 @@ const Bookings = () => {
                           <TrackingHistoryTooltip booking={booking} />
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white">
                         ₹{booking.pricing?.totalAmount || 0}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-600">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white">
+                        {booking.packageDetails?.chargeableWeight || booking.packageDetails?.weight || booking.weight || 0} {booking.packageDetails?.chargeableWeightUnit || booking.packageDetails?.weightUnit || booking.weightUnit || 'kg'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-600 dark:text-gray-300">
                         {booking.vendorName ? (
                           booking.vendorName.toLowerCase() === 'bluedart' ? (
                             <a href="https://bluedart.com/home" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline uppercase">
@@ -661,10 +721,10 @@ const Bookings = () => {
                           )
                         ) : "-"}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 font-mono">
+                      <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400 font-mono">
                         {booking.vendorTrackingId || "-"}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500">
+                      <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">
                         {booking.isVendorBooking && booking.pickupDate ? (
                           new Date(booking.pickupDate).toLocaleDateString()
                         ) : (
@@ -673,7 +733,7 @@ const Bookings = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                         <div className="flex items-center justify-center space-x-2">
-                          <Link to={`/bookings/${booking._id}`} className="p-1 px-2.5 text-primary-600 hover:bg-primary-50 rounded-lg flex items-center gap-1.5 border border-primary-100">
+                          <Link to={`/bookings/${booking._id}`} className="p-1 px-2.5 text-primary-600 dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-500/10 rounded-lg flex items-center gap-1.5 border border-primary-100 dark:border-primary-500/20 transition-colors">
                             <Eye className="h-4 w-4" />
                             <span className="text-xs font-bold">VIEW</span>
                           </Link>
@@ -688,7 +748,7 @@ const Bookings = () => {
                                 });
                                 setPdfModalOpen(true);
                               }}
-                              className="p-1 px-2.5 text-red-500 hover:bg-red-50 rounded-lg flex items-center gap-1.5 border border-red-100 transition-colors"
+                              className="p-1 px-2.5 text-red-500 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg flex items-center gap-1.5 border border-red-100 dark:border-red-500/20 transition-colors"
                               title="Print Records"
                             >
                               <FileText className="h-4 w-4" />
@@ -702,7 +762,7 @@ const Bookings = () => {
                                 setCancelReason("");
                                 setCancelModalOpen(true);
                               }}
-                              className="p-1 px-2.5 text-red-600 hover:bg-red-50 rounded-lg flex items-center gap-1.5 border border-red-100 transition-colors"
+                              className="p-1 px-2.5 text-red-600 dark:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-lg flex items-center gap-1.5 border border-red-100 dark:border-red-500/20 transition-colors"
                               title="Cancel Order"
                             >
                               <XCircle className="h-4 w-4" />
@@ -721,7 +781,7 @@ const Bookings = () => {
                                 });
                                 setRescheduleModalOpen(true);
                               }}
-                              className="p-1 px-2.5 text-orange-600 hover:bg-orange-50 rounded-lg flex items-center gap-1.5 border border-orange-100 transition-colors"
+                              className="p-1 px-2.5 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-500/10 rounded-lg flex items-center gap-1.5 border border-orange-100 dark:border-orange-500/20 transition-colors"
                               title="Reschedule Pickup/Delivery"
                             >
                               <Calendar className="h-4 w-4" />
@@ -733,8 +793,9 @@ const Bookings = () => {
                               setDocketModal({ open: true, booking: booking });
                               setDocketVendor(booking.vendorName || "");
                               setDocketId(booking.vendorTrackingId || "");
+                              setIsTrackingIdEditable(false);
                             }}
-                            className="p-1 px-2.5 text-teal-600 hover:bg-teal-50 rounded-lg flex items-center gap-1.5 border border-teal-100 transition-colors"
+                            className="p-1 px-2.5 text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-500/10 rounded-lg flex items-center gap-1.5 border border-teal-100 dark:border-teal-500/20 transition-colors"
                             title="Quick Assign Docket"
                           >
                             <Tag className="h-4 w-4" />
@@ -746,7 +807,7 @@ const Bookings = () => {
                   ))}
                   {bookings.length === 0 && (
                     <tr>
-                      <td colSpan="10" className="px-6 py-10 text-center text-gray-500 italic">No bookings found matching your filters.</td>
+                      <td colSpan="10" className="px-6 py-10 text-center text-gray-500 dark:text-gray-400 italic">No bookings found matching your filters.</td>
                     </tr>
                   )}
                 </tbody>
@@ -755,8 +816,8 @@ const Bookings = () => {
 
             {/* Bulk Action Floating Bar */}
             {selectedIds.length > 0 && (
-              <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 bg-gray-900 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-6 animate-in slide-in-from-bottom-10 duration-300">
-                <div className="flex items-center gap-3 border-r border-gray-700 pr-6">
+              <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 bg-gray-900 dark:bg-black/90 dark:border dark:border-white/10 backdrop-blur-sm text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-6 animate-in slide-in-from-bottom-10 duration-300">
+                <div className="flex items-center gap-3 border-r border-gray-700 dark:border-gray-800 pr-6">
                   <div className="bg-primary-500 text-white text-xs font-bold px-2 py-1 rounded-full">
                     {selectedIds.length}
                   </div>
@@ -793,6 +854,7 @@ const Bookings = () => {
                       setDocketModal({ open: true, booking: "bulk" });
                       setDocketVendor("");
                       setDocketId("");
+                      setIsTrackingIdEditable(false);
                     }}
                     className="flex items-center gap-2 hover:bg-gray-800 px-3 py-2 rounded-xl transition-colors text-sm font-bold text-teal-400"
                   >
@@ -812,29 +874,29 @@ const Bookings = () => {
             {/* Bulk Update Modals */}
             {bulkModal.open && (
               <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
-                  <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                    <h3 className="text-lg font-bold text-gray-900">
+                <div className="bg-white dark:bg-[#1A1A1A] border dark:border-white/10 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+                  <div className="p-6 border-b border-gray-100 dark:border-white/10 flex justify-between items-center bg-gray-50 dark:bg-white/5 transition-colors">
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">
                       {bulkModal.type === 'status' ? 'Bulk Status Update' : 'Bulk Rider Assignment'}
                     </h3>
-                    <button onClick={() => setBulkModal({ open: false, type: "" })} className="text-gray-400 hover:text-gray-600">
+                    <button onClick={() => setBulkModal({ open: false, type: "" })} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
                       <XCircle className="w-6 h-6" />
                     </button>
                   </div>
 
                   <div className="p-6">
-                    <p className="text-sm text-gray-500 mb-6">
-                      Applying changes to <span className="font-bold text-gray-900">{selectedIds.length}</span> selected bookings.
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                      Applying changes to <span className="font-bold text-gray-900 dark:text-white">{selectedIds.length}</span> selected bookings.
                     </p>
 
                     {bulkModal.type === 'status' ? (
                       <div className="space-y-4">
                         <div className="space-y-4 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
                           {bulkUpdates.map((update, index) => (
-                            <div key={index} className="p-4 bg-gray-50 border border-gray-250 rounded-2xl relative space-y-3 shadow-sm border-2">
+                            <div key={index} className="p-4 bg-gray-50 dark:bg-[#111111] border border-gray-250 dark:border-white/10 rounded-2xl relative space-y-3 shadow-sm border-2">
                               {/* Header with Card Number & Remove Button */}
-                              <div className="flex justify-between items-center border-b border-gray-200 pb-2">
-                                <span className="text-xs font-bold text-gray-600 uppercase tracking-wider">Status Update #{index + 1}</span>
+                              <div className="flex justify-between items-center border-b border-gray-200 dark:border-white/10 pb-2">
+                                <span className="text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">Status Update #{index + 1}</span>
                                 {bulkUpdates.length > 1 && (
                                   <button
                                     type="button"
@@ -865,8 +927,8 @@ const Bookings = () => {
                                         })
                                       }}
                                       className={`px-1.5 py-1 rounded-lg text-[9px] font-bold border transition-all truncate ${update.status === s
-                                        ? 'border-primary-500 bg-primary-50 text-primary-700 shadow-sm'
-                                        : 'border-gray-200 hover:border-gray-300 bg-white text-gray-600'
+                                        ? 'border-primary-500 bg-primary-50 dark:bg-primary-500/10 text-primary-700 dark:text-primary-400 shadow-sm'
+                                        : 'border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20 bg-white dark:bg-transparent text-gray-600 dark:text-gray-300'
                                         }`}
                                     >
                                       {s.toUpperCase()}
@@ -890,7 +952,7 @@ const Bookings = () => {
                                       })
                                     }}
                                     placeholder="Hub Name, City"
-                                    className="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-primary-500 transition-all font-medium"
+                                    className="w-full px-3 py-1.5 bg-white dark:bg-[#111111] dark:text-white border border-gray-200 dark:border-white/10 rounded-xl text-xs focus:ring-2 focus:ring-primary-500 transition-all font-medium"
                                   />
                                 </div>
                                 <div>
@@ -905,7 +967,7 @@ const Bookings = () => {
                                         return copy;
                                       })
                                     }}
-                                    className="w-full px-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-primary-500 transition-all font-semibold"
+                                    className="w-full px-3 py-1.5 bg-white dark:bg-[#111111] dark:text-white color-scheme-light dark:color-scheme-dark border border-gray-200 dark:border-white/10 rounded-xl text-xs focus:ring-2 focus:ring-primary-500 transition-all font-semibold"
                                   />
                                 </div>
                               </div>
@@ -924,7 +986,7 @@ const Bookings = () => {
                                         })
                                       }
                                     }}
-                                    className="w-1/3 px-2 py-1 bg-white border border-gray-200 rounded-xl text-[10px] font-bold text-primary-600 focus:ring-2 focus:ring-primary-500 transition-all"
+                                    className="w-1/3 px-2 py-1 bg-white dark:bg-[#111111] dark:text-primary-400 border border-gray-200 dark:border-white/10 rounded-xl text-[10px] font-bold text-primary-600 focus:ring-2 focus:ring-primary-500 transition-all"
                                   >
                                     <option value="">Presets...</option>
                                     {PRESET_NOTES.map(note => (
@@ -942,7 +1004,7 @@ const Bookings = () => {
                                       })
                                     }}
                                     placeholder="Or type custom note..."
-                                    className="flex-1 px-3 py-1.5 bg-white border border-gray-200 rounded-xl text-xs focus:ring-2 focus:ring-primary-500 transition-all font-medium"
+                                    className="flex-1 px-3 py-1.5 bg-white dark:bg-[#111111] dark:text-white border border-gray-200 dark:border-white/10 rounded-xl text-xs focus:ring-2 focus:ring-primary-500 transition-all font-medium"
                                   />
                                 </div>
                               </div>
@@ -965,7 +1027,7 @@ const Bookings = () => {
                                 }
                               ])
                             }}
-                            className="w-full py-2.5 border-2 border-dashed border-gray-200 hover:border-primary-500 text-gray-500 hover:text-primary-600 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors bg-gray-50 hover:bg-primary-50/20"
+                            className="w-full py-2.5 border-2 border-dashed border-gray-200 dark:border-white/10 hover:border-primary-500 text-gray-500 dark:text-gray-400 hover:text-primary-600 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors bg-gray-50 dark:bg-white/5 hover:bg-primary-50/20"
                           >
                             <Plus className="w-4 h-4" />
                             Add More Status
@@ -973,15 +1035,15 @@ const Bookings = () => {
                         </div>
 
                         {bulkUpdates.some(up => up.status === "delivered") && (
-                          <div className="mt-4 p-3 bg-blue-50 rounded-xl border border-blue-100 flex items-center gap-3">
+                          <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-500/10 rounded-xl border border-blue-100 dark:border-blue-500/20 flex items-center gap-3">
                             <input
                               type="checkbox"
                               id="bulkNotify"
                               checked={bulkNotify}
                               onChange={(e) => setBulkNotify(e.target.checked)}
-                              className="h-5 w-5 text-primary-600 border-gray-300 rounded focus:ring-primary-500 cursor-pointer"
+                              className="h-5 w-5 text-primary-600 border-gray-300 dark:border-white/10 bg-white dark:bg-transparent rounded focus:ring-primary-500 cursor-pointer"
                             />
-                            <label htmlFor="bulkNotify" className="text-xs font-bold text-blue-800 cursor-pointer">
+                            <label htmlFor="bulkNotify" className="text-xs font-bold text-blue-800 dark:text-blue-400 cursor-pointer">
                               Send Delivered Message (Email) to all customers
                             </label>
                           </div>
@@ -990,11 +1052,11 @@ const Bookings = () => {
                     ) : (
                       <div className="space-y-4">
                         <div>
-                          <label className="block text-sm font-bold text-gray-700 mb-2">Select Rider</label>
+                          <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Select Rider</label>
                           <select
                             value={bulkAssignment.riderId}
                             onChange={(e) => setBulkAssignment(prev => ({ ...prev, riderId: e.target.value }))}
-                            className="w-full rounded-xl border-gray-200 focus:ring-primary-500 focus:border-primary-500 text-sm py-3"
+                            className="w-full rounded-xl border-gray-200 dark:border-white/10 bg-white dark:bg-[#111111] dark:text-white focus:ring-primary-500 focus:border-primary-500 text-sm py-3 transition-colors"
                           >
                             <option value="">Choose a rider...</option>
                             {riders.map(r => (
@@ -1003,15 +1065,15 @@ const Bookings = () => {
                           </select>
                         </div>
                         <div>
-                          <label className="block text-sm font-bold text-gray-700 mb-2">Assign For</label>
+                          <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Assign For</label>
                           <div className="flex gap-2">
                             {["pickup", "delivery", "both"].map(t => (
                               <button
                                 key={t}
                                 onClick={() => setBulkAssignment(prev => ({ ...prev, assignedFor: t }))}
                                 className={`flex-1 px-3 py-2 rounded-xl text-xs font-bold border-2 transition-all ${bulkAssignment.assignedFor === t
-                                  ? 'border-amber-500 bg-amber-50 text-amber-700'
-                                  : 'border-gray-100 hover:border-gray-200 text-gray-600'
+                                  ? 'border-amber-500 bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                                  : 'border-gray-100 dark:border-white/10 hover:border-gray-200 dark:hover:border-white/20 text-gray-600 dark:text-gray-400'
                                   }`}
                               >
                                 {t.toUpperCase()}
@@ -1023,10 +1085,10 @@ const Bookings = () => {
                     )}
                   </div>
 
-                  <div className="p-6 bg-gray-50 border-t border-gray-100 flex gap-3">
+                  <div className="p-6 bg-gray-50 dark:bg-white/5 border-t border-gray-100 dark:border-white/10 flex gap-3 transition-colors">
                     <button
                       onClick={() => setBulkModal({ open: false, type: "" })}
-                      className="flex-1 px-4 py-3 border border-gray-200 rounded-xl font-bold text-gray-600 hover:bg-gray-100 transition-colors"
+                      className="flex-1 px-4 py-3 border border-gray-200 dark:border-white/10 rounded-xl font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
                     >
                       Cancel
                     </button>
@@ -1052,16 +1114,16 @@ const Bookings = () => {
 
             {/* Pagination Controls */}
             {totalPages > 1 && (
-              <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex flex-wrap items-center justify-between gap-4">
+              <div className="px-6 py-4 bg-gray-50 dark:bg-white/5 border-t border-gray-100 dark:border-white/10 flex flex-wrap items-center justify-between gap-4 transition-colors">
                 <div className="flex items-center gap-3">
-                  <span className="text-sm text-gray-500 font-medium">Show:</span>
+                  <span className="text-sm text-gray-500 dark:text-gray-400 font-medium">Show:</span>
                   <select
                     value={limit}
                     onChange={(e) => {
                       setLimit(parseInt(e.target.value))
                       setCurrentPage(1)
                     }}
-                    className="border border-gray-300 rounded-lg px-2 py-1 text-sm bg-white font-bold text-gray-700"
+                    className="border border-gray-300 dark:border-white/10 rounded-lg px-2 py-1 text-sm bg-white dark:bg-[#1A1A1A] font-bold text-gray-700 dark:text-gray-300 transition-colors"
                   >
                     <option value={10}>10</option>
                     <option value={25}>25</option>
@@ -1071,7 +1133,7 @@ const Bookings = () => {
                 </div>
 
                 <div className="flex items-center gap-2 order-3 sm:order-2 w-full sm:w-auto justify-center">
-                  <span className="text-sm font-bold text-gray-900 px-3 py-1 bg-white border border-gray-200 rounded-lg shadow-sm">
+                  <span className="text-sm font-bold text-gray-900 dark:text-white px-3 py-1 bg-white dark:bg-[#1A1A1A] border border-gray-200 dark:border-white/10 rounded-lg shadow-sm transition-colors">
                     Page {currentPage} of {totalPages}
                   </span>
                 </div>
@@ -1080,14 +1142,14 @@ const Bookings = () => {
                   <button
                     disabled={currentPage === 1}
                     onClick={() => setCurrentPage(prev => prev - 1)}
-                    className="px-4 py-2 text-sm font-bold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                    className="px-4 py-2 text-sm font-bold text-gray-700 dark:text-gray-300 bg-white dark:bg-[#1A1A1A] border border-gray-300 dark:border-white/10 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
                   >
                     Previous
                   </button>
                   <button
                     disabled={currentPage === totalPages}
                     onClick={() => setCurrentPage(prev => prev + 1)}
-                    className="px-4 py-2 text-sm font-bold text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
+                    className="px-4 py-2 text-sm font-bold text-gray-700 dark:text-gray-300 bg-white dark:bg-[#1A1A1A] border border-gray-300 dark:border-white/10 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
                   >
                     Next
                   </button>
@@ -1107,67 +1169,67 @@ const Bookings = () => {
 
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
-            <div className="inline-block align-bottom bg-white rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full border border-gray-100">
-              <div className="bg-white px-6 pt-6 pb-4 sm:p-8 sm:pb-6">
+            <div className="inline-block align-bottom bg-white dark:bg-[#1A1A1A] rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full border border-gray-100 dark:border-white/10">
+              <div className="bg-white dark:bg-[#1A1A1A] px-6 pt-6 pb-4 sm:p-8 sm:pb-6 transition-colors">
                 <div className="sm:flex sm:items-start">
-                  <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
-                    <FileText className="h-6 w-6 text-red-600" aria-hidden="true" />
+                  <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-500/10 sm:mx-0 sm:h-10 sm:w-10">
+                    <FileText className="h-6 w-6 text-red-600 dark:text-red-400" aria-hidden="true" />
                   </div>
                   <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                    <h3 className="text-xl leading-6 font-bold text-gray-900">
+                    <h3 className="text-xl leading-6 font-bold text-gray-900 dark:text-white">
                       Print Options
                     </h3>
                     <div className="mt-2">
-                      <p className="text-sm text-gray-500">
-                        Select which documents you want to include in the generated PDF for <span className="font-mono font-bold text-gray-700">{pdfBooking?.bookingId}</span>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Select which documents you want to include in the generated PDF for <span className="font-mono font-bold text-gray-700 dark:text-gray-300">{pdfBooking?.bookingId}</span>
                       </p>
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-6 space-y-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
-                  <label className="flex items-center p-3 bg-white rounded-lg border border-gray-200 hover:border-red-300 transition-colors cursor-pointer group">
+                <div className="mt-6 space-y-4 bg-gray-50 dark:bg-[#111111] p-4 rounded-xl border border-gray-200 dark:border-white/10 transition-colors">
+                  <label className="flex items-center p-3 bg-white dark:bg-[#1A1A1A] rounded-lg border border-gray-200 dark:border-white/10 hover:border-red-300 dark:hover:border-red-500/50 transition-colors cursor-pointer group">
                     <input
                       type="checkbox"
                       checked={pdfOptions.receipt}
                       onChange={(e) => setPdfOptions({ ...pdfOptions, receipt: e.target.checked })}
-                      className="h-5 w-5 text-red-600 border-gray-300 rounded focus:ring-red-500 cursor-pointer"
+                      className="h-5 w-5 text-red-600 border-gray-300 dark:border-white/10 bg-white dark:bg-transparent rounded focus:ring-red-500 cursor-pointer"
                     />
                     <div className="ml-3">
-                      <span className="block text-sm font-bold text-gray-900 group-hover:text-red-700">Booking Receipt</span>
-                      <span className="block text-xs text-gray-500">Official proof of booking and charges</span>
+                      <span className="block text-sm font-bold text-gray-900 dark:text-white group-hover:text-red-700 dark:group-hover:text-red-400">Booking Receipt</span>
+                      <span className="block text-xs text-gray-500 dark:text-gray-400">Official proof of booking and charges</span>
                     </div>
                   </label>
 
-                  <label className="flex items-center p-3 bg-white rounded-lg border border-gray-200 hover:border-red-300 transition-colors cursor-pointer group">
+                  <label className="flex items-center p-3 bg-white dark:bg-[#1A1A1A] rounded-lg border border-gray-200 dark:border-white/10 hover:border-red-300 dark:hover:border-red-500/50 transition-colors cursor-pointer group">
                     <input
                       type="checkbox"
                       checked={pdfOptions.label}
                       onChange={(e) => setPdfOptions({ ...pdfOptions, label: e.target.checked })}
-                      className="h-5 w-5 text-red-600 border-gray-300 rounded focus:ring-red-500 cursor-pointer"
+                      className="h-5 w-5 text-red-600 border-gray-300 dark:border-white/10 bg-white dark:bg-transparent rounded focus:ring-red-500 cursor-pointer"
                     />
                     <div className="ml-3">
-                      <span className="block text-sm font-bold text-gray-900 group-hover:text-red-700">Shipping Label (A6)</span>
-                      <span className="block text-xs text-gray-500">Compact label with QR code for the box</span>
+                      <span className="block text-sm font-bold text-gray-900 dark:text-white group-hover:text-red-700 dark:group-hover:text-red-400">Shipping Label (A6)</span>
+                      <span className="block text-xs text-gray-500 dark:text-gray-400">Compact label with QR code for the box</span>
                     </div>
                   </label>
 
-                  <label className="flex items-center p-3 bg-white rounded-lg border border-gray-200 hover:border-red-300 transition-colors cursor-pointer group">
+                  <label className="flex items-center p-3 bg-white dark:bg-[#1A1A1A] rounded-lg border border-gray-200 dark:border-white/10 hover:border-red-300 dark:hover:border-red-500/50 transition-colors cursor-pointer group">
                     <input
                       type="checkbox"
                       checked={pdfOptions.declaration}
                       onChange={(e) => setPdfOptions({ ...pdfOptions, declaration: e.target.checked })}
-                      className="h-5 w-5 text-red-600 border-gray-300 rounded focus:ring-red-500 cursor-pointer"
+                      className="h-5 w-5 text-red-600 border-gray-300 dark:border-white/10 bg-white dark:bg-transparent rounded focus:ring-red-500 cursor-pointer"
                     />
                     <div className="ml-3">
-                      <span className="block text-sm font-bold text-gray-900 group-hover:text-red-700">Self-Declaration Form</span>
-                      <span className="block text-xs text-gray-500">Legal declaration signed by sender</span>
+                      <span className="block text-sm font-bold text-gray-900 dark:text-white group-hover:text-red-700 dark:group-hover:text-red-400">Self-Declaration Form</span>
+                      <span className="block text-xs text-gray-500 dark:text-gray-400">Legal declaration signed by sender</span>
                     </div>
                   </label>
                 </div>
               </div>
 
-              <div className="bg-gray-50 px-6 py-4 sm:px-8 sm:flex sm:flex-row-reverse gap-3">
+              <div className="bg-gray-50 dark:bg-white/5 px-6 py-4 sm:px-8 sm:flex sm:flex-row-reverse gap-3 transition-colors">
                 <button
                   type="button"
                   onClick={async () => {
@@ -1204,7 +1266,7 @@ const Bookings = () => {
                 <button
                   type="button"
                   onClick={() => setPdfModalOpen(false)}
-                  className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                  className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 dark:border-white/10 shadow-sm px-4 py-2 bg-white dark:bg-[#1A1A1A] text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition-colors"
                 >
                   Cancel
                 </button>
@@ -1224,38 +1286,38 @@ const Bookings = () => {
 
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
-            <div className="inline-block align-bottom bg-white rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full border border-gray-100">
-              <div className="bg-white px-6 pt-6 pb-4 sm:p-8 sm:pb-6">
+            <div className="inline-block align-bottom bg-white dark:bg-[#1A1A1A] rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full border border-gray-100 dark:border-white/10">
+              <div className="bg-white dark:bg-[#1A1A1A] px-6 pt-6 pb-4 sm:p-8 sm:pb-6 transition-colors">
                 <div className="sm:flex sm:items-start">
-                  <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-orange-100 sm:mx-0 sm:h-10 sm:w-10">
-                    <Calendar className="h-6 w-6 text-orange-600" aria-hidden="true" />
+                  <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-orange-100 dark:bg-orange-500/10 sm:mx-0 sm:h-10 sm:w-10">
+                    <Calendar className="h-6 w-6 text-orange-600 dark:text-orange-400" aria-hidden="true" />
                   </div>
                   <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                    <h3 className="text-xl leading-6 font-bold text-gray-900">
+                    <h3 className="text-xl leading-6 font-bold text-gray-900 dark:text-white">
                       Reschedule Campus Parcel
                     </h3>
                     <div className="mt-2">
-                      <p className="text-sm text-gray-500">
-                        Update the pickup or delivery schedule for <span className="font-mono font-bold text-gray-700">{reschedulingBooking?.bookingId}</span>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Update the pickup or delivery schedule for <span className="font-mono font-bold text-gray-700 dark:text-gray-300">{reschedulingBooking?.bookingId}</span>
                       </p>
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-6 space-y-5 bg-gray-50 p-5 rounded-xl border border-gray-200">
+                <div className="mt-6 space-y-5 bg-gray-50 dark:bg-[#111111] p-5 rounded-xl border border-gray-200 dark:border-white/10 transition-colors">
                   {/* Reschedule Type Selection */}
                   <div>
                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Reschedule For:</label>
                     <div className="grid grid-cols-2 gap-2">
                         <button
                           onClick={() => setRescheduleData({ ...rescheduleData, type: "pickup" })}
-                          className={`p-2.5 rounded-lg border text-sm font-bold transition-all ${rescheduleData.type === 'pickup' ? 'bg-orange-600 border-orange-600 text-white shadow-md' : 'bg-white border-gray-200 text-gray-600 hover:border-orange-300'}`}
+                          className={`p-2.5 rounded-lg border text-sm font-bold transition-all ${rescheduleData.type === 'pickup' ? 'bg-orange-600 border-orange-600 text-white shadow-md' : 'bg-white dark:bg-transparent border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300 hover:border-orange-300 dark:hover:border-orange-500/50'}`}
                         >
                           Box Pickup
                         </button>
                         <button
                           onClick={() => setRescheduleData({ ...rescheduleData, type: "delivery" })}
-                          className={`p-2.5 rounded-lg border text-sm font-bold transition-all ${rescheduleData.type === 'delivery' ? 'bg-orange-600 border-orange-600 text-white shadow-md' : 'bg-white border-gray-200 text-gray-600 hover:border-orange-300'}`}
+                          className={`p-2.5 rounded-lg border text-sm font-bold transition-all ${rescheduleData.type === 'delivery' ? 'bg-orange-600 border-orange-600 text-white shadow-md' : 'bg-white dark:bg-transparent border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300 hover:border-orange-300 dark:hover:border-orange-500/50'}`}
                         >
                           Box Delivery
                         </button>
@@ -1268,14 +1330,14 @@ const Bookings = () => {
                     <div className="grid grid-cols-2 gap-2">
                         <button
                           onClick={() => setRescheduleData({ ...rescheduleData, source: "admin" })}
-                          className={`p-3 rounded-lg border text-xs font-bold transition-all flex flex-col items-center gap-1.5 ${rescheduleData.source === 'admin' ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white border-gray-200 text-gray-600 hover:border-blue-300'}`}
+                          className={`p-3 rounded-lg border text-xs font-bold transition-all flex flex-col items-center gap-1.5 ${rescheduleData.source === 'admin' ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'bg-white dark:bg-transparent border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300 hover:border-blue-300 dark:hover:border-blue-500/50'}`}
                         >
                           <span className="text-center italic opacity-80 font-normal underline">Option 1</span>
                           <span>Admin/Company</span>
                         </button>
                         <button
                           onClick={() => setRescheduleData({ ...rescheduleData, source: "customer" })}
-                          className={`p-3 rounded-lg border text-xs font-bold transition-all flex flex-col items-center gap-1.5 ${rescheduleData.source === 'customer' ? 'bg-green-600 border-green-600 text-white shadow-md' : 'bg-white border-gray-200 text-gray-600 hover:border-green-300'}`}
+                          className={`p-3 rounded-lg border text-xs font-bold transition-all flex flex-col items-center gap-1.5 ${rescheduleData.source === 'customer' ? 'bg-green-600 border-green-600 text-white shadow-md' : 'bg-white dark:bg-transparent border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300 hover:border-green-300 dark:hover:border-green-500/50'}`}
                         >
                           <span className="text-center italic opacity-80 font-normal underline">Option 2</span>
                           <span>Customer Side</span>
@@ -1287,14 +1349,14 @@ const Bookings = () => {
                   </div>
 
                   {/* Current Schedule Info */}
-                  <div className="p-3 bg-white rounded-lg border border-gray-200 shadow-sm">
+                  <div className="p-3 bg-white dark:bg-[#1A1A1A] rounded-lg border border-gray-200 dark:border-white/10 shadow-sm transition-colors">
                     <div className="flex items-center gap-2 mb-1">
                       <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
                       <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Current Schedule Reference</span>
                     </div>
                     <div className="flex justify-between items-end">
                       <div>
-                        <p className="text-sm font-bold text-gray-800">
+                        <p className="text-sm font-bold text-gray-800 dark:text-gray-200">
                           {rescheduleData.type === 'pickup' 
                             ? (reschedulingBooking?.pickupDate ? new Date(reschedulingBooking.pickupDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Not set')
                             : (reschedulingBooking?.boxDeliveryDate ? new Date(reschedulingBooking.boxDeliveryDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Not set')}
@@ -1303,7 +1365,7 @@ const Bookings = () => {
                           Slot: {rescheduleData.type === 'pickup' ? reschedulingBooking?.pickupSlot : (reschedulingBooking?.boxDeliverySlot || 'No slot selected')}
                         </p>
                       </div>
-                      <div className="bg-blue-50 px-2 py-0.5 rounded text-[9px] font-bold text-blue-600 border border-blue-100 uppercase">
+                      <div className="bg-blue-50 dark:bg-blue-500/10 px-2 py-0.5 rounded text-[9px] font-bold text-blue-600 dark:text-blue-400 border border-blue-100 dark:border-blue-500/20 uppercase">
                         Live
                       </div>
                     </div>
@@ -1316,7 +1378,7 @@ const Bookings = () => {
                       type="date"
                       value={rescheduleData.date}
                       onChange={(e) => setRescheduleData({ ...rescheduleData, date: e.target.value })}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 font-medium"
+                      className="w-full px-4 py-2.5 bg-white dark:bg-[#1A1A1A] text-gray-900 dark:text-white color-scheme-light dark:color-scheme-dark border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 font-medium transition-colors"
                     />
                   </div>
 
@@ -1326,7 +1388,7 @@ const Bookings = () => {
                     <select
                       value={rescheduleData.slot}
                       onChange={(e) => setRescheduleData({ ...rescheduleData, slot: e.target.value })}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 font-medium"
+                      className="w-full px-4 py-2.5 bg-white dark:bg-[#1A1A1A] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500 font-medium transition-colors"
                     >
                       <option value="10:00 AM - 01:00 PM">10:00 AM - 01:00 PM</option>
                       <option value="02:00 PM - 05:00 PM">02:00 PM - 05:00 PM</option>
@@ -1336,7 +1398,7 @@ const Bookings = () => {
                 </div>
               </div>
 
-              <div className="bg-gray-50 px-6 py-4 sm:px-8 sm:flex sm:flex-row-reverse gap-3">
+              <div className="bg-gray-50 dark:bg-white/5 px-6 py-4 sm:px-8 sm:flex sm:flex-row-reverse gap-3 transition-colors">
                 <button
                   type="button"
                   disabled={rescheduleLoading || !rescheduleData.date}
@@ -1371,7 +1433,7 @@ const Bookings = () => {
                 <button
                   type="button"
                   onClick={() => setRescheduleModalOpen(false)}
-                  className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2.5 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                  className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 dark:border-white/10 shadow-sm px-4 py-2.5 bg-white dark:bg-[#1A1A1A] text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition-colors"
                 >
                   Cancel
                 </button>
@@ -1391,37 +1453,37 @@ const Bookings = () => {
 
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
 
-            <div className="inline-block align-bottom bg-white rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full border border-gray-100">
-              <div className="bg-white px-6 pt-6 pb-4 sm:p-8 sm:pb-6">
+            <div className="inline-block align-bottom bg-white dark:bg-[#1A1A1A] rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full border border-gray-100 dark:border-white/10">
+              <div className="bg-white dark:bg-[#1A1A1A] px-6 pt-6 pb-4 sm:p-8 sm:pb-6 transition-colors">
                 <div className="sm:flex sm:items-start">
-                  <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
-                    <XCircle className="h-6 w-6 text-red-600" aria-hidden="true" />
+                  <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-500/10 sm:mx-0 sm:h-10 sm:w-10">
+                    <XCircle className="h-6 w-6 text-red-600 dark:text-red-400" aria-hidden="true" />
                   </div>
                   <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                    <h3 className="text-xl leading-6 font-bold text-gray-900">
+                    <h3 className="text-xl leading-6 font-bold text-gray-900 dark:text-white">
                       Cancel Booking
                     </h3>
                     <div className="mt-2">
-                      <p className="text-sm text-gray-500">
-                        Cancel booking <span className="font-mono font-bold text-gray-700">{cancelBooking?.bookingId}</span>?
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Cancel booking <span className="font-mono font-bold text-gray-700 dark:text-gray-300">{cancelBooking?.bookingId}</span>?
                       </p>
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-6 space-y-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                <div className="mt-6 space-y-4 bg-gray-50 dark:bg-[#111111] p-4 rounded-xl border border-gray-200 dark:border-white/10 transition-colors">
                   <div>
                     <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Initiated By:</label>
                     <div className="grid grid-cols-2 gap-2">
                         <button
                           onClick={() => setCancelSource("admin")}
-                          className={`p-2.5 rounded-lg border text-sm font-bold transition-all ${cancelSource === 'admin' ? 'bg-red-600 border-red-600 text-white shadow-md' : 'bg-white border-gray-200 text-gray-600 hover:border-red-300'}`}
+                          className={`p-2.5 rounded-lg border text-sm font-bold transition-all ${cancelSource === 'admin' ? 'bg-red-600 border-red-600 text-white shadow-md' : 'bg-white dark:bg-transparent border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300 hover:border-red-300 dark:hover:border-red-500/50'}`}
                         >
                           Admin
                         </button>
                         <button
                           onClick={() => setCancelSource("customer")}
-                          className={`p-2.5 rounded-lg border text-sm font-bold transition-all ${cancelSource === 'customer' ? 'bg-red-600 border-red-600 text-white shadow-md' : 'bg-white border-gray-200 text-gray-600 hover:border-red-300'}`}
+                          className={`p-2.5 rounded-lg border text-sm font-bold transition-all ${cancelSource === 'customer' ? 'bg-red-600 border-red-600 text-white shadow-md' : 'bg-white dark:bg-transparent border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-300 hover:border-red-300 dark:hover:border-red-500/50'}`}
                         >
                           Customer
                         </button>
@@ -1433,7 +1495,7 @@ const Bookings = () => {
                     <select
                       value={cancelReason}
                       onChange={(e) => setCancelReason(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm"
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1A1A1A] text-gray-900 dark:text-white rounded-lg text-sm transition-colors"
                     >
                       <option value="">Select reason...</option>
                       <option value="Customer requested cancellation">Customer requested cancellation</option>
@@ -1445,7 +1507,7 @@ const Bookings = () => {
                 </div>
               </div>
 
-              <div className="bg-gray-50 px-6 py-4 sm:flex sm:flex-row-reverse gap-3">
+              <div className="bg-gray-50 dark:bg-white/5 px-6 py-4 sm:flex sm:flex-row-reverse gap-3 transition-colors">
                 <button
                   type="button"
                   disabled={cancelling || !cancelReason}
@@ -1474,7 +1536,7 @@ const Bookings = () => {
                 <button
                   type="button"
                   onClick={() => setCancelModalOpen(false)}
-                  className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 shadow-sm px-4 py-2.5 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                  className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 dark:border-white/10 shadow-sm px-4 py-2.5 bg-white dark:bg-[#1A1A1A] text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition-colors"
                 >
                   Cancel
                 </button>
@@ -1487,18 +1549,18 @@ const Bookings = () => {
       {/* Quick Docket Modal */}
       {docketModal.open && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+          <div className="bg-white dark:bg-[#1A1A1A] rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 border dark:border-white/10">
+            <div className="p-6 border-b border-gray-100 dark:border-white/10 flex justify-between items-center bg-gray-50 dark:bg-white/5 transition-colors">
               <div>
-                <h3 className="text-lg font-black text-gray-900">{docketModal.booking === "bulk" ? "Bulk Assign Docket" : "Assign Docket"}</h3>
-                <p className="text-[10px] font-bold text-teal-600 uppercase tracking-widest">{docketModal.booking === "bulk" ? `${selectedIds.length} Bookings Selected` : docketModal.booking?.bookingId}</p>
+                <h3 className="text-lg font-black text-gray-900 dark:text-white">{docketModal.booking === "bulk" ? "Bulk Assign Docket" : "Assign Docket"}</h3>
+                <p className="text-[10px] font-bold text-teal-600 dark:text-teal-400 uppercase tracking-widest">{docketModal.booking === "bulk" ? `${selectedIds.length} Bookings Selected` : docketModal.booking?.bookingId}</p>
               </div>
-              <button onClick={() => setDocketModal({ open: false, booking: null })} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setDocketModal({ open: false, booking: null })} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
                 <XCircle className="w-6 h-6" />
               </button>
             </div>
 
-            <div className="p-8 space-y-6">
+            <div className="p-8 space-y-6 bg-white dark:bg-[#1A1A1A] transition-colors">
               <div>
                 <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Shipping Partner</label>
                 <select
@@ -1521,33 +1583,70 @@ const Bookings = () => {
                       }
                     }
                   }}
-                  className="w-full bg-gray-50 border border-gray-200 p-4 rounded-2xl outline-none focus:ring-2 focus:ring-teal-500 font-bold text-gray-900"
+                  className="w-full bg-gray-50 dark:bg-[#111111] border border-gray-200 dark:border-white/10 p-4 rounded-2xl outline-none focus:ring-2 focus:ring-teal-500 font-bold text-gray-900 dark:text-white transition-colors"
                 >
                   <option value="">Select Vendor</option>
                   <option value="BlueDart">BlueDart</option>
                   <option value="DTDC">DTDC</option>
                   <option value="Delhivery">Delhivery</option>
-                  <option value="Ecom Express">Ecom Express</option>
+                  <option value="Safe Express">Safe Express</option>
+                  <option value="India Post">India Post</option>
+                  <option value="I Carry">I Carry</option>
                   <option value="Other">Other</option>
                 </select>
               </div>
 
+              {docketVendor === "Other" && (
+                <div>
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Other Vendor Name</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={otherDocketVendor}
+                      onChange={(e) => setOtherDocketVendor(e.target.value)}
+                      placeholder="Enter vendor name"
+                      className="w-full bg-gray-50 dark:bg-[#111111] border border-gray-200 dark:border-white/10 p-4 rounded-2xl outline-none focus:ring-2 focus:ring-teal-500 font-bold text-gray-900 dark:text-white transition-colors"
+                    />
+                  </div>
+                </div>
+              )}
+
               <div>
-                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Tracking ID</label>
+                <div className="flex justify-between items-center mb-2">
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest">Tracking ID</label>
+                  {!isTrackingIdEditable && (
+                    <button
+                      onClick={() => {
+                        if (docketModal.booking !== "bulk" && docketModal.booking?.vendorTrackingId) {
+                          setUnassignModal({ open: true, id: docketModal.booking._id })
+                        } else {
+                          setIsTrackingIdEditable(true);
+                          setDocketId("");
+                        }
+                      }}
+                      className="text-[10px] font-bold text-teal-600 dark:text-teal-400 hover:text-teal-700 uppercase tracking-wider bg-teal-50 dark:bg-teal-500/10 px-2 py-1 rounded-md transition-colors"
+                    >
+                      Manual Entry
+                    </button>
+                  )}
+                </div>
                 <div className="relative">
                   <input
                     type="text"
                     value={docketId}
                     onChange={(e) => setDocketId(e.target.value)}
-                    placeholder="Enter Tracking ID"
-                    className="w-full bg-gray-50 border border-gray-200 p-4 rounded-2xl outline-none focus:ring-2 focus:ring-teal-500 font-bold text-gray-900"
+                    readOnly={!isTrackingIdEditable}
+                    placeholder={isTrackingIdEditable ? "Enter Tracking ID manually..." : "Select a Vendor to auto-fetch..."}
+                    className={`w-full bg-gray-50 dark:bg-[#111111] border border-gray-200 dark:border-white/10 p-4 rounded-2xl outline-none focus:ring-2 focus:ring-teal-500 font-bold text-gray-900 dark:text-white transition-colors ${!isTrackingIdEditable ? 'opacity-60 cursor-not-allowed' : ''}`}
                   />
-                  <button 
-                    onClick={() => setDocketId("")}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500"
-                  >
-                    <XCircle className="w-4 h-4" />
-                  </button>
+                  {isTrackingIdEditable && docketId && (
+                    <button 
+                      onClick={() => setDocketId("")}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500"
+                    >
+                      <XCircle className="w-4 h-4" />
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -1559,14 +1658,14 @@ const Bookings = () => {
                     if (docketModal.booking === "bulk") {
                       await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/bulk/assign-docket`, {
                         bookingIds: selectedIds,
-                        vendorName: docketVendor,
+                        vendorName: docketVendor === "Other" ? otherDocketVendor : docketVendor,
                         vendorTrackingId: docketId
                       }, { headers: { Authorization: `Bearer ${token}` } });
                       toast.success(`Docket assigned to ${selectedIds.length} bookings successfully`);
                       setSelectedIds([]);
                     } else {
                       await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/${docketModal.booking._id}`, {
-                        vendorName: docketVendor,
+                        vendorName: docketVendor === "Other" ? otherDocketVendor : docketVendor,
                         vendorTrackingId: docketId
                       }, { headers: { Authorization: `Bearer ${token}` } });
                       toast.success("Docket assigned successfully");
@@ -1584,6 +1683,58 @@ const Bookings = () => {
               >
                 {isAssigningDocket ? "Saving..." : "Save Assignment"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unassign Docket Modal */}
+      {unassignModal.open && (
+        <div className="fixed inset-0 z-[80] overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true" onClick={() => setUnassignModal({ open: false, id: null })}>
+              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+            </div>
+
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+            <div className="inline-block align-bottom bg-white dark:bg-[#1A1A1A] rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full border border-gray-100 dark:border-white/10">
+              <div className="bg-white dark:bg-[#1A1A1A] px-6 pt-6 pb-4 sm:p-8 sm:pb-6">
+                <div className="sm:flex sm:items-start">
+                  <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                    <XCircle className="h-6 w-6 text-red-600" aria-hidden="true" />
+                  </div>
+                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                    <h3 className="text-xl leading-6 font-bold text-gray-900 dark:text-white">
+                      Remove Tracking ID?
+                    </h3>
+                    <div className="mt-2">
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Are you sure you want to remove the tracking ID from this order? 
+                        This will instantly unassign it and mark the ID as available again in Docket Management.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gray-50 dark:bg-[#111111] px-6 py-4 sm:px-8 sm:flex sm:flex-row-reverse gap-3">
+                <button
+                  type="button"
+                  disabled={unassigning}
+                  onClick={handleUnassignDocket}
+                  className="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-6 py-2.5 bg-red-600 text-base font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm transition-all active:scale-95 disabled:opacity-50"
+                >
+                  {unassigning ? 'Removing...' : 'Yes, Remove ID'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setUnassignModal({ open: false, id: null })}
+                  className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 dark:border-white/10 shadow-sm px-4 py-2.5 bg-white dark:bg-[#1A1A1A] text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:bg-[#111111] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>

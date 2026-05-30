@@ -12,6 +12,7 @@ const DocketManagement = () => {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [vendors, setVendors] = useState([]);
   const [selectedVendor, setSelectedVendor] = useState("");
+  const [otherVendor, setOtherVendor] = useState("");
   const [fileData, setFileData] = useState([]);
   const [uploading, setUploading] = useState(false);
   const [uploadMode, setUploadMode] = useState("file"); // "file" or "manual"
@@ -116,7 +117,7 @@ const DocketManagement = () => {
       const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
       const res = await axios.post(
         `${import.meta.env.VITE_API_URL}/api/dockets/upload`,
-        { vendorName: selectedVendor, ids: idsToUpload },
+        { vendorName: selectedVendor === "Other" ? otherVendor : selectedVendor, ids: idsToUpload },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
@@ -397,14 +398,30 @@ const DocketManagement = () => {
                     <option value="BlueDart">BlueDart</option>
                     <option value="DTDC">DTDC</option>
                     <option value="Delhivery">Delhivery</option>
-                    <option value="Ecom Express">Ecom Express</option>
+                    <option value="Safe Express">Safe Express</option>
+                    <option value="India Post">India Post</option>
+                    <option value="I Carry">I Carry</option>
+                    <option value="Other">Other</option>
                     {vendors.map((v) => (
-                       !["BlueDart", "DTDC", "Delhivery", "Ecom Express"].includes(v.name) && (
+                       !["BlueDart", "DTDC", "Delhivery", "Safe Express", "India Post", "I Carry", "Other"].includes(v.name) && (
                         <option key={v._id} value={v.name}>{v.name}</option>
                        )
                     ))}
                   </select>
                 </div>
+
+                {selectedVendor === "Other" && (
+                  <div>
+                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Other Vendor Name</label>
+                    <input
+                      type="text"
+                      value={otherVendor}
+                      onChange={(e) => setOtherVendor(e.target.value)}
+                      placeholder="Enter vendor name"
+                      className="w-full bg-gray-50 border border-gray-200 p-4 rounded-2xl outline-none focus:ring-2 focus:ring-orange-500 font-bold text-sm transition-all"
+                    />
+                  </div>
+                )}
 
                 {uploadMode === "file" ? (
                   <div>

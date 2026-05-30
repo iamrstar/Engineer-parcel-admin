@@ -35,6 +35,12 @@ const bookingSchema = new mongoose.Schema(
       state: String,
       landmark: String,
     },
+    billingDetails: {
+      billTo: { type: String, enum: ["Sender", "Receiver", "Other"], default: "Sender" },
+      name: String,
+      phone: String,
+      address: String,
+    },
     packageDetails: {
       weight: { type: Number, required: true, default: 0 },
       weightUnit: { type: String, enum: ["g", "kg"], default: "g" },
@@ -56,6 +62,14 @@ const bookingSchema = new mongoose.Schema(
       edlItems: [mongoose.Schema.Types.Mixed],
       edlContents: [String],
       otherContentText: String,
+    },
+    shiftingDetails: {
+      vehicleType: String,
+      itemsDescription: String,
+      senderFloor: String,
+      receiverFloor: String,
+      liftAvailable: { type: Boolean, default: false },
+      laborRequired: { type: Boolean, default: false },
     },
     pickupPincode: String,
     deliveryPincode: String,

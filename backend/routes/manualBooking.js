@@ -22,6 +22,7 @@ router.post("/", async (req, res) => {
       serviceType,
       senderDetails,
       receiverDetails,
+      billingDetails,
       packageDetails, // full object aa raha frontend se
       pickupPincode,
       deliveryPincode,
@@ -44,10 +45,13 @@ router.post("/", async (req, res) => {
       vendorName = null,
       vendorTrackingId = null,
       bookingSource = "Manual",
+      shiftingDetails,
+      sendPaymentLink = true,
+      createdBy = null,
     } = req.body;
 
     // Required fields check
-    if (!serviceType || !senderDetails || !receiverDetails || !packageDetails) {
+    if (!serviceType || !senderDetails || !receiverDetails) {
       return res.status(400).json({ error: "Missing required booking fields." });
     }
 
@@ -71,17 +75,19 @@ router.post("/", async (req, res) => {
       serviceType,
       senderDetails,
       receiverDetails,
+      billingDetails,
       edl,
       km,
-      packageDetails: {
-        weight: packageDetails.weight,
-        weightUnit: packageDetails.weightUnit,
-        volumetricWeight: packageDetails.volumetricWeight,
+      packageDetails: packageDetails ? {
+        weight: packageDetails.weight || 0,
+        weightUnit: packageDetails.weightUnit || "g",
+        volumetricWeight: packageDetails.volumetricWeight || 0,
         dimensions: packageDetails.dimensions || [],
-        description: packageDetails.description,
-        value: packageDetails.value,
-        fragile: packageDetails.fragile,
-      },
+        description: packageDetails.description || "",
+        value: packageDetails.value || 0,
+        fragile: packageDetails.fragile || false,
+      } : { weight: 0 },
+      shiftingDetails,
       pickupPincode,
       deliveryPincode,
       pickupDate,
@@ -141,8 +147,27 @@ router.post("/", async (req, res) => {
       }
     }
 
-    // Generate Razorpay Payment Link if amount > 0
-    if (newBooking.pricing?.totalAmount > 0 && razorpay) {
+    // Auto-create a completed task for the staff member who created this booking
+    if (createdBy) {
+      try {
+        const Task = require("../models/Task");
+        await Task.create({
+          title: "Created Manual Booking",
+          description: `Booking ID: ${newBooking.bookingId} - ${newBooking.senderDetails.name} to ${newBooking.receiverDetails.name}`,
+          type: "general",
+          assignedTo: createdBy,
+          status: "completed",
+          completedAt: new Date(),
+          completionNote: `Auto-completed upon manual booking creation. Booking ID: ${newBooking.bookingId}`,
+          bookings: [newBooking._id],
+        });
+      } catch (taskErr) {
+        console.error("Failed to create task for manual booking:", taskErr);
+      }
+    }
+
+    // Generate Razorpay Payment Link if amount > 0 and sendPaymentLink is true
+    if (newBooking.pricing?.totalAmount > 0 && razorpay && sendPaymentLink) {
       try {
         const paymentLink = await razorpay.paymentLink.create({
           amount: newBooking.pricing.totalAmount * 100, // Paise

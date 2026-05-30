@@ -15,9 +15,19 @@ const adminAuth = async (req, res, next) => {
       process.env.JWT_SECRET || "your_super_secret_jwt_key_here"
     );
 
-    const admin = await Admin.findById(decoded.id);
+    let admin = await Admin.findById(decoded.id);
+    
+    // If not found in Admin collection, check if they are a User with admin role
     if (!admin) {
-      return res.status(401).json({ message: "Token is not valid" });
+      const User = require("../models/User");
+      const user = await User.findById(decoded.id);
+      if (user && (user.role === 'admin' || user.role === 'staff') && user.isActive) {
+        admin = user; // Treat this user as an admin
+      }
+    }
+
+    if (!admin) {
+      return res.status(401).json({ message: "Token is not valid or insufficient permissions" });
     }
 
     req.admin = admin;
