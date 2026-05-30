@@ -11,15 +11,6 @@ router.post("/login", async (req, res) => {
     // Check if admin exists
     let admin = await Admin.findOne({ username })
 
-    // If admin doesn't exist, create default admin
-    if (!admin && username === "admin@123") {
-      admin = new Admin({
-        username: "admin@123",
-        password: "engineerparcel123",
-      })
-      await admin.save()
-    }
-
     if (!admin) {
       return res.status(400).json({ message: "Invalid credentials" })
     }

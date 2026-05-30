@@ -179,7 +179,7 @@ const UserManagement = () => {
     }
 
     const verifyAdminPassword = () => {
-        if (adminPasswordInput === "engineers123") {
+        if (adminPasswordInput === "admin@engineers123") {
             setIsPasswordVerified(true)
         } else {
             toast.error("Incorrect Admin Password")
