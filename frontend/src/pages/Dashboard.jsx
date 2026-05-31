@@ -242,12 +242,12 @@ const Dashboard = () => {
         <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-white via-transparent to-transparent"></div>
         <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-white opacity-10 rounded-full blur-3xl"></div>
         
-        <div className="relative p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between z-10">
-          <div className="text-white">
-            <div className="flex items-center gap-4 mb-2">
-              <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight capitalize">Welcome Back, {user?.name || user?.username || 'Admin'} 👋</h1>
+        <div className="relative p-5 md:p-8 flex flex-row items-start md:items-center justify-between z-10 gap-4">
+          <div className="text-white flex-1">
+            <div className="flex items-center gap-4 mb-1 md:mb-2">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-extrabold tracking-tight capitalize">Welcome Back, {user?.name || user?.username || 'Admin'} 👋</h1>
             </div>
-            <p className="text-primary-100 dark:text-orange-200 font-medium text-base max-w-xl">
+            <p className="text-primary-100 dark:text-orange-200 font-medium text-sm md:text-base max-w-xl leading-snug">
               {isAdmin 
                 ? (adminViewType === 'global' 
                     ? `Here is the current overview of your business operations. You currently have ${stats.pendingBookings} pending orders requiring attention.`
@@ -256,10 +256,10 @@ const Dashboard = () => {
               }
             </p>
             {isAdmin && (
-              <div className="mt-4 flex bg-white/10 p-1 rounded-xl w-fit backdrop-blur-md border border-white/20">
+              <div className="mt-4 flex flex-wrap bg-white/10 p-1 rounded-xl w-fit backdrop-blur-md border border-white/20">
                 <button
                   onClick={() => setAdminViewType('global')}
-                  className={`px-4 py-2 rounded-xl font-bold transition-all ${
+                  className={`px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base rounded-xl font-bold transition-all ${
                     adminViewType === 'global' 
                       ? 'bg-white text-primary-600 shadow-md transform scale-105' 
                       : 'bg-white/10 text-white hover:bg-white/20'
@@ -269,7 +269,7 @@ const Dashboard = () => {
                 </button>
                 <button
                   onClick={() => setAdminViewType('tasks')}
-                  className={`px-4 py-2 rounded-xl font-bold transition-all ${
+                  className={`px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base rounded-xl font-bold transition-all flex items-center gap-1 ${
                     adminViewType === 'tasks' 
                       ? 'bg-white text-primary-600 shadow-md transform scale-105' 
                       : 'bg-white/10 text-white hover:bg-white/20'
@@ -281,10 +281,10 @@ const Dashboard = () => {
             )}
           </div>
           
-          <div className="mt-6 md:mt-0 relative notification-wrapper">
+          <div className="relative notification-wrapper flex-shrink-0">
             <button
               onClick={handleNotificationClick}
-              className="relative p-3 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white border border-white/20 rounded-xl transition-all duration-300 shadow-lg group hover:scale-105"
+              className="relative p-2.5 md:p-3 bg-white/10 hover:bg-white/20 backdrop-blur-md text-white border border-white/20 rounded-xl transition-all duration-300 shadow-lg group hover:scale-105"
             >
               <Bell className="h-6 w-6 group-hover:animate-swing" />
               {stats.pendingBookings > 0 && (
@@ -391,15 +391,15 @@ const Dashboard = () => {
         {statCards.map((stat, idx) => (
           <div 
             key={stat.name} 
-            className="relative group bg-white dark:bg-[#111111] rounded-2xl p-5 shadow-sm hover:shadow-xl hover:shadow-gray-200/50 dark:hover:shadow-black/50 transition-all duration-500 transform hover:-translate-y-1 overflow-hidden border border-gray-100 dark:border-white/10 flex flex-col justify-between"
+            className="relative group bg-white dark:bg-[#111111] rounded-2xl p-5 shadow-sm hover:shadow-xl hover:shadow-gray-200/50 dark:hover:shadow-black/50 transition-all duration-500 transform hover:-translate-y-1 overflow-hidden border border-gray-100 dark:border-white/10 flex flex-col items-center justify-center text-center"
             style={{ animationDelay: `${idx * 100}ms` }}
           >
             {/* Decorative background blur */}
             <div className={`absolute -right-4 -top-4 w-24 h-24 bg-gradient-to-br ${stat.gradient} opacity-10 rounded-full blur-2xl group-hover:scale-110 group-hover:opacity-20 transition-all duration-700`}></div>
             
-            <div className="flex items-start justify-between relative z-10 mb-3">
-              <div className={`p-3 rounded-xl bg-gradient-to-br ${stat.gradient} text-white shadow-lg ${stat.shadow} transform group-hover:scale-110 group-hover:rotate-3 transition-transform duration-500`}>
-                <stat.icon className="h-5 w-5" strokeWidth={2.5} />
+            <div className="relative z-10 mb-3">
+              <div className={`p-3 rounded-xl bg-gradient-to-br ${stat.gradient} text-white shadow-lg ${stat.shadow} transform group-hover:scale-110 group-hover:rotate-3 transition-transform duration-500 inline-block`}>
+                <stat.icon className="h-5 w-5 mx-auto" strokeWidth={2.5} />
               </div>
             </div>
             
@@ -423,15 +423,15 @@ const Dashboard = () => {
                 setIsQueryModalOpen(true);
               }
             }}
-            className="cursor-pointer relative group bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl p-5 shadow-sm shadow-purple-500/20 hover:shadow-xl hover:shadow-purple-500/40 transition-all duration-500 transform hover:-translate-y-1 overflow-hidden border border-indigo-400 flex flex-col justify-between block"
+            className="cursor-pointer relative group bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl p-5 shadow-sm shadow-purple-500/20 hover:shadow-xl hover:shadow-purple-500/40 transition-all duration-500 transform hover:-translate-y-1 overflow-hidden border border-indigo-400 flex flex-col items-center justify-center text-center block"
             style={{ animationDelay: `400ms` }}
           >
             {/* Decorative background blur */}
             <div className="absolute -right-4 -top-4 w-24 h-24 bg-white opacity-10 rounded-full blur-2xl group-hover:scale-110 group-hover:opacity-20 transition-all duration-700"></div>
             
-            <div className="flex items-start justify-between relative z-10 mb-3">
-              <div className="p-3 rounded-xl bg-white/20 text-white shadow-inner transform group-hover:scale-110 group-hover:rotate-3 transition-transform duration-500">
-                <MessageCircle className="h-5 w-5" strokeWidth={2.5} />
+            <div className="relative z-10 mb-3">
+              <div className="p-3 rounded-xl bg-white/20 text-white shadow-inner transform group-hover:scale-110 group-hover:rotate-3 transition-transform duration-500 inline-block">
+                <MessageCircle className="h-5 w-5 mx-auto" strokeWidth={2.5} />
               </div>
             </div>
             

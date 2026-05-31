@@ -11,6 +11,7 @@ import {
   Clock,
   Search
 } from 'lucide-react';
+import IncentiveTasksTab from '../components/IncentiveTasksTab';
 
 const TrackingTasks = () => {
   const [tasks, setTasks] = useState([]);
@@ -67,13 +68,58 @@ const TrackingTasks = () => {
     }
   }, [activeTab, isAdmin, performanceTimeframe]);
 
+  const [unacceptedIncentivesCount, setUnacceptedIncentivesCount] = useState(0);
+
   const fetchTasks = async () => {
     try {
       setLoading(true);
       const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/tasks`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setTasks(res.data);
+      let fetchedTasks = res.data;
+
+      if (!isAdmin) {
+        try {
+          const resInc = await axios.get(`${import.meta.env.VITE_API_URL}/api/incentives`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          const acceptedIncentives = resInc.data.filter(t => {
+            const myId = (user._id || user.id).toString();
+            const hasAccepted = t.acceptedBy.some(u => {
+              const uId = (u._id || u).toString();
+              return uId === myId;
+            });
+            const hasCompleted = t.completions.some(c => {
+              const cUserId = (c.userId?._id || c.userId).toString();
+              return cUserId === myId;
+            });
+            return hasAccepted && !hasCompleted;
+          });
+          
+          const mappedIncentives = acceptedIncentives.map(inc => ({
+            ...inc,
+            is_incentive: true,
+            status: inc.status,
+            dueDate: inc.deadline,
+            assignedTo: user,
+            priority: 'high',
+          }));
+          fetchedTasks = [...fetchedTasks, ...mappedIncentives];
+        } catch (e) {
+          // Ignore
+        }
+      }
+
+      setTasks(fetchedTasks);
+
+      try {
+        const resIncentives = await axios.get(`${import.meta.env.VITE_API_URL}/api/incentives/unaccepted-count`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setUnacceptedIncentivesCount(resIncentives.data.count || 0);
+      } catch (e) {
+        // Ignore
+      }
     } catch (error) {
       toast.error("Failed to load tasks");
     } finally {
@@ -185,15 +231,28 @@ const TrackingTasks = () => {
       const formData = new FormData();
       formData.append("completionNote", completionNote);
       if (completionImage) {
-        formData.append("completionImage", completionImage);
+        if (taskToComplete.is_incentive) {
+          formData.append("proofImage", completionImage);
+        } else {
+          formData.append("completionImage", completionImage);
+        }
       }
 
-      await axios.put(`${import.meta.env.VITE_API_URL}/api/tasks/${taskToComplete._id}/complete`, formData, {
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data'
-        }
-      });
+      if (taskToComplete.is_incentive) {
+        await axios.post(`${import.meta.env.VITE_API_URL}/api/incentives/${taskToComplete._id}/submit-proof`, formData, {
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data'
+          }
+        });
+      } else {
+        await axios.put(`${import.meta.env.VITE_API_URL}/api/tasks/${taskToComplete._id}/complete`, formData, {
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data'
+          }
+        });
+      }
       
       toast.success("Task completed successfully!");
       setCompletionModalOpen(false);
@@ -209,9 +268,17 @@ const TrackingTasks = () => {
   const handleAddComment = async (taskId) => {
     if (!newComment.trim()) return;
     try {
-      await axios.post(`${import.meta.env.VITE_API_URL}/api/tasks/${taskId}/comments`, { message: newComment }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const taskObj = tasks.find(t => t._id === taskId);
+      
+      if (taskObj?.is_incentive) {
+        await axios.post(`${import.meta.env.VITE_API_URL}/api/incentives/${taskId}/comments`, { message: newComment }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      } else {
+        await axios.post(`${import.meta.env.VITE_API_URL}/api/tasks/${taskId}/comments`, { message: newComment }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      }
       setNewComment('');
       fetchTasks();
     } catch (error) {
@@ -285,17 +352,48 @@ const TrackingTasks = () => {
               >
                 Performance
               </button>
+              <button
+                onClick={() => setActiveTab('incentives')}
+                className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 ${
+                  activeTab === 'incentives' ? 'bg-white dark:bg-[#1A1A1A] text-primary-600 dark:text-primary-400 shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                }`}
+              >
+                Incentives
+              </button>
             </>
           )}
           {!isAdmin && (
-            <button
-              onClick={() => setActiveTab('my_tasks')}
-              className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 ${
-                activeTab === 'my_tasks' ? 'bg-white dark:bg-[#1A1A1A] text-primary-600 dark:text-primary-400 shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-              }`}
-            >
-              My Tasks
-            </button>
+            <>
+              <button
+                onClick={() => setActiveTab('my_tasks')}
+                className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 ${
+                  activeTab === 'my_tasks' ? 'bg-white dark:bg-[#1A1A1A] text-primary-600 dark:text-primary-400 shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                }`}
+              >
+                My Tasks
+              </button>
+              <button
+                onClick={() => setActiveTab('incentives_accepted')}
+                className={`px-6 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 ${
+                  activeTab === 'incentives_accepted' ? 'bg-white dark:bg-[#1A1A1A] text-primary-600 dark:text-primary-400 shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                }`}
+              >
+                Accepted Incentives
+              </button>
+              <button
+                onClick={() => setActiveTab('incentives')}
+                className={`relative px-6 py-2.5 rounded-lg text-sm font-bold transition-all duration-200 flex items-center gap-2 ${
+                  activeTab === 'incentives' ? 'bg-white dark:bg-[#1A1A1A] text-primary-600 dark:text-primary-400 shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                }`}
+              >
+                Incentives
+                {unacceptedIncentivesCount > 0 && (
+                  <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-full font-black animate-pulse">
+                    {unacceptedIncentivesCount}
+                  </span>
+                )}
+              </button>
+            </>
           )}
         </div>
 
@@ -580,11 +678,16 @@ const TrackingTasks = () => {
             </div>
           )}
 
-          {/* TASKS LIST (ADMIN ALL TASKS OR MY TASKS) */}
-          {(activeTab === 'admin_tasks' || activeTab === 'my_tasks') && (() => {
+          {/* TASKS LIST (ADMIN ALL TASKS, MY TASKS, OR INCENTIVES ACCEPTED) */}
+          {(activeTab === 'admin_tasks' || activeTab === 'my_tasks' || activeTab === 'incentives_accepted') && (() => {
             
             // Filter tasks based on taskFilter
             const filteredTasks = tasks.filter(task => {
+              if (activeTab === 'incentives_accepted') {
+                return task.is_incentive;
+              }
+              if (activeTab === 'my_tasks' && task.is_incentive) return false;
+
               if (taskFilter === 'all') return true;
               
               const now = new Date();
@@ -682,15 +785,25 @@ const TrackingTasks = () => {
                       ) : (
                         <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">{task.description}</p>
                       )}
+                      {task.is_incentive && (
+                        <div className="flex justify-between items-center bg-white dark:bg-[#1A1A1A] p-2 rounded-lg mb-2 shadow-sm border border-gray-100 dark:border-white/5">
+                          <div>
+                            <p className="text-[9px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">Reward</p>
+                            <p className="font-bold text-purple-600 dark:text-purple-400 text-sm">
+                              {task.incentiveType === 'percentage' ? `${task.incentiveValue}%` : `₹ ${task.incentiveValue}`}
+                            </p>
+                          </div>
+                        </div>
+                      )}
                       <p className="text-[10px] text-gray-400 dark:text-gray-500">Created: {new Date(task.createdAt).toLocaleString()}</p>
                     </div>
 
                     {!isAdmin && task.status !== 'completed' && (
                       <div className="flex gap-2">
-                        {task.status === 'pending' && (
+                        {task.status === 'pending' && !task.is_incentive && (
                           <button onClick={() => updateTaskStatus(task._id, 'in-progress')} className="flex-1 py-2 bg-blue-50 dark:bg-blue-500/10 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-500/20 font-bold text-sm rounded-lg transition-colors">Start Task</button>
                         )}
-                        {task.status === 'in-progress' && (
+                        {(task.status === 'in-progress' || task.is_incentive) && (
                           <button 
                             onClick={() => {
                               setTaskToComplete(task);
@@ -841,6 +954,11 @@ const TrackingTasks = () => {
                 </table>
               )}
             </div>
+          )}
+
+          {/* INCENTIVE TASKS TAB */}
+          {activeTab === 'incentives' && (
+             <IncentiveTasksTab isAdmin={isAdmin} />
           )}
         </>
       )}

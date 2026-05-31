@@ -70,6 +70,7 @@ const vendorPaymentRoutes = require("./routes/vendorPayments");
 const analyticsRoutes = require("./routes/analytics");
 const docketRoutes = require("./routes/dockets");
 const taskRoutes = require("./routes/tasks");
+const incentiveRoutes = require("./routes/incentives"); // NEW INCENTIVE ROUTE
 const attendanceRoutes = require("./routes/attendance");
 const queryRoutes = require("./routes/queries");
 
@@ -85,6 +86,7 @@ app.use("/api/vendor-payments", vendorPaymentRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/dockets", docketRoutes);
 app.use("/api/tasks", taskRoutes);
+app.use("/api/incentives", incentiveRoutes); // NEW INCENTIVE ROUTE
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/queries", queryRoutes);
 

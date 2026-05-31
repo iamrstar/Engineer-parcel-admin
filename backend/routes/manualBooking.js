@@ -82,6 +82,8 @@ router.post("/", async (req, res) => {
         weight: packageDetails.weight || 0,
         weightUnit: packageDetails.weightUnit || "g",
         volumetricWeight: packageDetails.volumetricWeight || 0,
+        chargeableWeight: packageDetails.chargeableWeight || 0,
+        chargeableWeightUnit: packageDetails.chargeableWeightUnit || "kg",
         dimensions: packageDetails.dimensions || [],
         description: packageDetails.description || "",
         value: packageDetails.value || 0,

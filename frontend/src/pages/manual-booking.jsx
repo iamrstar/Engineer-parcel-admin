@@ -146,6 +146,29 @@ export default function ManualBooking() {
     }
   }, [formData.deliveryPincode]);
 
+  useEffect(() => {
+    if (formData.serviceType !== "Shifting") {
+      const actual = parseFloat(formData.actualWeight) || 0;
+      const actualInKg = formData.weightUnit === "g" ? actual / 1000 : actual;
+      const volInKg = formData.dimensions.reduce((acc, dim) => acc + ((parseFloat(dim.length) * parseFloat(dim.width) * parseFloat(dim.height)) / 2700 || 0), 0);
+      const calcChargeableInKg = Math.max(actualInKg, volInKg);
+      
+      const displayChargeable = formData.chargeableWeightUnit === "g" ? calcChargeableInKg * 1000 : calcChargeableInKg;
+      
+      // Update the input field directly if calculated value is valid
+      if (displayChargeable > 0) {
+        setFormData(prev => {
+          // Avoid infinite loop if values are essentially the same
+          if (Math.abs(parseFloat(prev.chargeableWeight) - displayChargeable) < 0.001) return prev;
+          return {
+            ...prev,
+            chargeableWeight: displayChargeable % 1 === 0 ? displayChargeable.toString() : displayChargeable.toFixed(3)
+          };
+        });
+      }
+    }
+  }, [formData.actualWeight, formData.dimensions, formData.serviceType, formData.weightUnit, formData.chargeableWeightUnit]);
+
   const checkPincode = async (pincode, type) => {
     try {
       const currentToken = localStorage.getItem("adminToken") || localStorage.getItem("token");
@@ -240,6 +263,10 @@ export default function ManualBooking() {
         ...prev,
         [name]: type === "checkbox" ? checked : value
       };
+
+      if (name === "weightUnit") {
+        newState.chargeableWeightUnit = value;
+      }
 
       return newState;
     });
@@ -360,22 +387,27 @@ export default function ManualBooking() {
         description: formData.shiftingItems || "Shifting Service",
         value: 0,
         fragile: false,
-      } : {
-        weight: parseFloat(formData.actualWeight),
-        chargeableWeight: parseFloat(formData.chargeableWeight) || parseFloat(formData.actualWeight),
-        weightUnit: formData.weightUnit,
-        chargeableWeightUnit: formData.chargeableWeightUnit || formData.weightUnit,
-        volumetricWeight: formData.dimensions.reduce((acc, dim) => acc + (parseFloat(dim.length) * parseFloat(dim.width) * parseFloat(dim.height) / 5000 || 0), 0),
-        dimensions: formData.dimensions.map(dim => ({
-          length: parseFloat(dim.length) || 0,
-          width: parseFloat(dim.width) || 0,
-          height: parseFloat(dim.height) || 0
-        })),
-        boxQuantity: parseInt(formData.boxQuantity),
-        description: formData.goodsDescription,
-        value: 0,
-        fragile: formData.fragile,
-      },
+      } : (() => {
+        const actualWeight = parseFloat(formData.actualWeight) || 0;
+        const volWeight = formData.dimensions.reduce((acc, dim) => acc + ((parseFloat(dim.length) * parseFloat(dim.width) * parseFloat(dim.height)) / 2700 || 0), 0);
+        const calculatedChargeableWeight = Math.max(actualWeight, volWeight);
+        return {
+          weight: actualWeight,
+          chargeableWeight: parseFloat(formData.chargeableWeight) || calculatedChargeableWeight,
+          weightUnit: formData.weightUnit,
+          chargeableWeightUnit: formData.chargeableWeightUnit || formData.weightUnit,
+          volumetricWeight: volWeight,
+          dimensions: formData.dimensions.map(dim => ({
+            length: parseFloat(dim.length) || 0,
+            width: parseFloat(dim.width) || 0,
+            height: parseFloat(dim.height) || 0
+          })),
+          boxQuantity: parseInt(formData.boxQuantity),
+          description: formData.goodsDescription,
+          value: 0,
+          fragile: formData.fragile,
+        };
+      })(),
 
       // Shifting Details
       ...(formData.serviceType === "Shifting" && {
@@ -864,8 +896,8 @@ export default function ManualBooking() {
             {formData.serviceType !== "Shifting" && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t pt-6">
               <div>
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Actual Weight ({formData.weightUnit})</label>
-                <div className="flex gap-2">
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Actual Weight</label>
+                <div className="flex items-center border border-gray-300 dark:border-white/10 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-orange-500 bg-white dark:bg-[#111111]">
                   <input
                     name="actualWeight"
                     type="number"
@@ -873,42 +905,39 @@ export default function ManualBooking() {
                     value={formData.actualWeight}
                     onChange={handleChange}
                     placeholder="Actual"
-                    className="flex-1 border border-gray-300 dark:border-white/10 p-3 rounded-xl outline-none focus:ring-2 focus:ring-orange-500 bg-white dark:bg-[#111111] dark:text-white"
+                    className="flex-1 p-3 outline-none bg-transparent dark:text-white min-w-0"
                     required
                   />
-                  <select
-                    name="weightUnit"
-                    value={formData.weightUnit}
-                    onChange={handleChange}
-                    className="w-20 border border-gray-300 dark:border-gray-600 p-3 rounded-xl outline-none bg-white dark:bg-[#2A2A2A] dark:text-white font-bold text-xs cursor-pointer hover:bg-gray-50 dark:hover:bg-[#333333] transition-colors"
-                  >
-                    <option value="kg">kg</option>
-                    <option value="g">g</option>
-                  </select>
+                  <div className="border-l border-gray-300 dark:border-white/10 h-full flex items-center bg-gray-50 dark:bg-[#2A2A2A]">
+                    <select
+                      name="weightUnit"
+                      value={formData.weightUnit}
+                      onChange={handleChange}
+                      className="p-3 pr-8 outline-none bg-transparent dark:text-white font-bold text-xs cursor-pointer hover:bg-gray-100 dark:hover:bg-[#333333] transition-colors"
+                    >
+                      <option value="kg">kg</option>
+                      <option value="g">g</option>
+                    </select>
+                  </div>
                 </div>
               </div>
               <div>
                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Chargeable Weight</label>
-                <div className="flex gap-2">
+                <div className="flex items-center border border-gray-300 dark:border-white/10 rounded-xl overflow-hidden bg-gray-100 dark:bg-[#1A1A1A]">
                   <input
                     name="chargeableWeight"
                     type="number"
                     step="0.01"
                     value={formData.chargeableWeight}
-                    onChange={handleChange}
-                    placeholder="Chargeable"
-                    className="flex-1 border border-gray-300 dark:border-white/10 p-3 rounded-xl outline-none focus:ring-2 focus:ring-orange-500 bg-white dark:bg-[#111111] dark:text-white"
-                    required
+                    readOnly
+                    placeholder="Auto Calculated"
+                    className="flex-1 p-3 outline-none bg-transparent dark:text-white cursor-not-allowed min-w-0"
                   />
-                  <select
-                    name="chargeableWeightUnit"
-                    value={formData.chargeableWeightUnit}
-                    onChange={handleChange}
-                    className="w-20 border border-gray-300 dark:border-gray-600 p-3 rounded-xl outline-none bg-white dark:bg-[#2A2A2A] dark:text-white font-bold text-xs cursor-pointer hover:bg-gray-50 dark:hover:bg-[#333333] transition-colors"
-                  >
-                    <option value="kg">kg</option>
-                    <option value="g">g</option>
-                  </select>
+                  <div className="border-l border-gray-300 dark:border-white/10 h-full flex items-center px-4 bg-gray-200 dark:bg-[#222222]">
+                    <span className="font-bold text-xs text-gray-600 dark:text-gray-400">
+                      {formData.weightUnit}
+                    </span>
+                  </div>
                 </div>
               </div>
               <div>
@@ -1152,35 +1181,35 @@ export default function ManualBooking() {
 
             <div className="bg-gray-50 dark:bg-[#111111] rounded-2xl p-6 border border-gray-200 dark:border-white/10 text-left space-y-4 shadow-inner">
               <div className="grid grid-cols-2 gap-4 text-sm">
-                <div className="bg-white dark:bg-[#111111] p-3 rounded-xl border border-gray-100 dark:border-white/5">
+                <div className="bg-white dark:bg-[#1A1A1A] p-3 rounded-xl border border-gray-100 dark:border-white/5">
                   <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Booking ID</p>
                   <p className="font-mono font-bold text-lg text-orange-600">{generatedId || (isManualId ? `EP${formData.bookingId.replace(/^EP/i, '')}` : 'PENDING')}</p>
                 </div>
-                <div className="bg-white dark:bg-[#111111] p-3 rounded-xl border border-gray-100 dark:border-white/5">
+                <div className="bg-white dark:bg-[#1A1A1A] p-3 rounded-xl border border-gray-100 dark:border-white/5">
                   <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Service Type</p>
                   <p className="font-bold text-lg text-gray-800 dark:text-gray-200">{formData.serviceType}</p>
                 </div>
-                <div className="bg-white dark:bg-[#111111] p-3 rounded-xl border border-gray-100 dark:border-white/5 border-l-4 border-l-green-500">
+                <div className="bg-white dark:bg-[#1A1A1A] p-3 rounded-xl border border-gray-100 dark:border-white/5 border-l-4 border-l-green-500">
                   <p className="text-[10px] uppercase font-bold text-gray-400 mb-1">Total Amount</p>
                   <p className="font-bold text-lg text-green-600">{formData.isVendorBooking ? 'CREDIT' : `₹${formData.totalAmount}`}</p>
                 </div>
               </div>
-              <div className="space-y-2 border-t pt-4">
+              <div className="space-y-2 border-t dark:border-white/10 pt-4">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500 dark:text-gray-400">Sender:</span>
-                  <span className="font-bold">{formData.senderName} ({formData.senderPhone})</span>
+                  <span className="font-bold text-gray-900 dark:text-white">{formData.senderName} ({formData.senderPhone})</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500 dark:text-gray-400">Receiver:</span>
-                  <span className="font-bold">{formData.receiverName} ({formData.receiverPhone})</span>
+                  <span className="font-bold text-gray-900 dark:text-white">{formData.receiverName} ({formData.receiverPhone})</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500 dark:text-gray-400">Route:</span>
-                  <span className="font-bold">{formData.pickupPincode} ➔ {formData.deliveryPincode}</span>
+                  <span className="font-bold text-gray-900 dark:text-white">{formData.pickupPincode} ➔ {formData.deliveryPincode}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-500 dark:text-gray-400">Quantity:</span>
-                  <span className="font-bold">{formData.boxQuantity} Box{formData.boxQuantity > 1 ? 'es' : ''}</span>
+                  <span className="font-bold text-gray-900 dark:text-white">{formData.boxQuantity} Box{formData.boxQuantity > 1 ? 'es' : ''}</span>
                 </div>
               </div>
             </div>

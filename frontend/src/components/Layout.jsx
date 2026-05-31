@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useAuth } from "../contexts/AuthContext"
 import axios from "axios"
 import toast from "react-hot-toast"
-import { Package, LayoutDashboard, FileText, MapPin, Ticket, LogOut, Menu, X, BarChart, Bell, Users, Building, CheckSquare, ClipboardList, UserCheck, MessageCircle, CheckCircle, Moon, Sun } from "lucide-react"
+import { Package, LayoutDashboard, FileText, MapPin, Ticket, LogOut, Menu, X, BarChart, Bell, Users, Building, CheckSquare, ClipboardList, UserCheck, MessageCircle, CheckCircle, Moon, Sun, Gift } from "lucide-react"
 import { socket } from "../utils/socket"
 import { Activity as ActivityIcon } from "lucide-react"
 import { useTheme } from "../contexts/ThemeContext"
@@ -20,6 +20,7 @@ const Layout = ({ children }) => {
   const location = useLocation()
   const navigate = useNavigate()
 
+  const [unacceptedIncentivesCount, setUnacceptedIncentivesCount] = useState(0)
   const prevCountRef = useRef(0)
   const prevPendingRef = useRef(0)
   const isFirstLoadRef = useRef(true)
@@ -149,6 +150,56 @@ const Layout = ({ children }) => {
     })
   }
 
+  const showIncentiveAlert = (task) => {
+    if (!audioRef.current) {
+      const audio = new Audio("/notification.mp3")
+      audio.play().catch(e => console.error("Audio play failed:", e))
+    }
+
+    toast((t) => (
+      <div className="flex flex-col gap-3 min-w-[300px] bg-white p-1">
+        <div className="flex items-center gap-3 border-b border-purple-100 pb-2">
+          <div className="w-10 h-10 bg-purple-100 rounded-full flex items-center justify-center animate-bounce">
+            <Gift className="h-5 w-5 text-purple-600" />
+          </div>
+          <div>
+            <h4 className="font-bold text-gray-900 leading-tight">New Incentive Challenge!</h4>
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Earn Rewards</p>
+          </div>
+        </div>
+
+        <div className="py-1">
+          <p className="text-sm text-gray-700 font-medium leading-relaxed">{task.title}</p>
+          <div className="mt-2 text-[11px] font-bold text-purple-600 bg-purple-50 px-2 py-1 rounded">
+            Reward: {task.incentiveType === 'fixed' ? '₹' : ''}{task.incentiveValue}{task.incentiveType === 'percentage' ? '%' : ''}
+          </div>
+        </div>
+
+        <div className="flex gap-2 pt-2 border-t border-gray-100">
+          <button
+            onClick={() => {
+              toast.dismiss(t.id)
+              navigate("/tracking-tasks")
+            }}
+            className="flex-1 px-4 py-2.5 bg-purple-500 text-white rounded-xl hover:bg-purple-600 font-bold shadow-lg shadow-purple-100 transition-all active:scale-95 text-xs flex items-center justify-center gap-2"
+          >
+            View Details
+          </button>
+          <button
+            onClick={() => toast.dismiss(t.id)}
+            className="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 font-bold transition-all text-xs"
+          >
+            Dismiss
+          </button>
+        </div>
+      </div>
+    ), {
+      duration: 10000,
+      position: 'top-center',
+      style: { border: 'none', padding: '12px', borderRadius: '16px', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' },
+    })
+  }
+
   const fetchCount = async (silent = false) => {
     try {
       const token = localStorage.getItem("adminToken") || localStorage.getItem("token")
@@ -186,6 +237,15 @@ const Layout = ({ children }) => {
       })
       setTasksCount(resTasks.data.count || 0)
 
+      try {
+        const resIncentives = await axios.get(`${import.meta.env.VITE_API_URL}/api/incentives/unaccepted-count`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+        setUnacceptedIncentivesCount(resIncentives.data.count || 0)
+      } catch(err) {
+        // ignore if not staff or error
+      }
+
       prevCountRef.current = newCount
       prevPendingRef.current = newPending
       setEDocketCount(newCount)
@@ -212,6 +272,11 @@ const Layout = ({ children }) => {
         console.log("🚚 Real-time Status (Silent Refresh):", data)
         fetchCount(true)
       })
+
+      socket.on("new_incentive_task", (data) => {
+        console.log("🎁 Real-time Incentive Task:", data)
+        showIncentiveAlert(data)
+      })
     }
 
     fetchCount()
@@ -221,6 +286,7 @@ const Layout = ({ children }) => {
       clearInterval(interval)
       socket.off("new_booking")
       socket.off("status_update")
+      socket.off("new_incentive_task")
       socket.disconnect()
     }
   }, [])
@@ -238,7 +304,7 @@ const Layout = ({ children }) => {
     { name: "Coupons", href: "/coupons", icon: Ticket },
     { name: "Create Order", href: "/manual-booking", icon: Ticket },
     { name: "Tasks", href: "/tasks", icon: CheckSquare, badge: tasksCount },
-    { name: "Staff Tasks", href: "/tracking-tasks", icon: ClipboardList },
+    { name: "Staff Tasks", href: "/tracking-tasks", icon: ClipboardList, badge: unacceptedIncentivesCount },
     { name: "Attendance", href: "/attendance", icon: UserCheck },
     { name: "Attendance Report", href: "/attendance-report", icon: FileText },
     { name: "User Management", href: "/user-management", icon: Users },

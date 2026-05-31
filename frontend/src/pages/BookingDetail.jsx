@@ -327,6 +327,54 @@ const BookingDetail = () => {
       return;
     }
 
+    if (nested === 'packageDetails' && field === 'weight') {
+      setBooking((prev) => {
+        const actualWeight = Number(value) || 0;
+        const weightUnit = prev.packageDetails?.weightUnit || "kg";
+        const actualInKg = weightUnit === "g" ? actualWeight / 1000 : actualWeight;
+        const dims = prev.packageDetails?.dimensions || [];
+        const volInKg = dims.reduce((acc, dim) => acc + ((Number(dim.length) * Number(dim.width) * Number(dim.height)) / 2700 || 0), 0);
+        const calculatedChargeableWeightInKg = Math.max(actualInKg, volInKg);
+        
+        const chargeableWeightUnit = prev.packageDetails?.chargeableWeightUnit || "kg";
+        const displayChargeable = chargeableWeightUnit === "g" ? calculatedChargeableWeightInKg * 1000 : calculatedChargeableWeightInKg;
+
+        return {
+          ...prev,
+          packageDetails: {
+            ...prev.packageDetails,
+            weight: actualWeight,
+            chargeableWeight: displayChargeable % 1 === 0 ? displayChargeable : Number(displayChargeable.toFixed(3)),
+          }
+        };
+      });
+      return;
+    }
+
+    if (nested === 'packageDetails' && field === 'weightUnit') {
+      setBooking((prev) => {
+        const actualWeight = Number(prev.packageDetails?.weight) || 0;
+        const actualInKg = value === "g" ? actualWeight / 1000 : actualWeight;
+        const dims = prev.packageDetails?.dimensions || [];
+        const volInKg = dims.reduce((acc, dim) => acc + ((Number(dim.length) * Number(dim.width) * Number(dim.height)) / 2700 || 0), 0);
+        const calculatedChargeableWeightInKg = Math.max(actualInKg, volInKg);
+        
+        const chargeableWeightUnit = value; // Sync with weightUnit
+        const displayChargeable = chargeableWeightUnit === "g" ? calculatedChargeableWeightInKg * 1000 : calculatedChargeableWeightInKg;
+
+        return {
+          ...prev,
+          packageDetails: {
+            ...prev.packageDetails,
+            weightUnit: value,
+            chargeableWeightUnit: value,
+            chargeableWeight: displayChargeable % 1 === 0 ? displayChargeable : Number(displayChargeable.toFixed(3)),
+          }
+        };
+      });
+      return;
+    }
+
     if (nested) {
       setBooking((prev) => ({
         ...prev,
@@ -349,11 +397,23 @@ const BookingDetail = () => {
       if (newDimensions[index]) {
         newDimensions[index] = { ...newDimensions[index], [field]: Number(value) || 0 };
       }
+
+      const volInKg = newDimensions.reduce((acc, dim) => acc + ((Number(dim.length) * Number(dim.width) * Number(dim.height)) / 2700 || 0), 0);
+      const actualWeight = Number(prev.packageDetails?.weight) || 0;
+      const weightUnit = prev.packageDetails?.weightUnit || "kg";
+      const actualInKg = weightUnit === "g" ? actualWeight / 1000 : actualWeight;
+      const calculatedChargeableWeightInKg = Math.max(actualInKg, volInKg);
+
+      const chargeableWeightUnit = prev.packageDetails?.chargeableWeightUnit || "kg";
+      const displayChargeable = chargeableWeightUnit === "g" ? calculatedChargeableWeightInKg * 1000 : calculatedChargeableWeightInKg;
+
       return {
         ...prev,
         packageDetails: {
           ...prev.packageDetails,
           dimensions: newDimensions,
+          volumetricWeight: volInKg,
+          chargeableWeight: displayChargeable % 1 === 0 ? displayChargeable : Number(displayChargeable.toFixed(3)),
         },
       };
     });
