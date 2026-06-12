@@ -45,7 +45,9 @@ router.get("/vendor/:vendorName", async (req, res) => {
     const { vendorName } = req.params;
     const { status } = req.query; // 'available' or 'used'
     
-    let query = { vendorName: { $regex: new RegExp(`^${vendorName}$`, "i") } };
+    console.log("Fetching dockets for vendor:", vendorName);
+    const escapedVendorName = vendorName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    let query = { vendorName: { $regex: new RegExp(`^${escapedVendorName}$`, "i") } };
     if (status) query.status = status;
 
     const dockets = await DocketInventory.find(query)
@@ -105,8 +107,9 @@ router.get("/next/:vendorName", async (req, res) => {
     const { vendorName } = req.params;
     
     // Find the oldest available docket for this vendor
+    const escapedVendorName = vendorName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const nextDocket = await DocketInventory.findOne({
-      vendorName: { $regex: new RegExp(`^${vendorName}$`, "i") },
+      vendorName: { $regex: new RegExp(`^${escapedVendorName}$`, "i") },
       status: "available",
     }).sort({ createdAt: 1 });
 

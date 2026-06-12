@@ -103,7 +103,7 @@ export default function ManualBooking() {
     }
     try {
       const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/vendors/search/${query}`, {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/partners/search/${query}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
@@ -139,19 +139,10 @@ export default function ManualBooking() {
       vendorId: vendor.vendorId,
       senderName: vendor.name,
       senderPhone: vendor.phone,
-      senderEmail: vendor.email || "",
-      senderAddress: vendor.address,
-      senderAddress2: vendor.address2 || "",
-      senderCity: vendor.city,
-      senderState: vendor.state,
-      senderLandmark: vendor.landmark || "",
-      pickupPincode: vendor.pincode,
-      totalAmount: "" // Cleared to prevent accidental zero orders
+      senderEmail: vendor.email || ""
     }));
     setShowVendorDropdown(false);
     setVendorSearch(vendor.name);
-    // Trigger pincode check for the vendor's pincode
-    checkPincode(vendor.pincode, 'pickup');
   };
 
   useEffect(() => {
@@ -674,7 +665,6 @@ export default function ManualBooking() {
                     </div>
                   )}
                 </div>
-                <p className="text-[10px] text-orange-600 mt-1 font-bold italic">Selecting a vendor will auto-fill address and set amount to 0.</p>
               </div>
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

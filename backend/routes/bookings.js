@@ -232,7 +232,11 @@ router.get("/", authMiddleware, async (req, res) => {
       query.officeId = req.user.officeId;
     } else if (req.query.officeId && req.query.officeId !== "all") {
       // If main admin, allow filtering by officeId
-      query.officeId = req.query.officeId;
+      if (req.query.officeId === "main") {
+        query.officeId = { $in: [null, undefined] };
+      } else {
+        query.officeId = req.query.officeId;
+      }
     }
 
     if (req.query.vendorFilter) {
@@ -301,6 +305,7 @@ router.get("/", authMiddleware, async (req, res) => {
       .sort({ createdAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit)
+      .populate("createdBy", "name username")
       .lean();
 
     // Look up EDL/KM for items that don't have it (older bookings) - Optimized Bulk Lookup
@@ -347,7 +352,11 @@ router.get("/export", adminAuth, async (req, res) => {
     if (req.admin && req.admin.officeId) {
       query.officeId = req.admin.officeId;
     } else if (officeId && officeId !== "all") {
-      query.officeId = officeId;
+      if (officeId === "main") {
+        query.officeId = { $in: [null, undefined] };
+      } else {
+        query.officeId = officeId;
+      }
     }
     
     if (vendorFilter) {
@@ -541,6 +550,46 @@ router.put("/bulk/assign", adminAuth, async (req, res) => {
   } catch (error) {
     console.error("Bulk Assign Error:", error);
     res.status(500).json({ message: "Server error during bulk assignment" });
+  }
+});
+
+router.put("/bulk/assign-vendor", adminAuth, async (req, res) => {
+  try {
+    const { bookingIds, vendorId, vendorName } = req.body;
+    if (!bookingIds || !Array.isArray(bookingIds) || !vendorId || !vendorName) {
+      return res.status(400).json({ message: "Invalid request data" });
+    }
+
+    await Booking.updateMany(
+      { _id: { $in: bookingIds } },
+      { 
+        $set: { vendorId, vendorName, isVendorBooking: true },
+        $push: {
+          trackingHistory: {
+            location: "Hub",
+            timestamp: new Date(),
+            status: "pending",
+            description: `Bulk assigned to Vendor ${vendorName}`
+          }
+        }
+      }
+    );
+
+    // Notify Admins
+    const io = req.app.get("socketio");
+    if (io) {
+      io.emit("status_update", {
+        bookingIds,
+        status: "VENDOR_ASSIGNED",
+        description: `Bulk assigned to Vendor ${vendorName}`,
+        bookingSource: "Bulk"
+      });
+    }
+
+    res.json({ success: true, message: `Assigned ${bookingIds.length} bookings to ${vendorName}.` });
+  } catch (error) {
+    console.error("Bulk Assign Vendor Error:", error);
+    res.status(500).json({ message: "Server error during bulk vendor assignment" });
   }
 });
 
@@ -813,6 +862,33 @@ router.put("/:id", authMiddleware, async (req, res) => {
     });
 
     const updateData = flattenObject(cleanBody);
+
+    // ✅ Validate if vendorTrackingId (Docket ID) is already in use
+    if (updateData.vendorTrackingId) {
+      const trackingId = updateData.vendorTrackingId.toString().trim();
+      const currentBooking = await Booking.findOne(query);
+      
+      if (currentBooking && currentBooking.vendorTrackingId !== trackingId) {
+        // Check if another booking is using it
+        const otherBooking = await Booking.findOne({ 
+          vendorTrackingId: trackingId, 
+          _id: { $ne: currentBooking._id } 
+        });
+
+        if (otherBooking) {
+          return res.status(400).json({ message: `Docket ID ${trackingId} is already associated with booking ${otherBooking.bookingId}.` });
+        }
+
+        // Check if it's marked as used in DocketInventory by a different booking
+        const existingDocket = await DocketInventory.findOne({ docketId: trackingId });
+        if (existingDocket && existingDocket.status === "used") {
+          const isUsedByUs = existingDocket.usedBy && existingDocket.usedBy.some(id => id.toString() === currentBooking._id.toString());
+          if (!isUsedByUs && existingDocket.usedBy && existingDocket.usedBy.length > 0) {
+            return res.status(400).json({ message: `Docket ID ${trackingId} is already marked as used in the inventory.` });
+          }
+        }
+      }
+    }
 
     const booking = await Booking.findOneAndUpdate(
       query, 
@@ -1564,15 +1640,7 @@ router.put("/:id/unassign-docket", authMiddleware, async (req, res) => {
     const updated = await Booking.findByIdAndUpdate(
       req.params.id,
       { 
-        $set: { vendorTrackingId: "" },
-        $push: {
-          trackingHistory: {
-            status: booking.status,
-            location: booking.currentLocation || "Hub",
-            timestamp: new Date(),
-            description: `Docket ID ${docketIdToUnassign || 'unassigned'} removed by Admin.`
-          }
-        }
+        $set: { vendorTrackingId: "" }
       },
       { new: true, runValidators: false }
     );

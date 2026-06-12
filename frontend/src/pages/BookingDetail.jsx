@@ -28,11 +28,11 @@ const BookingDetail = () => {
   const [isTrackingIdEditable, setIsTrackingIdEditable] = useState(false)
 
   useEffect(() => {
-    if (editMode && booking) {
-      setInitialTrackingId(booking.vendorTrackingId || "")
+    if (editMode) {
+      setInitialTrackingId(booking?.vendorTrackingId || "")
       setIsTrackingIdEditable(false)
     }
-  }, [editMode, booking])
+  }, [editMode])
 
   // Reschedule State
   const [rescheduleModalOpen, setRescheduleModalOpen] = useState(false)
@@ -261,7 +261,7 @@ const BookingDetail = () => {
       setEditMode(false)
       setDeliveryNotifyModal({ open: false, type: "", data: null });
     } catch (error) {
-      toast.error("Error updating booking")
+      toast.error(error.response?.data?.message || error.response?.data?.error || "Error updating booking")
       console.error("Error:", error)
     } finally {
       setSaving(false)

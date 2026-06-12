@@ -110,6 +110,7 @@ const Bookings = () => {
   const [bulkUpdates, setBulkUpdates] = useState([])
   const [bulkNotify, setBulkNotify] = useState(true)
   const [bulkAssignment, setBulkAssignment] = useState({ riderId: "", assignedFor: "pickup" })
+  const [bulkVendorAssignment, setBulkVendorAssignment] = useState({ vendorId: "", vendorName: "" })
   const [isBulkUpdating, setIsBulkUpdating] = useState(false)
   const [searchTerm, setSearchTerm] = useState(searchParams.get("search") || "")
   const [searchInput, setSearchInput] = useState(searchParams.get("search") || "")
@@ -118,7 +119,7 @@ const Bookings = () => {
   const [currentPage, setCurrentPage] = useState(parseInt(searchParams.get("page")) || 1)
   const [limit, setLimit] = useState(parseInt(searchParams.get("limit")) || 10)
   const [vendorFilter, setVendorFilter] = useState(searchParams.get("vendor") || "all")
-  const [officeFilter, setOfficeFilter] = useState(searchParams.get("office") || "all")
+  const [officeFilter, setOfficeFilter] = useState(searchParams.get("office") || "main")
   const [offices, setOffices] = useState([])
   
   // Date Filtering State
@@ -161,7 +162,7 @@ const Bookings = () => {
     setServiceFilter("all")
     setCurrentPage(1)
     setVendorFilter("all")
-    setOfficeFilter("all")
+    setOfficeFilter("main")
     setDateFilter("all")
     setCustomStartDate("")
     setCustomEndDate("")
@@ -178,7 +179,8 @@ const Bookings = () => {
           search: searchTerm,
           startDate: customStartDate || getEffectiveStartDate(dateFilter),
           endDate: customEndDate || getEffectiveEndDate(dateFilter),
-          vendorFilter: vendorFilter
+          vendorFilter: vendorFilter,
+          officeId: officeFilter === "all" ? "" : officeFilter
         },
         headers: { Authorization: `Bearer ${token}` }
       })
@@ -211,6 +213,8 @@ const Bookings = () => {
     }
   }
 
+  const [vendors, setVendors] = useState([])
+
   const fetchRiders = async () => {
     try {
       const t = localStorage.getItem("adminToken") || localStorage.getItem("token")
@@ -235,9 +239,22 @@ const Bookings = () => {
     }
   }
 
+  const fetchVendors = async () => {
+    try {
+      const t = localStorage.getItem("adminToken") || localStorage.getItem("token")
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/partners`, {
+        headers: { Authorization: `Bearer ${t}` }
+      })
+      setVendors(res.data)
+    } catch (e) {
+      console.error("Failed to fetch vendors", e)
+    }
+  }
+
   useEffect(() => {
     fetchRiders()
     fetchOffices()
+    fetchVendors()
   }, [])
 
   const handleBulkStatusUpdate = async () => {
@@ -298,6 +315,28 @@ const Bookings = () => {
       fetchBookings()
     } catch (error) {
       toast.error("Bulk assignment failed")
+    } finally {
+      setIsBulkUpdating(false)
+    }
+  }
+
+  const handleBulkAssignVendor = async () => {
+    if (!bulkVendorAssignment.vendorId) return toast.error("Please select a vendor")
+    try {
+      setIsBulkUpdating(true)
+      const t = localStorage.getItem("adminToken") || localStorage.getItem("token")
+      await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/bulk/assign-vendor`, {
+        bookingIds: selectedIds,
+        vendorId: bulkVendorAssignment.vendorId,
+        vendorName: bulkVendorAssignment.vendorName
+      }, { headers: { Authorization: `Bearer ${t}` } })
+
+      toast.success(`Assigned ${selectedIds.length} bookings to vendor successfully`)
+      setSelectedIds([])
+      setBulkModal({ open: false, type: "" })
+      fetchBookings()
+    } catch (error) {
+      toast.error("Bulk vendor assignment failed")
     } finally {
       setIsBulkUpdating(false)
     }
@@ -546,6 +585,7 @@ const Bookings = () => {
               onChange={(e) => setOfficeFilter(e.target.value)}
               className="border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1A1A1A] dark:text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 transition-colors"
             >
+              <option value="main">Main Office</option>
               <option value="all">All Offices</option>
               {offices.map(office => (
                 <option key={office._id} value={office._id}>{office.name} ({office.code})</option>
@@ -620,9 +660,9 @@ const Bookings = () => {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            <div className="overflow-x-auto styled-scrollbar styled-scrollbar-top">
               <table className="min-w-full divide-y divide-gray-200 dark:divide-white/10">
-                <thead className="bg-gray-50 dark:bg-white/5 transition-colors">
+                <thead className="bg-gray-50 dark:bg-white/5 transition-colors sticky top-0 z-10">
                   <tr>
                     <th className="px-6 py-3 text-left">
                       <input
@@ -632,6 +672,7 @@ const Bookings = () => {
                         className="rounded border-gray-300 dark:border-white/10 bg-white dark:bg-transparent text-primary-600 focus:ring-primary-500 h-4 w-4"
                       />
                     </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Booking ID</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Sender</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Receiver</th>
@@ -644,7 +685,7 @@ const Bookings = () => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Payment</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Vendor</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Track ID</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Created By</th>
                     <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
@@ -658,6 +699,30 @@ const Bookings = () => {
                           onChange={() => toggleSelect(booking._id)}
                           className="rounded border-gray-300 dark:border-white/10 bg-white dark:bg-transparent text-primary-600 focus:ring-primary-500 h-4 w-4"
                         />
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-[11px] font-medium text-gray-500 dark:text-gray-400 mb-1">
+                          {booking.isVendorBooking && booking.pickupDate ? (
+                            new Date(booking.pickupDate).toLocaleDateString('en-GB', {
+                              day: '2-digit', month: 'short', year: 'numeric'
+                            })
+                          ) : (
+                            new Date(booking.createdAt).toLocaleDateString('en-GB', {
+                              day: '2-digit', month: 'short', year: 'numeric'
+                            })
+                          )}
+                        </div>
+                        <div className="text-[10px] text-gray-400">
+                          {booking.isVendorBooking && booking.pickupDate ? (
+                            new Date(booking.pickupDate).toLocaleTimeString('en-US', {
+                              hour: '2-digit', minute: '2-digit'
+                            })
+                          ) : (
+                            new Date(booking.createdAt).toLocaleTimeString('en-US', {
+                              hour: '2-digit', minute: '2-digit'
+                            })
+                          )}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-medium text-gray-900 dark:text-white">{booking.bookingId}</div>
@@ -778,12 +843,10 @@ const Bookings = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400 font-mono">
                         {booking.vendorTrackingId || "-"}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">
-                        {booking.isVendorBooking && booking.pickupDate ? (
-                          new Date(booking.pickupDate).toLocaleDateString()
-                        ) : (
-                          new Date(booking.createdAt).toLocaleDateString()
-                        )}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-bold text-gray-900 dark:text-white capitalize">
+                          {booking.createdBy?.name || booking.createdBy?.username || (booking.officeId ? "Office" : "Main Office")}
+                        </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                         <div className="flex items-center justify-center space-x-2">
@@ -920,6 +983,13 @@ const Bookings = () => {
                     Assign Rider
                   </button>
                   <button
+                    onClick={() => setBulkModal({ open: true, type: "vendor" })}
+                    className="flex items-center gap-2 hover:bg-gray-800 px-3 py-2 rounded-xl transition-colors text-sm font-bold text-pink-400"
+                  >
+                    <UserPlus className="w-4 h-4" />
+                    Assign Vendor
+                  </button>
+                  <button
                     onClick={() => {
                       setDocketModal({ open: true, booking: "bulk" });
                       setDocketVendor("");
@@ -967,7 +1037,7 @@ const Bookings = () => {
                 <div className="bg-white dark:bg-[#1A1A1A] border dark:border-white/10 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
                   <div className="p-6 border-b border-gray-100 dark:border-white/10 flex justify-between items-center bg-gray-50 dark:bg-white/5 transition-colors">
                     <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                      {bulkModal.type === 'status' ? 'Bulk Status Update' : 'Bulk Rider Assignment'}
+                      {bulkModal.type === 'status' ? 'Bulk Status Update' : bulkModal.type === 'vendor' ? 'Bulk Vendor Assignment' : 'Bulk Rider Assignment'}
                     </h3>
                     <button onClick={() => setBulkModal({ open: false, type: "" })} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
                       <XCircle className="w-6 h-6" />
@@ -1139,6 +1209,28 @@ const Bookings = () => {
                           </div>
                         )}
                       </div>
+                    ) : bulkModal.type === 'vendor' ? (
+                      <div className="space-y-4">
+                        <div>
+                          <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Select Vendor</label>
+                          <select
+                            value={bulkVendorAssignment.vendorId}
+                            onChange={(e) => {
+                              const selected = vendors.find(v => v.partnerId === e.target.value);
+                              setBulkVendorAssignment({
+                                vendorId: selected?.partnerId || "",
+                                vendorName: selected?.name || ""
+                              });
+                            }}
+                            className="w-full rounded-xl border-gray-200 dark:border-white/10 bg-white dark:bg-[#111111] dark:text-white focus:ring-primary-500 focus:border-primary-500 text-sm py-3 transition-colors"
+                          >
+                            <option value="">Choose a vendor...</option>
+                            {vendors.map(v => (
+                              <option key={v._id} value={v.partnerId}>{v.name} ({v.partnerId})</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
                     ) : (
                       <div className="space-y-4">
                         <div>
@@ -1184,8 +1276,8 @@ const Bookings = () => {
                     </button>
                     <button
                       disabled={isBulkUpdating}
-                      onClick={bulkModal.type === 'status' ? handleBulkStatusUpdate : handleBulkAssignRider}
-                      className={`flex-1 px-4 py-3 rounded-xl font-bold text-white shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 ${bulkModal.type === 'status' ? 'bg-primary-600 hover:bg-primary-700' : 'bg-amber-600 hover:bg-amber-700'
+                      onClick={bulkModal.type === 'status' ? handleBulkStatusUpdate : bulkModal.type === 'vendor' ? handleBulkAssignVendor : handleBulkAssignRider}
+                      className={`flex-1 px-4 py-3 rounded-xl font-bold text-white shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 ${bulkModal.type === 'status' ? 'bg-primary-600 hover:bg-primary-700' : bulkModal.type === 'vendor' ? 'bg-pink-600 hover:bg-pink-700' : 'bg-amber-600 hover:bg-amber-700'
                         }`}
                     >
                       {isBulkUpdating ? (

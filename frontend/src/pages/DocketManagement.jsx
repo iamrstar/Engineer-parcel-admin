@@ -65,7 +65,7 @@ const DocketManagement = () => {
   const fetchVendors = async () => {
     try {
       const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/vendors`, {
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/partners`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       setVendors(res.data);
@@ -172,7 +172,7 @@ const DocketManagement = () => {
     setDetailsFilter(status);
     try {
       const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
-      const url = `${import.meta.env.VITE_API_URL}/api/dockets/vendor/${vendorName}${status !== "all" ? `?status=${status}` : ""}`;
+      const url = `${import.meta.env.VITE_API_URL}/api/dockets/vendor/${encodeURIComponent(vendorName)}${status !== "all" ? `?status=${status}` : ""}`;
       const res = await axios.get(url, {
         headers: { Authorization: `Bearer ${token}` },
       });

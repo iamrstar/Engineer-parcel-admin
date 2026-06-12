@@ -210,6 +210,10 @@ const bookingSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Office"
     },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User"
+    },
   },
   { timestamps: true },
 )

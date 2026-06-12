@@ -85,6 +85,22 @@ router.post("/", authMiddleware, uploadPaymentProof.single("paymentProof"), asyn
       return res.status(400).json({ error: "Missing required booking fields." });
     }
 
+    // ✅ Validate if vendorTrackingId (Docket ID) is already in use
+    if (vendorTrackingId) {
+      const trackingIdStr = vendorTrackingId.toString().trim();
+      
+      const existingBookingWithDocket = await Booking.findOne({ vendorTrackingId: trackingIdStr });
+      if (existingBookingWithDocket) {
+        return res.status(400).json({ error: `Docket ID ${trackingIdStr} is already associated with another booking (${existingBookingWithDocket.bookingId}).` });
+      }
+
+      const DocketInventory = require("../models/DocketInventory");
+      const existingDocket = await DocketInventory.findOne({ docketId: trackingIdStr });
+      if (existingDocket && existingDocket.status === "used" && existingDocket.usedBy && existingDocket.usedBy.length > 0) {
+        return res.status(400).json({ error: `Docket ID ${trackingIdStr} is already marked as used in the inventory.` });
+      }
+    }
+
     // Look up EDL and KM for the delivery pincode
     let edl = 0;
     let km = 0;
@@ -144,6 +160,7 @@ router.post("/", authMiddleware, uploadPaymentProof.single("paymentProof"), asyn
       vendorTrackingId,
       bookingSource,
       officeId: req.user ? req.user.officeId : (req.admin ? req.admin.officeId : req.body.officeId),
+      createdBy: req.user ? req.user.id : (req.admin ? req.admin.id : null),
     });
 
     await newBooking.save();

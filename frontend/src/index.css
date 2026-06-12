@@ -24,3 +24,28 @@ body {
 * {
   box-sizing: border-box;
 }
+
+/* Styled Scrollbars */
+.styled-scrollbar::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+.styled-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 5px;
+}
+.styled-scrollbar::-webkit-scrollbar-thumb {
+  background: #f97316;
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.dark .styled-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #f97316;
+}
+.styled-scrollbar-top {
+  transform: rotateX(180deg);
+}
+.styled-scrollbar-top > * {
+  transform: rotateX(180deg);
+}

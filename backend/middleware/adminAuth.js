@@ -21,7 +21,7 @@ const adminAuth = async (req, res, next) => {
     if (!admin) {
       const User = require("../models/User");
       const user = await User.findById(decoded.id);
-      if (user && (user.role === 'admin' || user.role === 'staff') && user.isActive) {
+      if (user && (user.role === 'admin' || user.role === 'staff' || user.role === 'office_admin') && user.isActive) {
         admin = user; // Treat this user as an admin
       }
     }
