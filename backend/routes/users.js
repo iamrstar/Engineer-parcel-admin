@@ -19,6 +19,12 @@ router.get("/", adminAuth, async (req, res) => {
             query.role = { $in: roles.split(",") };
         }
 
+        if (req.admin && req.admin.officeId) {
+            query.officeId = req.admin.officeId;
+        } else if (req.query.officeId && req.query.officeId !== "all") {
+            query.officeId = req.query.officeId;
+        }
+
         const users = await User.find(query).select("-password").sort({ createdAt: -1 });
         res.json(users);
     } catch (error) {
@@ -43,6 +49,8 @@ router.post("/", adminAuth, async (req, res) => {
         const salt = await bcrypt.genSalt(10);
         const hashedPassword = await bcrypt.hash(password, salt);
 
+        const userRole = role || "agent";
+        
         user = new User({
             name,
             username,
@@ -50,7 +58,8 @@ router.post("/", adminAuth, async (req, res) => {
             phone,
             password: hashedPassword,
             plainPassword: password, // Store plain text for admin viewing
-            role: role || "agent",
+            role: userRole,
+            officeId: (req.admin && req.admin.officeId) ? req.admin.officeId : req.body.officeId,
         });
 
         await user.save();
@@ -75,6 +84,11 @@ router.put("/:id", adminAuth, async (req, res) => {
         let user = await User.findById(req.params.id);
         if (!user) {
             return res.status(404).json({ message: "User not found" });
+        }
+
+        // Office Admin can only edit their own office users
+        if (req.admin && req.admin.officeId && user.officeId && user.officeId.toString() !== req.admin.officeId.toString()) {
+            return res.status(403).json({ message: "You can only edit users from your own office." });
         }
 
         if (name) user.name = name;
@@ -112,8 +126,13 @@ router.delete("/:id", adminAuth, async (req, res) => {
             return res.status(404).json({ message: "User not found" });
         }
 
+        // Office Admin can only delete their own office users
+        if (req.admin && req.admin.officeId && user.officeId && user.officeId.toString() !== req.admin.officeId.toString()) {
+            return res.status(403).json({ message: "You can only delete users from your own office." });
+        }
+
         await user.deleteOne();
-        res.json({ message: "User removed" });
+        res.json({ message: "User deleted successfully" });
     } catch (error) {
         console.error("Delete user error:", error);
         res.status(500).json({ message: "Server error" });
@@ -158,6 +177,8 @@ router.post("/login", async (req, res) => {
                 username: user.username,
                 phone: user.phone,
                 role: user.role,
+                permissions: user.permissions,
+                officeId: user.officeId,
             },
         });
     } catch (error) {

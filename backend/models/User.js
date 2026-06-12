@@ -23,7 +23,7 @@ const userSchema = new mongoose.Schema(
         },
         role: {
             type: String,
-            enum: ["admin", "agent", "rider", "staff"],
+            enum: ["admin", "agent", "rider", "staff", "office_admin"],
             default: "agent",
             required: true,
         },
@@ -37,6 +37,13 @@ const userSchema = new mongoose.Schema(
         },
         plainPassword: {
             type: String,
+        },
+        permissions: [{
+            type: String
+        }],
+        officeId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Office"
         },
     },
     { timestamps: true, collection: "intake_users" }

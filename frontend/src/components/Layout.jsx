@@ -308,16 +308,24 @@ const Layout = ({ children }) => {
     { name: "Attendance", href: "/attendance", icon: UserCheck },
     { name: "Attendance Report", href: "/attendance-report", icon: FileText },
     { name: "User Management", href: "/user-management", icon: Users },
-    { name: "Vendor Management", href: "/vendors", icon: Building },
+    { name: "Partner Management", href: "/partners", icon: Building },
     { name: "Docket Management", href: "/docket-management", icon: ClipboardList },
     { name: "Manage Queries", href: "/queries", icon: MessageCircle },
+    { name: "Offices", href: "/offices", icon: Building },
+    { name: "Access Control", href: "/access-control", icon: UserCheck },
   ]
 
-  const staffAllowedNames = ["Dashboard", "Booking", "E-Docket", "Pincodes", "Create Order", "Vendor Management", "Staff Tasks", "Manage Queries"];
+  const defaultStaffAllowed = ["Dashboard", "Booking", "E-Docket", "Pincodes", "Create Order", "Partner Management", "Staff Tasks", "Manage Queries", "Docket Management"];
   
   const navigation = isAdmin 
     ? allNavigation 
-    : allNavigation.filter(item => staffAllowedNames.includes(item.name)).map(item => {
+    : allNavigation.filter(item => {
+        if (user?.permissions && Array.isArray(user.permissions) && user.permissions.length > 0) {
+          if (user.permissions.includes("ALL")) return true;
+          return user.permissions.includes(item.name) || user.permissions.includes(item.name.replace("My ", "Staff "));
+        }
+        return defaultStaffAllowed.includes(item.name);
+      }).map(item => {
         if (item.name === "Manage Queries") return { ...item, name: "My Queries" }
         if (item.name === "Staff Tasks") return { ...item, name: "My Tasks" }
         return item

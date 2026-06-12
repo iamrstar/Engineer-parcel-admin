@@ -140,8 +140,15 @@ const bookingSchema = new mongoose.Schema(
     },
     paymentStatus: {
       type: String,
-      enum: ["pending", "paid", "failed", "refunded"],
+      enum: ["pending", "paid", "partial", "failed", "refunded"],
       default: "pending",
+    },
+    amountReceived: {
+      type: Number,
+      default: 0,
+    },
+    paymentProof: {
+      type: String, // URL/path to the image
     },
     paymentMethod: {
       type: String,
@@ -199,6 +206,10 @@ const bookingSchema = new mongoose.Schema(
     }],
     estimatedDelivery: { type: String },
     isBoxDelivered: { type: Boolean, default: false },
+    officeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Office"
+    },
   },
   { timestamps: true },
 )

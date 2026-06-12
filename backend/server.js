@@ -65,7 +65,8 @@ const manualBookingRoute = require('./routes/manualBooking.js');
 const emailRoutes = require("./routes/emailRoutes.js");
 const intakeRoutes = require("./routes/intake");
 const userRoutes = require("./routes/users");
-const vendorRoutes = require("./routes/vendors");
+const partnerRoutes = require("./routes/partners");
+const partnerApiRoutes = require("./routes/partnerApiRoutes");
 const vendorPaymentRoutes = require("./routes/vendorPayments");
 const analyticsRoutes = require("./routes/analytics");
 const docketRoutes = require("./routes/dockets");
@@ -73,6 +74,8 @@ const taskRoutes = require("./routes/tasks");
 const incentiveRoutes = require("./routes/incentives"); // NEW INCENTIVE ROUTE
 const attendanceRoutes = require("./routes/attendance");
 const queryRoutes = require("./routes/queries");
+const officeRoutes = require("./routes/offices");
+const accessControlRoutes = require("./routes/accessControl");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/bookings", bookingRoutes);
@@ -81,7 +84,8 @@ app.use("/api/coupons", couponRoutes);
 app.use("/api/manual-bookings", manualBookingRoute);
 app.use("/api/email", emailRoutes);
 app.use("/api/users", userRoutes);
-app.use("/api/vendors", vendorRoutes);
+app.use("/api/partners", partnerRoutes); // Internal admin routes for partner management
+app.use("/api/v1/partners", partnerApiRoutes); // Public API routes for partners
 app.use("/api/vendor-payments", vendorPaymentRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/dockets", docketRoutes);
@@ -89,6 +93,8 @@ app.use("/api/tasks", taskRoutes);
 app.use("/api/incentives", incentiveRoutes); // NEW INCENTIVE ROUTE
 app.use("/api/attendance", attendanceRoutes);
 app.use("/api/queries", queryRoutes);
+app.use("/api/offices", officeRoutes);
+app.use("/api/access-control", accessControlRoutes);
 
 app.use("/api/intake", intakeRoutes);
 

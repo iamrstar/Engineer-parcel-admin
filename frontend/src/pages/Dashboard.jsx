@@ -38,7 +38,7 @@ const Dashboard = () => {
   const [submittingQuery, setSubmittingQuery] = useState(false)
 
   const { user } = useAuth()
-  const isAdmin = user && (!user.role || user.role === 'admin')
+  const isAdmin = user && (!user.role || user.role === 'admin' || user.role === 'office_admin')
 
   useEffect(() => {
     fetchStats()

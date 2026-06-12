@@ -1,11 +1,23 @@
 const mongoose = require("mongoose");
 
-const vendorSchema = new mongoose.Schema({
-    vendorId: {
+const partnerSchema = new mongoose.Schema({
+    partnerId: {
         type: String,
         required: true,
         unique: true,
         trim: true,
+    },
+    // API Authentication for E-commerce Partners
+    apiKey: {
+        type: String,
+        unique: true,
+        sparse: true, // Allows null if some partners don't use the API
+    },
+    apiSecretHash: {
+        type: String,
+    },
+    webhookUrl: {
+        type: String,
     },
     name: {
         type: String,
@@ -50,4 +62,4 @@ const vendorSchema = new mongoose.Schema({
     },
 });
 
-module.exports = mongoose.model("Vendor", vendorSchema);
+module.exports = mongoose.model("Partner", partnerSchema, "vendors"); // Keeping 'vendors' collection name to prevent data loss

@@ -18,6 +18,31 @@ if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
 }
 
 const router = express.Router();
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
+
+// Ensure upload directory exists
+const uploadDir = path.join(__dirname, "../uploads/payments");
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+// Configure Multer for payment proofs
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, "payment-" + uniqueSuffix + path.extname(file.originalname));
+  },
+});
+
+const uploadPaymentProof = multer({
+  storage: storage,
+  limits: { fileSize: 100 * 1024 }, // 100KB limit
+});
 
 /** ------------------------
  * 📧 Helper: Send Delivery Email
@@ -71,13 +96,20 @@ const sendDeliveryEmail = async (booking) => {
  * ------------------------ */
 router.get("/stats/dashboard", authMiddleware, async (req, res) => {
   try {
-    const totalBookings = await Booking.countDocuments();
-    const pendingBookings = await Booking.countDocuments({ status: "pending" });
-    const deliveredBookings = await Booking.countDocuments({ status: "delivered" });
-    const inTransitBookings = await Booking.countDocuments({ status: "in-transit" });
+    const query = {};
+    if (req.user && req.user.officeId) {
+      query.officeId = req.user.officeId;
+    } else if (req.query.officeId && req.query.officeId !== "all") {
+      query.officeId = req.query.officeId;
+    }
+
+    const totalBookings = await Booking.countDocuments(query);
+    const pendingBookings = await Booking.countDocuments({ ...query, status: "pending" });
+    const deliveredBookings = await Booking.countDocuments({ ...query, status: "delivered" });
+    const inTransitBookings = await Booking.countDocuments({ ...query, status: "in-transit" });
 
     const totalRevenue = await Booking.aggregate([
-      { $match: { paymentStatus: "paid" } },
+      { $match: { ...query, paymentStatus: "paid" } },
       { $group: { _id: null, total: { $sum: "$pricing.totalAmount" } } },
     ]);
 
@@ -96,7 +128,14 @@ router.get("/stats/dashboard", authMiddleware, async (req, res) => {
 
 router.get("/stats/pending-recent", authMiddleware, async (req, res) => {
   try {
-    const recentPending = await Booking.find({ status: "pending" })
+    const query = { status: "pending" };
+    if (req.user && req.user.officeId) {
+      query.officeId = req.user.officeId;
+    } else if (req.query.officeId && req.query.officeId !== "all") {
+      query.officeId = req.query.officeId;
+    }
+
+    const recentPending = await Booking.find(query)
       .sort({ createdAt: -1 })
       .limit(5)
       .select("bookingId senderDetails receiverDetails serviceType pricing createdAt");
@@ -137,6 +176,12 @@ router.get("/sales/report", adminAuth, async (req, res) => {
 
     if (serviceType && serviceType !== "all") {
       match.serviceType = serviceType;
+    }
+
+    if (req.admin && req.admin.officeId) {
+      match.officeId = req.admin.officeId;
+    } else if (req.query.officeId && req.query.officeId !== "all") {
+      match.officeId = req.query.officeId;
     }
 
     const reportData = await Booking.aggregate([
@@ -180,6 +225,14 @@ router.get("/", authMiddleware, async (req, res) => {
 
     if (serviceType && serviceType !== "all") {
       query.serviceType = serviceType;
+    }
+
+    if (req.user && req.user.officeId) {
+      // If regular user/office admin, restrict to their office
+      query.officeId = req.user.officeId;
+    } else if (req.query.officeId && req.query.officeId !== "all") {
+      // If main admin, allow filtering by officeId
+      query.officeId = req.query.officeId;
     }
 
     if (req.query.vendorFilter) {
@@ -285,11 +338,17 @@ router.get("/", authMiddleware, async (req, res) => {
  * ------------------------ */
 router.get("/export", adminAuth, async (req, res) => {
   try {
-    const { status, serviceType, search, startDate, endDate, vendorNotAssigned, vendorFilter } = req.query;
+    const { status, serviceType, search, startDate, endDate, vendorNotAssigned, vendorFilter, officeId } = req.query;
     const query = {};
 
     if (status && status !== "all") query.status = status;
     if (serviceType && serviceType !== "all") query.serviceType = serviceType;
+    
+    if (req.admin && req.admin.officeId) {
+      query.officeId = req.admin.officeId;
+    } else if (officeId && officeId !== "all") {
+      query.officeId = officeId;
+    }
     
     if (vendorFilter) {
       if (vendorFilter === "none") {
@@ -1521,6 +1580,37 @@ router.put("/:id/unassign-docket", authMiddleware, async (req, res) => {
     res.json(updated);
   } catch (error) {
     console.error("Error unassigning docket:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+/** ------------------------
+ * ✅ Update Payment Status
+ * ------------------------ */
+router.put("/:id/payment-status", authMiddleware, uploadPaymentProof.single("paymentProof"), async (req, res) => {
+  try {
+    const { paymentStatus, amountReceived } = req.body;
+    const booking = await Booking.findById(req.params.id);
+    if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+    const updateData = { paymentStatus };
+    
+    if (amountReceived !== undefined) {
+      updateData.amountReceived = Number(amountReceived);
+    }
+    
+    if (req.file) {
+      updateData.paymentProof = `/uploads/payments/${req.file.filename}`;
+    }
+
+    const updated = await Booking.findByIdAndUpdate(
+      req.params.id,
+      { $set: updateData },
+      { new: true, runValidators: false }
+    );
+
+    res.json(updated);
+  } catch (error) {
+    console.error("Error updating payment status:", error);
     res.status(500).json({ message: "Server error" });
   }
 });

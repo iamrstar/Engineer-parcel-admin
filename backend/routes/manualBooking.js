@@ -4,6 +4,7 @@ const Booking = require("../models/Booking");
 const Razorpay = require("razorpay");
 const { generateReceiptPDF } = require("../utils/pdfService");
 const sendEmail = require("../utils/sendEmail");
+const authMiddleware = require("../middleware/auth");
 
 // Initialize Razorpay
 let razorpay;
@@ -14,9 +15,37 @@ if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
   });
 }
 
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
+
+const uploadDir = path.join(__dirname, "../uploads/payments");
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, uploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, "payment-" + uniqueSuffix + path.extname(file.originalname));
+  },
+});
+
+const uploadPaymentProof = multer({
+  storage: storage,
+  limits: { fileSize: 100 * 1024 },
+});
+
 // Create Manual Booking
-router.post("/", async (req, res) => {
+router.post("/", authMiddleware, uploadPaymentProof.single("paymentProof"), async (req, res) => {
   try {
+    // Because we are using multipart/form-data, req.body will have strings.
+    // We might need to parse JSON fields if the frontend sends them as JSON strings.
+    const bodyData = req.body.payload ? JSON.parse(req.body.payload) : req.body;
+    
     const {
       bookingId, // optional
       serviceType,
@@ -48,7 +77,8 @@ router.post("/", async (req, res) => {
       shiftingDetails,
       sendPaymentLink = true,
       createdBy = null,
-    } = req.body;
+      amountReceived = 0,
+    } = bodyData;
 
     // Required fields check
     if (!serviceType || !senderDetails || !receiverDetails) {
@@ -105,12 +135,15 @@ router.post("/", async (req, res) => {
       estimatedDelivery,
       paymentStatus,
       paymentMethod,
+      amountReceived: Number(amountReceived) || 0,
+      paymentProof: req.file ? `/uploads/payments/${req.file.filename}` : undefined,
       notes,
       isVendorBooking,
       vendorId,
       vendorName,
       vendorTrackingId,
       bookingSource,
+      officeId: req.user ? req.user.officeId : (req.admin ? req.admin.officeId : req.body.officeId),
     });
 
     await newBooking.save();
@@ -126,7 +159,9 @@ router.post("/", async (req, res) => {
               status: "used", 
               usedBy: newBooking._id, 
               epId: newBooking.bookingId,
-              usedAt: new Date()
+              usedAt: new Date(),
+              assignedBy: req.user ? req.user.id : null,
+              assignedByOffice: req.user ? req.user.officeId : null
             } 
           }
         );

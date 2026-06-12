@@ -25,6 +25,14 @@ const docketInventorySchema = new mongoose.Schema(
     epId: [{
       type: String, // Booking ID (e.g., EP04601)
     }],
+    assignedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    assignedByOffice: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Office",
+    },
     usedAt: {
       type: Date,
     },

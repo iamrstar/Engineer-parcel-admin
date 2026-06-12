@@ -109,6 +109,12 @@ const IntakeBookingSchema = new mongoose.Schema({
     seededToMainDashboard: { type: Boolean, default: false },
     seededAt: Date,
 
+    // Office Context
+    officeId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Office"
+    },
+
 }, { timestamps: true, collection: 'intake_bookings' });
 
 module.exports = mongoose.model('IntakeBooking', IntakeBookingSchema);

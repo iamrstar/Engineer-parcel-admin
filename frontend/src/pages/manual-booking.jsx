@@ -59,7 +59,11 @@ export default function ManualBooking() {
     receiverFloor: "Ground",
     liftAvailable: false,
     laborRequired: false,
+    officeId: "",
+    paymentStatus: "pending",
+    amountReceived: "",
   });
+  const [paymentProof, setPaymentProof] = useState(null);
   const [generatedId, setGeneratedId] = useState("");
   const [isManualId, setIsManualId] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -71,6 +75,26 @@ export default function ManualBooking() {
   const [vendorSearch, setVendorSearch] = useState("");
   const [vendorResults, setVendorResults] = useState([]);
   const [showVendorDropdown, setShowVendorDropdown] = useState(false);
+  const [offices, setOffices] = useState([]);
+
+  useEffect(() => {
+    if (user?.role === "admin") {
+      fetchOffices();
+    }
+  }, [user]);
+
+  const fetchOffices = async () => {
+    try {
+      const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/offices`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      setOffices(data);
+    } catch (err) {
+      console.error("Failed to fetch offices", err);
+    }
+  };
 
   const searchVendors = async (query) => {
     if (!query) {
@@ -240,6 +264,7 @@ export default function ManualBooking() {
       vendorId: "",
       vendorName: "",
       otherVendorName: "",
+      vendorBranch: "",
       vendorTrackingId: "",
       vehicleType: "",
       shiftingItems: "",
@@ -247,7 +272,10 @@ export default function ManualBooking() {
       receiverFloor: "Ground",
       liftAvailable: false,
       laborRequired: false,
+      paymentStatus: "pending",
+      amountReceived: "",
     });
+    setPaymentProof(null);
     setVendorSearch("");
     setPincodeStatus({ 
       pickup: { available: null, isEDL: false, edl: 0 }, 
@@ -327,7 +355,8 @@ export default function ManualBooking() {
       bookingSource: "admin",
       isVendorBooking: formData.isVendorBooking,
       vendorId: formData.vendorId,
-      vendorName: formData.vendorName === "Other" ? formData.otherVendorName : formData.vendorName,
+      vendorName: formData.vendorName === "Other" ? formData.otherVendorName : 
+                 (formData.vendorName === "DTDC" && formData.vendorBranch) ? `${formData.vendorName} (${formData.vendorBranch})` : formData.vendorName,
       vendorTrackingId: formData.vendorTrackingId,
       premiumItemType: formData.premiumItemType,
       otherPremiumItem: formData.premiumItemType === "Other" ? formData.otherPremiumItem : "",
@@ -422,14 +451,26 @@ export default function ManualBooking() {
       }),
       sendPaymentLink,
       createdBy: user?._id, // Track who created the booking
+      officeId: user?.officeId || formData.officeId || null,
     };
 
     try {
       setIsSubmitting(true);
+      const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
+      
+      const submitData = new FormData();
+      submitData.append("payload", JSON.stringify(payload));
+      
+      if (paymentProof) {
+        submitData.append("paymentProof", paymentProof);
+      }
+
       const response = await fetch(`${import.meta.env.VITE_API_URL}/api/manual-bookings`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        headers: { 
+          "Authorization": `Bearer ${token}`
+        },
+        body: submitData,
       });
 
       if (response.ok) {
@@ -490,14 +531,37 @@ export default function ManualBooking() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in slide-in-from-top-4 duration-300">
+              {user?.role === "admin" && offices.length > 0 && (
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Assign to Office (Optional)</label>
+                  <select
+                    name="officeId"
+                    value={formData.officeId}
+                    onChange={handleChange}
+                    className="w-full border border-gray-300 dark:border-white/10 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-white dark:bg-[#111111] dark:text-white font-medium"
+                  >
+                    <option value="">No specific office (Main Admin)</option>
+                    {offices.map(office => (
+                      <option key={office._id} value={office._id}>{office.name} ({office.code})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
                <div>
                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Shipping Vendor (e.g. BlueDart)</label>
                 <select
                   name="vendorName"
                   value={formData.vendorName}
                   onChange={(e) => {
+                    const value = e.target.value;
                     handleChange(e);
-                    fetchNextDocket(e.target.value);
+                    // Only fetch docket if it's not DTDC (which require branch)
+                    if (value !== "DTDC") {
+                      fetchNextDocket(value === "Other" ? formData.otherVendorName : value);
+                    } else {
+                      // Clear tracking ID since we need the branch first
+                      setFormData(prev => ({ ...prev, vendorTrackingId: "", vendorBranch: "" }));
+                    }
                   }}
                   className="w-full border border-gray-300 dark:border-white/10 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-white dark:bg-[#111111] dark:text-white font-medium dark:text-white"
                 >
@@ -511,6 +575,28 @@ export default function ManualBooking() {
                   <option value="Other">Other</option>
                 </select>
               </div>
+
+              {formData.vendorName === "DTDC" && (
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Select Branch</label>
+                  <select
+                    name="vendorBranch"
+                    value={formData.vendorBranch}
+                    onChange={(e) => {
+                      handleChange(e);
+                      if (e.target.value) {
+                        fetchNextDocket(`${formData.vendorName} (${e.target.value})`);
+                      }
+                    }}
+                    className="w-full border border-gray-300 dark:border-white/10 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-white dark:bg-[#111111] dark:text-white font-medium placeholder-gray-400 dark:placeholder-gray-600"
+                  >
+                    <option value="">Choose a branch...</option>
+                    <option value="Hirak">Hirak</option>
+                    <option value="Sanjay">Sanjay</option>
+                  </select>
+                </div>
+              )}
+
               {formData.vendorName === "Other" && (
                 <div>
                   <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Other Vendor Name</label>
@@ -518,7 +604,10 @@ export default function ManualBooking() {
                     type="text"
                     name="otherVendorName"
                     value={formData.otherVendorName}
-                    onChange={handleChange}
+                    onChange={(e) => {
+                      handleChange(e);
+                      fetchNextDocket(e.target.value);
+                    }}
                     placeholder="Enter vendor name"
                     className="w-full border border-gray-300 dark:border-white/10 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-white dark:bg-[#111111] dark:text-white font-medium placeholder-gray-400 dark:placeholder-gray-600"
                   />
@@ -1079,6 +1168,64 @@ export default function ManualBooking() {
                     </div>
                   )}
                 </div>
+
+                {/* PAYMENT STATUS BLOCK */}
+                <div className="sm:col-span-2 mt-4 border-t border-orange-100 dark:border-white/10 pt-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-orange-700 uppercase mb-1 ml-1">Payment Status</label>
+                      <select
+                        name="paymentStatus"
+                        value={formData.paymentStatus}
+                        onChange={handleChange}
+                        className="w-full border border-orange-200 dark:border-orange-500/20 p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 bg-white dark:bg-[#111111] font-bold"
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="paid">Paid</option>
+                        <option value="partial">Partial Paid</option>
+                      </select>
+                    </div>
+
+                    {formData.paymentStatus === "partial" && (
+                      <div>
+                        <label className="block text-xs font-bold text-orange-700 uppercase mb-1 ml-1">Amount Received</label>
+                        <input
+                          name="amountReceived"
+                          type="number"
+                          value={formData.amountReceived}
+                          onChange={handleChange}
+                          placeholder="e.g. 500"
+                          className="w-full border border-orange-200 dark:border-orange-500/20 p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 bg-white dark:bg-[#111111] font-bold"
+                          required={formData.paymentStatus === "partial"}
+                        />
+                      </div>
+                    )}
+
+                    {(formData.paymentStatus === "paid" || formData.paymentStatus === "partial") && (
+                      <div className={formData.paymentStatus === "paid" ? "sm:col-span-2" : ""}>
+                        <label className="block text-xs font-bold text-orange-700 uppercase mb-1 ml-1">Payment Proof (Screenshot)</label>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files[0];
+                            if (file && file.size > 100 * 1024) {
+                              alert("File size must be less than 100KB");
+                              e.target.value = null;
+                              setPaymentProof(null);
+                            } else {
+                              setPaymentProof(file);
+                            }
+                          }}
+                          className="w-full border border-orange-200 dark:border-orange-500/20 p-2 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 bg-white dark:bg-[#111111] text-xs file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
+                          required={(formData.paymentStatus === "paid" || formData.paymentStatus === "partial") && !paymentProof}
+                        />
+                        <p className="text-[10px] text-gray-500 mt-1 ml-1">Max size: 100KB. Required for paid/partial.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
               </div>
               <div className="pt-2">
                 <label className="block text-xs font-bold text-orange-700 uppercase mb-1 ml-1">Admin Notes</label>

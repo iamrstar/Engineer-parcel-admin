@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const VendorPayment = require("../models/VendorPayment");
-const Vendor = require("../models/Vendor");
+const Vendor = require("../models/Partner"); // using Partner model
 const adminAuth = require("../middleware/adminAuth");
 
 // GET all payments for a vendor

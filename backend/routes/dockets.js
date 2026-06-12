@@ -50,6 +50,8 @@ router.get("/vendor/:vendorName", async (req, res) => {
 
     const dockets = await DocketInventory.find(query)
       .populate("usedBy", "senderDetails receiverDetails")
+      .populate("assignedBy", "name role")
+      .populate("assignedByOffice", "name code")
       .sort({ createdAt: -1 });
     res.json(dockets);
   } catch (err) {
@@ -148,6 +150,8 @@ router.get("/used", async (req, res) => {
   try {
     const usedDockets = await DocketInventory.find({ status: "used" })
       .populate("usedBy", "senderDetails receiverDetails")
+      .populate("assignedBy", "name role")
+      .populate("assignedByOffice", "name code")
       .sort({ usedAt: -1 })
       .limit(100);
 

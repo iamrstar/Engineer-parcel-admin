@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
-const Vendor = require("../models/Vendor");
+const Vendor = require("../models/Partner"); // We'll keep the variable Vendor for now so we don't have to rename everything in this file, but require Partner model
+const Counter = require("../models/Counter");
 const adminAuth = require("../middleware/adminAuth");
 const Booking = require("../models/Booking");
 const VendorPayment = require("../models/VendorPayment");
@@ -33,7 +34,7 @@ router.get("/search/:query", adminAuth, async (req, res) => {
         const vendors = await Vendor.find({
             $or: [
                 { name: { $regex: query, $options: "i" } },
-                { vendorId: { $regex: query, $options: "i" } },
+                { partnerId: { $regex: query, $options: "i" } },
             ],
         }).limit(10);
         res.json(vendors);
@@ -44,8 +45,49 @@ router.get("/search/:query", adminAuth, async (req, res) => {
 
 // CREATE vendor
 router.post("/", adminAuth, async (req, res) => {
-    const vendor = new Vendor(req.body);
+    const data = { ...req.body };
+    if (!data.apiKey) {
+        data.apiKey = "ep_live_" + require('crypto').randomBytes(16).toString('hex');
+    }
+    const vendor = new Vendor(data);
     try {
+        if (!vendor.partnerId) {
+            let counter = await Counter.findOne({ id: "partnerId" });
+            
+            // If counter doesn't exist, initialize it based on the highest existing ID (or at least 11 as requested)
+            if (!counter) {
+                const lastPartner = await Vendor.findOne({ partnerId: /^PAT/ })
+                    .sort({ partnerId: -1 })
+                    .collation({ locale: "en_US", numericOrdering: true });
+                    
+                let maxSeq = 0;
+                if (lastPartner && lastPartner.partnerId) {
+                    const lastIdStr = lastPartner.partnerId.replace('PAT', '');
+                    const lastIdNum = parseInt(lastIdStr, 10);
+                    if (!isNaN(lastIdNum)) {
+                        maxSeq = lastIdNum;
+                    }
+                }
+                
+                // Ensure we don't reuse PAT0011 if it was deleted
+                maxSeq = Math.max(maxSeq, 11);
+                counter = await Counter.create({ id: "partnerId", seq: maxSeq });
+            }
+
+            counter = await Counter.findOneAndUpdate(
+                { id: "partnerId" },
+                { $inc: { seq: 1 } },
+                { new: true }
+            );
+
+            req.body.partnerId = `PAT${String(counter.seq).padStart(4, '0')}`;
+        }
+        
+        if (!req.body.apiKey) {
+            delete req.body.apiKey;
+        }
+
+        const vendor = new Vendor(req.body);
         const newVendor = await vendor.save();
         res.status(201).json(newVendor);
     } catch (err) {
@@ -56,7 +98,15 @@ router.post("/", adminAuth, async (req, res) => {
 // UPDATE vendor
 router.put("/:id", adminAuth, async (req, res) => {
     try {
-        const updatedVendor = await Vendor.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        let updateData = { ...req.body };
+        let updateQuery = { $set: updateData };
+
+        if (updateData.apiKey === "") {
+            delete updateData.apiKey;
+            updateQuery.$unset = { apiKey: 1 };
+        }
+
+        const updatedVendor = await Vendor.findByIdAndUpdate(req.params.id, updateQuery, { new: true });
         res.json(updatedVendor);
     } catch (err) {
         res.status(400).json({ message: err.message });
@@ -72,7 +122,7 @@ router.get("/:id/orders", adminAuth, async (req, res) => {
 
         const { month } = req.query; // Format: YYYY-MM
         const query = { 
-            vendorId: vendor.vendorId,
+            vendorId: vendor.partnerId,
             isVendorBooking: true 
         };
 
@@ -219,8 +269,8 @@ router.get("/:id/finances", adminAuth, async (req, res) => {
 
         const { month } = req.query; // Format: YYYY-MM
 
-        const bookingQuery = { vendorId: vendor.vendorId, isVendorBooking: true };
-        const paymentQuery = { vendorId: vendor.vendorId };
+        const bookingQuery = { vendorId: vendor.partnerId, isVendorBooking: true };
+        const paymentQuery = { vendorId: vendor.partnerId };
 
         if (month) {
             const startDate = new Date(`${month}-01T00:00:00.000Z`);

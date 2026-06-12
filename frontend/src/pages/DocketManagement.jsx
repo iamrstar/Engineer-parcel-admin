@@ -15,8 +15,9 @@ const DocketManagement = () => {
   const [otherVendor, setOtherVendor] = useState("");
   const [fileData, setFileData] = useState([]);
   const [uploading, setUploading] = useState(false);
-  const [uploadMode, setUploadMode] = useState("file"); // "file" or "manual"
+  const [uploadMode, setUploadMode] = useState("file"); // "file" | "manual" | "sequence"
   const [manualIds, setManualIds] = useState([""]);
+  const [sequenceData, setSequenceData] = useState({ prefix: "", start: "", end: "", suffix: "" });
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedVendorForDetails, setSelectedVendorForDetails] = useState(null);
   const [vendorDockets, setVendorDockets] = useState([]);
@@ -112,12 +113,24 @@ const DocketManagement = () => {
       return;
     }
 
+    if (selectedVendor === "DTDC" && !otherVendor) {
+      toast.error("Please select a branch for " + selectedVendor);
+      return;
+    }
+
+    let finalVendorName = selectedVendor;
+    if (selectedVendor === "Other") {
+      finalVendorName = otherVendor;
+    } else if (selectedVendor === "DTDC") {
+      finalVendorName = `${selectedVendor} (${otherVendor})`;
+    }
+
     setUploading(true);
     try {
       const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
       const res = await axios.post(
         `${import.meta.env.VITE_API_URL}/api/dockets/upload`,
-        { vendorName: selectedVendor === "Other" ? otherVendor : selectedVendor, ids: idsToUpload },
+        { vendorName: finalVendorName, ids: idsToUpload },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       
@@ -286,6 +299,7 @@ const DocketManagement = () => {
               <tr className="bg-gray-50/50 text-[11px] font-black text-gray-400 uppercase tracking-widest border-b border-gray-100">
                 <th className="px-6 py-4">Docket ID</th>
                 <th className="px-6 py-4">Vendor</th>
+                <th className="px-6 py-4">Assigned By</th>
                 <th className="px-6 py-4">Used For (EP ID)</th>
                 <th className="px-6 py-4">Used Date</th>
                 <th className="px-6 py-4">Status</th>
@@ -298,6 +312,12 @@ const DocketManagement = () => {
                     <td className="px-6 py-4 font-mono font-bold text-gray-900">{docket.docketId}</td>
                     <td className="px-6 py-4">
                       <span className="px-2.5 py-1 bg-gray-100 text-gray-600 rounded-lg text-xs font-bold uppercase">{docket.vendorName}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-sm font-bold text-gray-900">{docket.assignedBy?.name || 'Admin'}</span>
+                        <span className="text-[10px] font-bold text-gray-500 uppercase">{docket.assignedByOffice ? docket.assignedByOffice.name : 'Main Office'}</span>
+                      </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1">
@@ -364,15 +384,21 @@ const DocketManagement = () => {
               <div className="flex gap-2 p-1 bg-gray-100 rounded-xl mb-6">
                 <button
                   onClick={() => setUploadMode("file")}
-                  className={`flex-1 py-2 px-4 rounded-lg font-bold text-xs transition-all ${uploadMode === "file" ? "bg-white shadow-sm text-orange-600" : "text-gray-500"}`}
+                  className={`flex-1 py-2 px-2 sm:px-4 rounded-lg font-bold text-xs transition-all ${uploadMode === "file" ? "bg-white shadow-sm text-orange-600" : "text-gray-500"}`}
                 >
                   File Upload
                 </button>
                 <button
                   onClick={() => setUploadMode("manual")}
-                  className={`flex-1 py-2 px-4 rounded-lg font-bold text-xs transition-all ${uploadMode === "manual" ? "bg-white shadow-sm text-orange-600" : "text-gray-500"}`}
+                  className={`flex-1 py-2 px-2 sm:px-4 rounded-lg font-bold text-xs transition-all ${uploadMode === "manual" ? "bg-white shadow-sm text-orange-600" : "text-gray-500"}`}
                 >
                   Manual Entry
+                </button>
+                <button
+                  onClick={() => setUploadMode("sequence")}
+                  className={`flex-1 py-2 px-2 sm:px-4 rounded-lg font-bold text-xs transition-all ${uploadMode === "sequence" ? "bg-white shadow-sm text-orange-600" : "text-gray-500"}`}
+                >
+                  Auto Sequence
                 </button>
               </div>
 
@@ -410,6 +436,21 @@ const DocketManagement = () => {
                   </select>
                 </div>
 
+                {selectedVendor === "DTDC" && (
+                  <div>
+                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Select Branch</label>
+                    <select
+                      value={otherVendor} // reusing otherVendor state for branch name to save state
+                      onChange={(e) => setOtherVendor(e.target.value)}
+                      className="w-full bg-gray-50 border border-gray-200 p-4 rounded-2xl outline-none focus:ring-2 focus:ring-orange-500 font-bold text-gray-900 transition-all"
+                    >
+                      <option value="">Choose a branch...</option>
+                      <option value="Hirak">Hirak</option>
+                      <option value="Sanjay">Sanjay</option>
+                    </select>
+                  </div>
+                )}
+
                 {selectedVendor === "Other" && (
                   <div>
                     <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Other Vendor Name</label>
@@ -442,9 +483,60 @@ const DocketManagement = () => {
                       </div>
                     </div>
                   </div>
+                ) : uploadMode === "sequence" ? (
+                  <div>
+                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Auto Generate Sequence</label>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-500 uppercase">Prefix (Optional)</label>
+                          <input type="text" value={sequenceData.prefix} onChange={e => setSequenceData({...sequenceData, prefix: e.target.value})} placeholder="e.g. AWB" className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-orange-500 font-bold text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-500 uppercase">Suffix (Optional)</label>
+                          <input type="text" value={sequenceData.suffix} onChange={e => setSequenceData({...sequenceData, suffix: e.target.value})} placeholder="e.g. IN" className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-orange-500 font-bold text-sm" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-500 uppercase">Start Number</label>
+                          <input type="number" value={sequenceData.start} onChange={e => setSequenceData({...sequenceData, start: e.target.value})} placeholder="e.g. 1" className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-orange-500 font-bold text-sm" />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-500 uppercase">End Number</label>
+                          <input type="number" value={sequenceData.end} onChange={e => setSequenceData({...sequenceData, end: e.target.value})} placeholder="e.g. 50" className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-orange-500 font-bold text-sm" />
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const start = parseInt(sequenceData.start);
+                          const end = parseInt(sequenceData.end);
+                          if (isNaN(start) || isNaN(end) || start > end || end - start > 500) {
+                            return toast.error("Please enter a valid range (max 500)");
+                          }
+                          const newIds = [];
+                          for (let i = start; i <= end; i++) {
+                            const numStr = sequenceData.start.startsWith("0") ? String(i).padStart(sequenceData.start.length, "0") : i;
+                            newIds.push(`${sequenceData.prefix}${numStr}${sequenceData.suffix}`);
+                          }
+                          setManualIds(newIds);
+                          setUploadMode("manual");
+                          toast.success(`Generated ${newIds.length} sequential IDs`);
+                        }}
+                        className="w-full flex items-center justify-center gap-2 bg-gray-900 hover:bg-black text-white p-3 rounded-xl font-bold transition-all"
+                      >
+                        Generate & Preview
+                      </button>
+                    </div>
+                  </div>
                 ) : (
                   <div>
-                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Manual Entry</label>
+                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2 flex justify-between">
+                      <span>Manual Entry ({manualIds.filter(id => id.trim() !== "").length} items)</span>
+                      {manualIds.length > 1 && (
+                        <button onClick={() => setManualIds([""])} className="text-red-500 hover:underline">Clear All</button>
+                      )}
+                    </label>
                     <div className="space-y-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
                       {manualIds.map((id, index) => (
                         <div key={index} className="flex gap-2">
@@ -579,12 +671,19 @@ const DocketManagement = () => {
                           </>
                         )}
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${docket.status === 'used' ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
-                          {docket.status}
-                        </span>
+                      <div className="flex justify-between items-end">
+                        <div className="flex flex-col gap-1">
+                          <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full self-start ${docket.status === 'used' ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
+                            {docket.status}
+                          </span>
+                          {docket.status === 'used' && (
+                            <span className="text-[9px] font-bold text-gray-500 uppercase mt-1">
+                              {docket.assignedByOffice ? docket.assignedByOffice.name : 'Main Office'} • {docket.assignedBy?.name ? docket.assignedBy.name.split(' ')[0] : 'Admin'}
+                            </span>
+                          )}
+                        </div>
                         {docket.status === 'used' && (
-                          <div className="relative ml-2 flex justify-end">
+                          <div className="relative ml-2 flex justify-end pb-1">
                             {Array.isArray(docket.epId) ? (
                               <button
                                 onClick={(e) => {

@@ -33,6 +33,8 @@ router.post("/login", async (req, res) => {
       admin: {
         id: admin._id,
         username: admin.username,
+        role: "admin",
+        permissions: ["ALL"],
       },
     })
   } catch (error) {

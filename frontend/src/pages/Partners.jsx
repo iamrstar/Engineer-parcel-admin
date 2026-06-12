@@ -32,7 +32,9 @@ import {
   Package,
   Check,
   XCircle,
-  FileText
+  FileText,
+  Key,
+  Link as LinkIcon
 } from "lucide-react"
 
 const getTimeAgo = (date) => {
@@ -175,16 +177,18 @@ const Vendors = () => {
 
   // Form State
   const [formData, setFormData] = useState({
-    vendorId: "",
+    partnerId: "",
     name: "",
-    phone: "",
     email: "",
+    phone: "",
     address: "",
     address2: "",
     city: "",
     state: "",
     pincode: "",
-    landmark: ""
+    landmark: "",
+    apiKey: "",
+    webhookUrl: ""
   })
 
   useEffect(() => {
@@ -226,7 +230,7 @@ const Vendors = () => {
     try {
       setLoading(true)
       const token = localStorage.getItem("adminToken") || localStorage.getItem("token")
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/vendors`, {
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/partners`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       setVendors(res.data)
@@ -247,9 +251,9 @@ const Vendors = () => {
       const queryParams = monthParam ? `?month=${monthParam}` : '';
 
       const [ordersRes, paymentsRes, summaryRes] = await Promise.all([
-        axios.get(`${import.meta.env.VITE_API_URL}/api/vendors/${vendor._id}/orders${queryParams}`, { headers }),
-        axios.get(`${import.meta.env.VITE_API_URL}/api/vendor-payments/${vendor.vendorId}${queryParams}`, { headers }),
-        axios.get(`${import.meta.env.VITE_API_URL}/api/vendors/${vendor._id}/finances${queryParams}`, { headers })
+        axios.get(`${import.meta.env.VITE_API_URL}/api/partners/${vendor._id}/orders${queryParams}`, { headers }),
+        axios.get(`${import.meta.env.VITE_API_URL}/api/vendor-payments/${vendor.partnerId}${queryParams}`, { headers }),
+        axios.get(`${import.meta.env.VITE_API_URL}/api/partners/${vendor._id}/finances${queryParams}`, { headers })
       ])
 
       setVendorOrders(ordersRes.data)
@@ -275,7 +279,7 @@ const Vendors = () => {
       }
 
       await axios.put(
-        `${import.meta.env.VITE_API_URL}/api/vendors/order/${editingOrder._id}/payment`,
+        `${import.meta.env.VITE_API_URL}/api/partners/order/${editingOrder._id}/payment`,
         payload,
         { headers: { Authorization: `Bearer ${token}` } }
       )
@@ -291,13 +295,13 @@ const Vendors = () => {
     try {
       const token = localStorage.getItem("adminToken") || localStorage.getItem("token")
       await axios.put(
-        `${import.meta.env.VITE_API_URL}/api/vendors/order/${editingOrder._id}/history/${historyId}`,
+        `${import.meta.env.VITE_API_URL}/api/partners/order/${editingOrder._id}/history/${historyId}`,
         { amount: newAmount },
         { headers: { Authorization: `Bearer ${token}` } }
       )
       toast.success("Payment history updated")
       
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/vendors/${selectedVendorForFinance._id}/orders${financeMonth ? `?month=${financeMonth}` : ''}`, { 
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/partners/${selectedVendorForFinance._id}/orders${financeMonth ? `?month=${financeMonth}` : ''}`, { 
         headers: { Authorization: `Bearer ${token}` } 
       });
       setVendorOrders(res.data)
@@ -319,12 +323,12 @@ const Vendors = () => {
     try {
       const token = localStorage.getItem("adminToken") || localStorage.getItem("token")
       await axios.delete(
-        `${import.meta.env.VITE_API_URL}/api/vendors/order/${editingOrder._id}/history/${historyId}`,
+        `${import.meta.env.VITE_API_URL}/api/partners/order/${editingOrder._id}/history/${historyId}`,
         { headers: { Authorization: `Bearer ${token}` } }
       )
       toast.success("Payment history deleted")
       
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/vendors/${selectedVendorForFinance._id}/orders${financeMonth ? `?month=${financeMonth}` : ''}`, { 
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/partners/${selectedVendorForFinance._id}/orders${financeMonth ? `?month=${financeMonth}` : ''}`, { 
         headers: { Authorization: `Bearer ${token}` } 
       });
       setVendorOrders(res.data)
@@ -346,7 +350,7 @@ const Vendors = () => {
       const token = localStorage.getItem("adminToken") || localStorage.getItem("token")
       await axios.post(
         `${import.meta.env.VITE_API_URL}/api/vendor-payments`,
-        { ...settlementData, vendorId: selectedVendorForFinance.vendorId },
+        { ...settlementData, vendorId: selectedVendorForFinance.partnerId },
         { headers: { Authorization: `Bearer ${token}` } }
       )
       toast.success("Settlement recorded")
@@ -361,7 +365,7 @@ const Vendors = () => {
     if (vendor) {
       setEditingVendor(vendor)
       setFormData({
-        vendorId: vendor.vendorId,
+        partnerId: vendor.partnerId,
         name: vendor.name,
         phone: vendor.phone,
         email: vendor.email || "",
@@ -369,13 +373,15 @@ const Vendors = () => {
         address2: vendor.address2 || "",
         city: vendor.city,
         state: vendor.state,
-        pincode: vendor.pincode,
-        landmark: vendor.landmark || ""
+        pincode: vendor.pincode || "",
+        landmark: vendor.landmark || "",
+        apiKey: vendor.apiKey || "",
+        webhookUrl: vendor.webhookUrl || ""
       })
     } else {
       setEditingVendor(null)
       setFormData({
-        vendorId: "",
+        partnerId: "",
         name: "",
         phone: "",
         email: "",
@@ -384,7 +390,9 @@ const Vendors = () => {
         city: "",
         state: "",
         pincode: "",
-        landmark: ""
+        landmark: "",
+        apiKey: "",
+        webhookUrl: ""
       })
     }
     setPincodeSuccess(vendor ? true : false)
@@ -396,8 +404,8 @@ const Vendors = () => {
     try {
       const token = localStorage.getItem("adminToken") || localStorage.getItem("token")
       const url = editingVendor
-        ? `${import.meta.env.VITE_API_URL}/api/vendors/${editingVendor._id}`
-        : `${import.meta.env.VITE_API_URL}/api/vendors`
+        ? `${import.meta.env.VITE_API_URL}/api/partners/${editingVendor._id}`
+        : `${import.meta.env.VITE_API_URL}/api/partners`
 
       const method = editingVendor ? "put" : "post"
 
@@ -405,11 +413,11 @@ const Vendors = () => {
         headers: { Authorization: `Bearer ${token}` }
       })
 
-      toast.success(editingVendor ? "Vendor updated successfully" : "Vendor created successfully")
+      toast.success(editingVendor ? "Partner updated successfully" : "Partner created successfully")
       setIsModalOpen(false)
       fetchVendors()
     } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to save vendor")
+      toast.error(error.response?.data?.message || "Failed to save partner")
       console.error(error)
     }
   }
@@ -419,20 +427,20 @@ const Vendors = () => {
 
     try {
       const token = localStorage.getItem("adminToken") || localStorage.getItem("token")
-      await axios.delete(`${import.meta.env.VITE_API_URL}/api/vendors/${vendorId}`, {
+      await axios.delete(`${import.meta.env.VITE_API_URL}/api/partners/${vendorId}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
-      toast.success("Vendor deleted successfully")
+      toast.success("Partner deleted successfully")
       fetchVendors()
     } catch (error) {
-      toast.error("Failed to delete vendor")
+      toast.error("Failed to delete partner")
       console.error(error)
     }
   }
 
   const filteredVendors = vendors.filter(vendor =>
     vendor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    vendor.vendorId.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    vendor.partnerId.toLowerCase().includes(searchTerm.toLowerCase()) ||
     vendor.phone.includes(searchTerm)
   )
 
@@ -442,16 +450,16 @@ const Vendors = () => {
         <div>
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
             <Building className="h-8 w-8 text-orange-600" />
-            Vendor Management
+            Partner Management
           </h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Manage bulk shipping partners and individual vendors</p>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Manage bulk shipping partners and individual partners</p>
         </div>
         <button
           onClick={() => handleOpenModal()}
           className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2.5 rounded-xl font-medium transition-all shadow-lg shadow-orange-200 flex items-center gap-2 w-fit"
         >
           <Plus className="h-5 w-5" />
-          Add New Vendor
+          Add New Partner
         </button>
       </div>
 
@@ -474,19 +482,19 @@ const Vendors = () => {
         {loading ? (
           <div className="flex flex-col items-center justify-center h-64 gap-4">
             <div className="animate-spin rounded-full h-12 w-12 border-b border-gray-200 dark:border-white/10-2 border-orange-600"></div>
-            <p className="text-gray-500 dark:text-gray-400 font-medium">Loading vendor data...</p>
+            <p className="text-gray-500 dark:text-gray-400 font-medium">Loading partner data...</p>
           </div>
         ) : filteredVendors.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-gray-500 dark:text-gray-400">
             <Building className="h-12 w-12 mb-4 opacity-20" />
-            <p className="text-lg">No vendors found</p>
+            <p className="text-lg">No partners found</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-100">
               <thead className="bg-gray-50 dark:bg-[#111111]/50 text-left">
                 <tr>
-                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Vendor Info</th>
+                  <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Partner Info</th>
                   <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Address</th>
                   <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Contact</th>
                   <th className="px-6 py-4 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
@@ -502,7 +510,7 @@ const Vendors = () => {
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-semibold text-gray-900 dark:text-white">{vendor.name}</div>
-                          <div className="text-xs text-orange-600 font-mono font-bold">ID: {vendor.vendorId}</div>
+                          <div className="text-xs text-orange-600 font-mono font-bold">ID: {vendor.partnerId}</div>
                         </div>
                       </div>
                     </td>
@@ -530,14 +538,14 @@ const Vendors = () => {
                         <button
                           onClick={() => handleOpenModal(vendor)}
                           className="p-2 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-all"
-                          title="Edit Vendor"
+                          title="Edit Partner"
                         >
                           <Edit2 className="h-4 w-4" />
                         </button>
                         <button
                           onClick={() => handleDelete(vendor._id)}
                           className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                          title="Delete Vendor"
+                          title="Delete Partner"
                         >
                           <Trash2 className="h-4 w-4" />
                         </button>
@@ -559,7 +567,7 @@ const Vendors = () => {
             <div className="bg-orange-600 p-6 text-white flex justify-between items-center">
               <h2 className="text-xl font-bold flex items-center gap-2">
                 {editingVendor ? <Edit2 className="h-5 w-5" /> : <Plus className="h-5 w-5" />}
-                {editingVendor ? "Edit Vendor" : "Add New Vendor"}
+                {editingVendor ? "Edit Partner" : "Add New Partner"}
               </h2>
               <button
                 onClick={() => setIsModalOpen(false)}
@@ -572,18 +580,17 @@ const Vendors = () => {
             <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-1">
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Vendor ID (Unique) *</label>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Partner ID (Unique)</label>
                   <input
                     type="text"
-                    required
-                    value={formData.vendorId}
-                    onChange={(e) => setFormData({ ...formData, vendorId: e.target.value })}
+                    value={formData.partnerId || ""}
+                    onChange={(e) => setFormData({ ...formData, partnerId: e.target.value })}
                     className="w-full px-4 py-2.5 bg-gray-50 dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm"
-                    placeholder="e.g. VEND001"
+                    placeholder={editingVendor ? "Enter Partner ID" : "Leave blank to auto-generate"}
                   />
                 </div>
                 <div className="md:col-span-1">
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Vendor Name *</label>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Partner Name *</label>
                   <input
                     type="text"
                     required
@@ -636,6 +643,34 @@ const Vendors = () => {
                     className="w-full px-4 py-2.5 bg-gray-50 dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm"
                     placeholder="Area, Colony, etc."
                   />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:col-span-2">
+                  <div className="space-y-1">
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-2">
+                      <Key className="h-4 w-4 text-orange-600" /> API Key
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. sk_live_12345 (Leave blank to auto-generate)"
+                      value={formData.apiKey}
+                      onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
+                      className="w-full px-4 py-2.5 bg-gray-50 dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-2">
+                      <LinkIcon className="h-4 w-4 text-orange-600" /> Webhook URL
+                    </label>
+                    <input
+                      type="url"
+                      placeholder="https://partner.com/api/webhook"
+                      value={formData.webhookUrl}
+                      onChange={(e) => setFormData({ ...formData, webhookUrl: e.target.value })}
+                      className="w-full px-4 py-2.5 bg-gray-50 dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm"
+                    />
+                  </div>
                 </div>
 
                 <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4 bg-orange-50/30 p-4 rounded-2xl border border-orange-100">
@@ -713,7 +748,7 @@ const Vendors = () => {
                   type="submit"
                   className="flex-1 px-4 py-3 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-xl shadow-lg shadow-orange-100 transition-all"
                 >
-                  {editingVendor ? "Save Changes" : "Create Vendor"}
+                  {editingVendor ? "Save Changes" : "Create Partner"}
                 </button>
               </div>
             </form>
@@ -735,7 +770,7 @@ const Vendors = () => {
               </button>
               <div>
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">{selectedVendorForFinance.name}</h2>
-                <p className="text-xs text-orange-600 font-mono font-bold tracking-tight">VENDOR FINANCE DASHBOARD • {selectedVendorForFinance.vendorId}</p>
+                <p className="text-xs text-orange-600 font-mono font-bold tracking-tight">PARTNER FINANCE DASHBOARD • {selectedVendorForFinance.partnerId}</p>
               </div>
             </div>
             <div className="flex items-center gap-3">

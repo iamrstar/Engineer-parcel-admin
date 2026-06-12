@@ -13,7 +13,7 @@ import EDocket from "./pages/EDocket"
 import SalesReport from "./pages/SalesReport"
 import UserManagement from "./pages/UserManagement"
 import RiderDashboard from "./pages/RiderDashboard"
-import Vendors from "./pages/Vendors"
+import Partners from "./pages/Partners"
 import Tasks from "./pages/Tasks.jsx"
 import Analytics from "./pages/Analytics"
 import DocketManagement from "./pages/DocketManagement"
@@ -21,6 +21,8 @@ import TrackingTasks from "./pages/TrackingTasks"
 import Queries from "./pages/Queries"
 import Attendance from "./pages/Attendance"
 import AttendanceReport from "./pages/AttendanceReport"
+import AccessControl from "./pages/AccessControl"
+import Offices from "./pages/Offices"
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth()
@@ -136,11 +138,11 @@ function App() {
             }
           />
           <Route
-            path="/vendors"
+            path="/partners"
             element={
               <ProtectedRoute>
                 <Layout>
-                  <Vendors />
+                  <Partners />
                 </Layout>
               </ProtectedRoute>
             }
@@ -201,6 +203,26 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <DocketManagement />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/offices"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Offices />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/access-control"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <AccessControl />
                 </Layout>
               </ProtectedRoute>
             }

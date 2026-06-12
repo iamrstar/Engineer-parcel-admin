@@ -118,6 +118,8 @@ const Bookings = () => {
   const [currentPage, setCurrentPage] = useState(parseInt(searchParams.get("page")) || 1)
   const [limit, setLimit] = useState(parseInt(searchParams.get("limit")) || 10)
   const [vendorFilter, setVendorFilter] = useState(searchParams.get("vendor") || "all")
+  const [officeFilter, setOfficeFilter] = useState(searchParams.get("office") || "all")
+  const [offices, setOffices] = useState([])
   
   // Date Filtering State
   const [dateFilter, setDateFilter] = useState(searchParams.get("date") || "all") // all, today, last7, last30, custom
@@ -144,12 +146,13 @@ const Bookings = () => {
     if (currentPage !== 1) params.set("page", currentPage.toString())
     if (limit !== 10) params.set("limit", limit.toString())
     if (vendorFilter !== "all") params.set("vendor", vendorFilter)
+    if (officeFilter !== "all") params.set("office", officeFilter)
     if (dateFilter !== "all") params.set("date", dateFilter)
     if (customStartDate) params.set("start", customStartDate)
     if (customEndDate) params.set("end", customEndDate)
 
     setSearchParams(params, { replace: true })
-  }, [searchTerm, statusFilter, serviceFilter, currentPage, limit, vendorFilter, dateFilter, customStartDate, customEndDate])
+  }, [searchTerm, statusFilter, serviceFilter, currentPage, limit, vendorFilter, officeFilter, dateFilter, customStartDate, customEndDate])
 
   const handleResetFilters = () => {
     setSearchInput("")
@@ -158,6 +161,7 @@ const Bookings = () => {
     setServiceFilter("all")
     setCurrentPage(1)
     setVendorFilter("all")
+    setOfficeFilter("all")
     setDateFilter("all")
     setCustomStartDate("")
     setCustomEndDate("")
@@ -219,8 +223,21 @@ const Bookings = () => {
     }
   }
 
+  const fetchOffices = async () => {
+    try {
+      const t = localStorage.getItem("adminToken") || localStorage.getItem("token")
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/offices`, {
+        headers: { Authorization: `Bearer ${t}` }
+      })
+      setOffices(res.data)
+    } catch (e) {
+      console.error("Failed to fetch offices", e)
+    }
+  }
+
   useEffect(() => {
     fetchRiders()
+    fetchOffices()
   }, [])
 
   const handleBulkStatusUpdate = async () => {
@@ -340,16 +357,25 @@ const Bookings = () => {
   const [isTrackingIdEditable, setIsTrackingIdEditable] = useState(false)
   const [unassignModal, setUnassignModal] = useState({ open: false })
   const [unassigning, setUnassigning] = useState(false)
+  // Payment Update State
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false)
+  const [paymentBooking, setPaymentBooking] = useState(null)
+  const [paymentStatus, setPaymentStatus] = useState("paid")
+  const [amountReceived, setAmountReceived] = useState("")
+  const [paymentProof, setPaymentProof] = useState(null)
+  const [isUpdatingPayment, setIsUpdatingPayment] = useState(false)
 
   useEffect(() => {
     fetchBookings()
-  }, [currentPage, statusFilter, serviceFilter, searchTerm, vendorFilter, dateFilter, customStartDate, customEndDate])
+  }, [currentPage, statusFilter, serviceFilter, searchTerm, vendorFilter, officeFilter, dateFilter, customStartDate, customEndDate])
 
   const fetchBookings = async () => {
     try {
       setLoading(true)
+      const token = localStorage.getItem("adminToken") || localStorage.getItem("token")
 
       const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings`, {
+        headers: { Authorization: `Bearer ${token}` },
         params: {
           page: currentPage,
           limit: limit,
@@ -357,6 +383,7 @@ const Bookings = () => {
           serviceType: serviceFilter,
           search: searchTerm,
           vendorFilter: vendorFilter,
+          officeId: officeFilter === "all" ? "" : officeFilter,
           startDate: getEffectiveStartDate(),
           endDate: getEffectiveEndDate(),
         },
@@ -514,6 +541,17 @@ const Bookings = () => {
               <option value="none">No Vendor</option>
             </select>
 
+            <select
+              value={officeFilter}
+              onChange={(e) => setOfficeFilter(e.target.value)}
+              className="border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1A1A1A] dark:text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 transition-colors"
+            >
+              <option value="all">All Offices</option>
+              {offices.map(office => (
+                <option key={office._id} value={office._id}>{office.name} ({office.code})</option>
+              ))}
+            </select>
+
             <button
               onClick={handleExportExcel}
               className="flex items-center gap-2 px-3 py-2 bg-green-50 dark:bg-green-500/10 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-100 dark:hover:bg-green-500/20 transition-colors text-sm font-medium border border-green-200 dark:border-green-500/20"
@@ -603,6 +641,7 @@ const Bookings = () => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Status</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Chargeable Wt.</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Payment</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Vendor</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Track ID</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
@@ -702,6 +741,21 @@ const Bookings = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white">
                         {booking.packageDetails?.chargeableWeight || booking.packageDetails?.weight || booking.weight || 0} {booking.packageDetails?.chargeableWeightUnit || booking.packageDetails?.weightUnit || booking.weightUnit || 'kg'}
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex flex-col gap-1">
+                          <span className={`inline-flex px-2 py-1 text-[10px] font-bold rounded-full w-max uppercase ${booking.paymentStatus === 'paid' ? 'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400' : booking.paymentStatus === 'partial' ? 'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400' : 'bg-yellow-100 text-yellow-700 dark:bg-yellow-500/20 dark:text-yellow-400'}`}>
+                            {booking.paymentStatus || 'pending'}
+                          </span>
+                          {booking.paymentStatus === 'partial' && booking.amountReceived > 0 && (
+                            <span className="text-[10px] font-bold text-gray-500">₹{booking.amountReceived} Recv</span>
+                          )}
+                          {booking.paymentProof && (
+                            <a href={`${import.meta.env.VITE_API_URL}${booking.paymentProof}`} target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-500 hover:underline flex items-center gap-1">
+                              View Proof
+                            </a>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-600 dark:text-gray-300">
                         {booking.vendorName ? (
                           booking.vendorName.toLowerCase() === 'bluedart' ? (
@@ -755,6 +809,22 @@ const Bookings = () => {
                               <span className="text-xs font-bold uppercase">PDF</span>
                             </button>
                           )}
+                          <button
+                            onClick={() => {
+                              setPaymentBooking(booking);
+                              setPaymentStatus(booking.paymentStatus === "pending" ? "paid" : booking.paymentStatus || "paid");
+                              setAmountReceived(booking.amountReceived || "");
+                              setPaymentProof(null);
+                              setPaymentModalOpen(true);
+                            }}
+                            className="p-1 px-2.5 text-green-600 dark:text-green-500 hover:bg-green-50 dark:hover:bg-green-500/10 rounded-lg flex items-center gap-1.5 border border-green-100 dark:border-green-500/20 transition-colors"
+                            title="Update Payment"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span className="text-xs font-bold uppercase">PAYMENT</span>
+                          </button>
                           {booking.status !== 'cancelled' && (
                             <button
                               onClick={() => {
@@ -861,6 +931,26 @@ const Bookings = () => {
                     <Tag className="w-4 h-4" />
                     Assign Docket
                   </button>
+                  {selectedIds.length === 1 && (
+                    <button
+                      onClick={() => {
+                        const booking = bookings.find(b => b._id === selectedIds[0]);
+                        if (booking) {
+                          setPaymentBooking(booking);
+                          setPaymentStatus(booking.paymentStatus === "pending" ? "paid" : booking.paymentStatus || "paid");
+                          setAmountReceived(booking.amountReceived || "");
+                          setPaymentProof(null);
+                          setPaymentModalOpen(true);
+                        }
+                      }}
+                      className="flex items-center gap-2 hover:bg-gray-800 px-3 py-2 rounded-xl transition-colors text-sm font-bold text-green-400"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Update Payment
+                    </button>
+                  )}
                   <button
                     onClick={() => setSelectedIds([])}
                     className="ml-4 text-xs text-gray-400 hover:text-white transition-colors"
@@ -1731,6 +1821,125 @@ const Bookings = () => {
                   type="button"
                   onClick={() => setUnassignModal({ open: false, id: null })}
                   className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 dark:border-white/10 shadow-sm px-4 py-2.5 bg-white dark:bg-[#1A1A1A] text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:bg-[#111111] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Update Payment Modal */}
+      {paymentModalOpen && (
+        <div className="fixed inset-0 z-[80] overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true" onClick={() => setPaymentModalOpen(false)}>
+              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+            </div>
+
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+            <div className="inline-block align-bottom bg-white dark:bg-[#1A1A1A] rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full border border-gray-100 dark:border-white/10">
+              <div className="bg-white dark:bg-[#1A1A1A] px-6 pt-6 pb-4 sm:p-8 sm:pb-6">
+                <h3 className="text-xl leading-6 font-bold text-gray-900 dark:text-white mb-4">
+                  Update Payment Status
+                </h3>
+                
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Payment Status</label>
+                    <select
+                      value={paymentStatus}
+                      onChange={(e) => setPaymentStatus(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-white dark:bg-[#1A1A1A] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-2 focus:ring-green-500 font-medium"
+                    >
+                      <option value="pending">Pending</option>
+                      <option value="paid">Paid</option>
+                      <option value="partial">Partial Paid</option>
+                    </select>
+                  </div>
+
+                  {paymentStatus === "partial" && (
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Amount Received</label>
+                      <input
+                        type="number"
+                        value={amountReceived}
+                        onChange={(e) => setAmountReceived(e.target.value)}
+                        placeholder="Enter amount"
+                        className="w-full px-4 py-2.5 bg-white dark:bg-[#1A1A1A] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-2 focus:ring-green-500 font-medium"
+                      />
+                    </div>
+                  )}
+
+                  {(paymentStatus === "paid" || paymentStatus === "partial") && (
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Payment Proof (Required)</label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const file = e.target.files[0];
+                          if (file && file.size > 100 * 1024) {
+                            alert("File size must be less than 100KB");
+                            e.target.value = null;
+                            setPaymentProof(null);
+                          } else {
+                            setPaymentProof(file);
+                          }
+                        }}
+                        className="w-full px-2 py-2 bg-white dark:bg-[#1A1A1A] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-2 focus:ring-green-500 text-xs"
+                      />
+                      <p className="text-[10px] text-gray-400 mt-1">Max size: 100KB</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-gray-50 dark:bg-[#111111] px-6 py-4 sm:px-8 sm:flex sm:flex-row-reverse gap-3">
+                <button
+                  type="button"
+                  disabled={isUpdatingPayment || ((paymentStatus === "paid" || paymentStatus === "partial") && !paymentProof)}
+                  onClick={async () => {
+                    try {
+                      setIsUpdatingPayment(true);
+                      const t = localStorage.getItem("adminToken") || localStorage.getItem("token");
+                      
+                      const formData = new FormData();
+                      formData.append("paymentStatus", paymentStatus);
+                      if (paymentStatus === "partial" && amountReceived) {
+                        formData.append("amountReceived", amountReceived);
+                      }
+                      if (paymentProof) {
+                        formData.append("paymentProof", paymentProof);
+                      }
+
+                      await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/${paymentBooking._id}/payment-status`, formData, {
+                        headers: { 
+                          Authorization: `Bearer ${t}`,
+                          'Content-Type': 'multipart/form-data'
+                        }
+                      });
+                      
+                      toast.success("Payment status updated");
+                      setPaymentModalOpen(false);
+                      fetchBookings();
+                    } catch (err) {
+                      toast.error("Failed to update payment status");
+                      console.error(err);
+                    } finally {
+                      setIsUpdatingPayment(false);
+                    }
+                  }}
+                  className="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-6 py-2.5 bg-green-600 text-base font-bold text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 transition-all"
+                >
+                  {isUpdatingPayment ? 'Saving...' : 'Save Payment'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentModalOpen(false)}
+                  className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 dark:border-white/10 shadow-sm px-4 py-2.5 bg-white dark:bg-[#1A1A1A] text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:bg-[#111111] sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition-all"
                 >
                   Cancel
                 </button>
