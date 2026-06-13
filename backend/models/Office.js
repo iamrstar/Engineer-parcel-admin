@@ -22,9 +22,25 @@ const officeSchema = new mongoose.Schema(
             type: Boolean,
             default: true,
         },
+        bookingPrefix: {
+            type: String,
+            default: "EP",
+        },
+        bookingIdStart: {
+            type: Number,
+            default: 4600,
+        },
         adminUser: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
+        },
+        enableMailService: {
+            type: Boolean,
+            default: true,
+        },
+        enableDeliveryEmail: {
+            type: Boolean,
+            default: true,
         }
     },
     { timestamps: true }

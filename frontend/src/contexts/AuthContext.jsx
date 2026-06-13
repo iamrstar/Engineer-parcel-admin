@@ -91,12 +91,37 @@ export const AuthProvider = ({ children }) => {
     setUser(null)
   }
 
+  const impersonate = async (userId) => {
+    try {
+      const response = await axios.post(`${API_BASE_URL}/api/users/impersonate`, { userId })
+      const { token, user: userData } = response.data
+
+      // We just overwrite the current token. The admin can log back in later.
+      localStorage.setItem("token", token)
+      localStorage.setItem("adminToken", token)
+      localStorage.setItem("userData", JSON.stringify(userData))
+
+      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`
+
+      setIsAuthenticated(true)
+      setUser(userData)
+
+      return { success: true }
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || "Failed to switch office",
+      }
+    }
+  }
+
   const value = {
     isAuthenticated,
     user,
     admin: user, // for backward compatibility where admin.username was used
     login,
     logout,
+    impersonate,
     loading,
   }
 

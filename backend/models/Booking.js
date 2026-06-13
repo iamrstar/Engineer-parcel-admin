@@ -52,6 +52,8 @@ const bookingSchema = new mongoose.Schema(
           length: { type: Number, default: 0 },
           width: { type: Number, default: 0 },
           height: { type: Number, default: 0 },
+          actualWeight: { type: Number, default: 0 },
+          chargeableWeight: { type: Number, default: 0 },
         },
       ],
       boxQuantity: { type: Number, default: 1 },
@@ -223,24 +225,57 @@ bookingSchema.pre("validate", async function (next) {
   if (!this.bookingId) {
     try {
       const Booking = mongoose.model("Booking");
-      // Also need to check intake_bookings for cross-continuity
       const IntakeBooking = mongoose.model("IntakeBooking");
 
-      const lastMain = await Booking.findOne({ bookingId: /^EP\d{5}$/ }).sort({ bookingId: -1 });
-      const lastIntake = await IntakeBooking.findOne({ trackingId: /^EP\d{5}$/ }).sort({ trackingId: -1 });
+      let prefix = "EP";
+      let nextNum = 4601;
 
-      let maxNum = 4600; // Starting Floor
+      if (this.officeId) {
+        const Office = mongoose.model("Office");
+        const office = await Office.findById(this.officeId);
+        if (office) {
+          if (office.bookingPrefix) prefix = office.bookingPrefix;
+          if (office.bookingIdStart) nextNum = office.bookingIdStart;
+        }
+      }
 
+      // Escape prefix for regex
+      const escapedPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`^${escapedPrefix}\\d+$`);
+
+      let mainQuery = { bookingId: regex };
+      let intakeQuery = { trackingId: regex };
+
+      // Isolate sequence per office to prevent jumps
+      if (this.officeId) {
+        mainQuery.officeId = this.officeId;
+        intakeQuery.officeId = this.officeId;
+      } else {
+        // Legacy bookings without an office
+        mainQuery.officeId = { $exists: false };
+        intakeQuery.officeId = { $exists: false };
+      }
+
+      // Sort by creation date to get the true latest sequence for this office
+      const lastMain = await Booking.findOne(mainQuery).sort({ createdAt: -1 });
+      const lastIntake = await IntakeBooking.findOne(intakeQuery).sort({ createdAt: -1 });
+
+      let maxFound = 0;
       if (lastMain && lastMain.bookingId) {
-        const num = parseInt(lastMain.bookingId.replace("EP", ""));
-        if (!isNaN(num)) maxNum = Math.max(maxNum, num);
+        const num = parseInt(lastMain.bookingId.replace(prefix, ""));
+        if (!isNaN(num)) maxFound = Math.max(maxFound, num);
       }
       if (lastIntake && lastIntake.trackingId) {
-        const num = parseInt(lastIntake.trackingId.replace("EP", ""));
-        if (!isNaN(num)) maxNum = Math.max(maxNum, num);
+        const num = parseInt(lastIntake.trackingId.replace(prefix, ""));
+        if (!isNaN(num)) maxFound = Math.max(maxFound, num);
       }
 
-      this.bookingId = `EP${String(maxNum + 1).padStart(5, "0")}`;
+      if (maxFound >= nextNum) {
+        nextNum = maxFound + 1;
+      }
+
+      // Pad to at least 5 digits, but it will seamlessly accommodate 6 digits like 100001
+      this.bookingId = `${prefix}${String(nextNum).padStart(5, "0")}`;
     } catch (err) {
       console.error("Error generating sequential bookingId:", err);
       // Fallback to timestamp to prevent saving error, but should not happen

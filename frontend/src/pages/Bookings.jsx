@@ -198,7 +198,8 @@ const Bookings = () => {
         "Weight": b.packageDetails?.weight || b.weight,
         "Amount (₹)": b.pricing?.totalAmount,
         "Payment": b.paymentStatus,
-        "Vendor": b.vendorName || "Not Assigned"
+        "Vendor": b.vendorName || "Not Assigned",
+        "Vendor Tracking ID": b.vendorTrackingId || "N/A"
       }))
 
       const ws = XLSX.utils.json_to_sheet(data)
@@ -571,7 +572,8 @@ const Bookings = () => {
             >
               <option value="all">All Vendors</option>
               <option value="bluedart">BlueDart</option>
-              <option value="dtdc">DTDC</option>
+              <option value="dtdc (hirak)">DTDC (Hirak)</option>
+              <option value="dtdc (sanjay)">DTDC (Sanjay)</option>
               <option value="delhivery">Delhivery</option>
               <option value="safe express">Safe Express</option>
               <option value="india post">India Post</option>
@@ -1769,7 +1771,8 @@ const Bookings = () => {
                 >
                   <option value="">Select Vendor</option>
                   <option value="BlueDart">BlueDart</option>
-                  <option value="DTDC">DTDC</option>
+                  <option value="DTDC (Hirak)">DTDC (Hirak)</option>
+                  <option value="DTDC (Sanjay)">DTDC (Sanjay)</option>
                   <option value="Delhivery">Delhivery</option>
                   <option value="Safe Express">Safe Express</option>
                   <option value="India Post">India Post</option>

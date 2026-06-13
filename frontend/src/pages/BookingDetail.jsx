@@ -972,9 +972,9 @@ const BookingDetail = () => {
               {editMode ? (
                 <>
                   <select
-                    value={otherVendor ? "other" : (booking.vendorName || "")}
+                    value={otherVendor ? "Other" : (booking.vendorName || "")}
                     onChange={(e) => {
-                      if (e.target.value === "other") {
+                      if (e.target.value === "Other") {
                         setOtherVendor(true)
                         handleInputChange("vendorName", "")
                       } else {
@@ -986,11 +986,14 @@ const BookingDetail = () => {
                     className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                   >
                     <option value="">Select Vendor</option>
-                    <option value="delhivery">Delhivery</option>
-                    <option value="dtdc">DTDC</option>
-                    <option value="bluedart">Blue Dart</option>
-                    <option value="shiprocket">Shiprocket</option>
-                    <option value="other">Other</option>
+                    <option value="BlueDart">BlueDart</option>
+                    <option value="DTDC (Hirak)">DTDC (Hirak)</option>
+                    <option value="DTDC (Sanjay)">DTDC (Sanjay)</option>
+                    <option value="Delhivery">Delhivery</option>
+                    <option value="Safe Express">Safe Express</option>
+                    <option value="India Post">India Post</option>
+                    <option value="I Carry">I Carry</option>
+                    <option value="Other">Other</option>
                   </select>
                   {otherVendor && (
                     <input

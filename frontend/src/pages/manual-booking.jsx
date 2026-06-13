@@ -14,9 +14,10 @@ export default function ManualBooking() {
     chargeableWeight: "",
     weightUnit: "kg",
     chargeableWeightUnit: "kg",
-    dimensions: [{ length: "", width: "", height: "" }],
+    dimensions: [{ length: "", width: "", height: "", actualWeight: "", chargeableWeight: "" }],
     boxQuantity: 1,
     goodsDescription: "",
+    declaredValue: "",
     senderName: "",
     senderPhone: "",
     senderEmail: "",
@@ -163,24 +164,51 @@ export default function ManualBooking() {
 
   useEffect(() => {
     if (formData.serviceType !== "Shifting") {
-      const actual = parseFloat(formData.actualWeight) || 0;
-      const actualInKg = formData.weightUnit === "g" ? actual / 1000 : actual;
-      const volInKg = formData.dimensions.reduce((acc, dim) => acc + ((parseFloat(dim.length) * parseFloat(dim.width) * parseFloat(dim.height)) / 2700 || 0), 0);
-      const calcChargeableInKg = Math.max(actualInKg, volInKg);
+      let sumActualInKg = 0;
+      let sumChargeableInKg = 0;
+      let hasIndividualWeights = false;
+
+      formData.dimensions.forEach(dim => {
+        const volInKg = (parseFloat(dim.length) * parseFloat(dim.width) * parseFloat(dim.height)) / 2700 || 0;
+        const actInKg = parseFloat(dim.actualWeight) || 0;
+        if (actInKg > 0) hasIndividualWeights = true;
+        
+        sumActualInKg += actInKg;
+        
+        const manChg = parseFloat(dim.chargeableWeight);
+        if (!isNaN(manChg) && manChg > 0) {
+           sumChargeableInKg += manChg;
+        } else {
+           sumChargeableInKg += Math.max(actInKg, volInKg);
+        }
+      });
+
+      const globalActual = parseFloat(formData.actualWeight) || 0;
+      const globalActualInKg = formData.weightUnit === "g" ? globalActual / 1000 : globalActual;
       
-      const displayChargeable = formData.chargeableWeightUnit === "g" ? calcChargeableInKg * 1000 : calcChargeableInKg;
+      const finalActualInKg = hasIndividualWeights ? sumActualInKg : globalActualInKg;
       
-      // Update the input field directly if calculated value is valid
-      if (displayChargeable > 0) {
-        setFormData(prev => {
-          // Avoid infinite loop if values are essentially the same
-          if (Math.abs(parseFloat(prev.chargeableWeight) - displayChargeable) < 0.001) return prev;
-          return {
-            ...prev,
-            chargeableWeight: displayChargeable % 1 === 0 ? displayChargeable.toString() : displayChargeable.toFixed(3)
-          };
-        });
+      let finalChargeableInKg = 0;
+      if (hasIndividualWeights) {
+         finalChargeableInKg = sumChargeableInKg;
+      } else {
+         const totalVolInKg = formData.dimensions.reduce((acc, dim) => acc + ((parseFloat(dim.length) * parseFloat(dim.width) * parseFloat(dim.height)) / 2700 || 0), 0);
+         finalChargeableInKg = Math.max(globalActualInKg, totalVolInKg);
       }
+
+      const displayActual = formData.weightUnit === "g" ? finalActualInKg * 1000 : finalActualInKg;
+      const displayChargeable = formData.chargeableWeightUnit === "g" ? finalChargeableInKg * 1000 : finalChargeableInKg;
+
+      setFormData(prev => {
+        const updates = {};
+        if (hasIndividualWeights && Math.abs(parseFloat(prev.actualWeight || 0) - displayActual) >= 0.001) {
+          updates.actualWeight = displayActual % 1 === 0 ? displayActual.toString() : displayActual.toFixed(3);
+        }
+        if (displayChargeable > 0 && Math.abs(parseFloat(prev.chargeableWeight || 0) - displayChargeable) >= 0.001) {
+          updates.chargeableWeight = displayChargeable % 1 === 0 ? displayChargeable.toString() : displayChargeable.toFixed(3);
+        }
+        return Object.keys(updates).length > 0 ? { ...prev, ...updates } : prev;
+      });
     }
   }, [formData.actualWeight, formData.dimensions, formData.serviceType, formData.weightUnit, formData.chargeableWeightUnit]);
 
@@ -221,9 +249,10 @@ export default function ManualBooking() {
       chargeableWeight: "",
       weightUnit: "kg",
       chargeableWeightUnit: "kg",
-      dimensions: [{ length: "", width: "", height: "" }],
+      dimensions: [{ length: "", width: "", height: "", actualWeight: "", chargeableWeight: "" }],
       boxQuantity: 1,
       goodsDescription: "",
+      declaredValue: "",
       senderName: "",
       senderPhone: "",
       senderEmail: "",
@@ -304,7 +333,7 @@ export default function ManualBooking() {
       const newDimensions = [...prev.dimensions];
       if (qty > newDimensions.length) {
         for (let i = newDimensions.length; i < qty; i++) {
-          newDimensions.push({ length: "", width: "", height: "" });
+          newDimensions.push({ length: "", width: "", height: "", actualWeight: "", chargeableWeight: "" });
         }
       } else {
         newDimensions.splice(qty);
@@ -417,14 +446,21 @@ export default function ManualBooking() {
           weightUnit: formData.weightUnit,
           chargeableWeightUnit: formData.chargeableWeightUnit || formData.weightUnit,
           volumetricWeight: volWeight,
-          dimensions: formData.dimensions.map(dim => ({
-            length: parseFloat(dim.length) || 0,
-            width: parseFloat(dim.width) || 0,
-            height: parseFloat(dim.height) || 0
-          })),
+          dimensions: formData.dimensions.map(dim => {
+            const volWt = (parseFloat(dim.length) * parseFloat(dim.width) * parseFloat(dim.height)) / 2700 || 0;
+            const actWt = parseFloat(dim.actualWeight) || 0;
+            const manChg = parseFloat(dim.chargeableWeight);
+            return {
+              length: parseFloat(dim.length) || 0,
+              width: parseFloat(dim.width) || 0,
+              height: parseFloat(dim.height) || 0,
+              actualWeight: actWt,
+              chargeableWeight: (!isNaN(manChg) && manChg > 0) ? manChg : Math.max(actWt, volWt)
+            };
+          }),
           boxQuantity: parseInt(formData.boxQuantity),
           description: formData.goodsDescription,
-          value: 0,
+          value: parseFloat(formData.declaredValue) || 0,
           fragile: formData.fragile,
         };
       })(),
@@ -931,7 +967,7 @@ export default function ManualBooking() {
                 {formData.dimensions.map((dim, index) => (
                   <div key={index} className="p-4 bg-gray-50 dark:bg-[#111111] rounded-2xl border border-gray-200 dark:border-white/10 relative group">
                     <span className="absolute -top-3 left-4 bg-white dark:bg-[#111111] px-2 text-[10px] font-bold text-gray-400 border rounded-full">Box {index + 1}</span>
-                    <div className="grid grid-cols-3 gap-3 pt-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-2">
                       <div>
                         <input
                           type="number"
@@ -965,6 +1001,26 @@ export default function ManualBooking() {
                           required
                         />
                       </div>
+                      <div>
+                        <input
+                          type="number"
+                          name="actualWeight"
+                          value={dim.actualWeight || ""}
+                          onChange={(e) => handleDimensionChange(index, e)}
+                          placeholder="Act Wt (kg)"
+                          className="w-full border border-gray-300 dark:border-white/10 p-2.5 rounded-lg text-sm outline-none focus:ring-1 focus:ring-orange-500 bg-white dark:bg-[#111111] dark:text-white"
+                        />
+                      </div>
+                      <div>
+                        <input
+                          type="number"
+                          name="chargeableWeight"
+                          value={dim.chargeableWeight || ""}
+                          onChange={(e) => handleDimensionChange(index, e)}
+                          placeholder="Chg Wt (kg)"
+                          className="w-full border border-gray-300 dark:border-white/10 p-2.5 rounded-lg text-sm outline-none focus:ring-1 focus:ring-orange-500 bg-white dark:bg-[#111111] dark:text-white"
+                        />
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -973,7 +1029,7 @@ export default function ManualBooking() {
             )}
 
             {formData.serviceType !== "Shifting" && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t pt-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 border-t pt-6">
               <div>
                 <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Actual Weight</label>
                 <div className="flex items-center border border-gray-300 dark:border-white/10 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-orange-500 bg-white dark:bg-[#111111]">
@@ -1026,6 +1082,18 @@ export default function ManualBooking() {
                   value={formData.goodsDescription}
                   onChange={handleChange}
                   placeholder="e.g. Books, Clothes"
+                  className="w-full border border-gray-300 dark:border-white/10 p-3 rounded-xl outline-none focus:ring-2 focus:ring-orange-500 bg-white dark:bg-[#111111] dark:text-white"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Declared Value (₹)</label>
+                <input
+                  name="declaredValue"
+                  type="number"
+                  value={formData.declaredValue}
+                  onChange={handleChange}
+                  placeholder="e.g. 5000"
                   className="w-full border border-gray-300 dark:border-white/10 p-3 rounded-xl outline-none focus:ring-2 focus:ring-orange-500 bg-white dark:bg-[#111111] dark:text-white"
                   required
                 />
@@ -1360,9 +1428,10 @@ export default function ManualBooking() {
                   serviceType: "Surface",
                   actualWeight: "",
                   weightUnit: "kg",
-                  dimensions: [{ length: "", width: "", height: "" }],
+                  dimensions: [{ length: "", width: "", height: "", actualWeight: "", chargeableWeight: "" }],
                   boxQuantity: 1,
                   goodsDescription: "",
+                  declaredValue: "",
                   senderName: "",
                   senderPhone: "",
                   senderEmail: "",

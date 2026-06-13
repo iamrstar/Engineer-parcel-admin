@@ -10,7 +10,7 @@ const auth = require('../middleware/auth'); // ensure protected
 // Create new office
 router.post('/', async (req, res) => {
     try {
-        const { name, code, address, contactNumber, username, password, permissions } = req.body;
+        const { name, code, address, contactNumber, username, password, permissions, bookingPrefix, bookingIdStart } = req.body;
 
         // Ensure user does not already exist
         const existingUser = await User.findOne({ username });
@@ -43,6 +43,8 @@ router.post('/', async (req, res) => {
             code,
             address,
             contactNumber,
+            bookingPrefix,
+            bookingIdStart,
             adminUser: savedUser._id
         });
 
@@ -86,6 +88,61 @@ router.get('/', async (req, res) => {
         res.json(offices);
     } catch (err) {
         res.status(500).json({ message: "Failed to fetch offices" });
+    }
+});
+
+// Toggle mail service (Order Confirmations)
+router.put('/:id/mail-service', async (req, res) => {
+    try {
+        const { enableMailService } = req.body;
+        const office = await Office.findByIdAndUpdate(
+            req.params.id,
+            { enableMailService },
+            { new: true }
+        );
+        if (!office) return res.status(404).json({ message: "Office not found" });
+
+        res.json({ message: "Mail service updated", office });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Failed to update mail service" });
+    }
+});
+
+// Toggle delivery email service
+router.put('/:id/delivery-email', async (req, res) => {
+    try {
+        const { enableDeliveryEmail } = req.body;
+        const office = await Office.findByIdAndUpdate(
+            req.params.id,
+            { enableDeliveryEmail },
+            { new: true }
+        );
+        if (!office) return res.status(404).json({ message: "Office not found" });
+
+        res.json({ message: "Delivery email service updated", office });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Failed to update delivery email service" });
+    }
+});
+
+// Delete an office
+router.delete('/:id', async (req, res) => {
+    try {
+        const office = await Office.findById(req.params.id);
+        if (!office) return res.status(404).json({ message: "Office not found" });
+
+        // Optionally, delete the admin user associated with this office
+        if (office.adminUser) {
+            await User.findByIdAndDelete(office.adminUser);
+        }
+
+        await Office.findByIdAndDelete(req.params.id);
+        res.json({ message: "Office deleted successfully" });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Failed to delete office" });
     }
 });
 

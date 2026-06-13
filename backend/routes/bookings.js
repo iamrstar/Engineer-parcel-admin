@@ -49,6 +49,16 @@ const uploadPaymentProof = multer({
  * ------------------------ */
 const sendDeliveryEmail = async (booking) => {
   try {
+    // Check if office has delivery emails enabled
+    if (booking.officeId) {
+      try {
+        const Office = require("../models/Office");
+        const office = await Office.findById(booking.officeId);
+        if (office && office.enableDeliveryEmail === false) {
+          return; // Skip delivery email for this office
+        }
+      } catch (err) {}
+    }
     const sendEmail = require("../utils/sendEmail");
     const reviewLink = "https://search.google.com/local/writereview?placeid=ChIJO9LYJiignysRoxbn5RCefB4";
     
@@ -412,7 +422,7 @@ router.get("/export", adminAuth, async (req, res) => {
 
     const bookings = await Booking.find(query)
       .sort({ createdAt: -1 })
-      .select("bookingId serviceType status senderDetails receiverDetails pricing createdAt packageDetails weight km edl vendorName paymentStatus paymentMethod")
+      .select("bookingId trackingId vendorTrackingId serviceType status senderDetails receiverDetails pricing createdAt packageDetails weight km edl vendorName paymentStatus paymentMethod")
       .lean();
 
     res.json(bookings);

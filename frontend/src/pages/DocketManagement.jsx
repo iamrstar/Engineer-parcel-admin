@@ -113,16 +113,9 @@ const DocketManagement = () => {
       return;
     }
 
-    if (selectedVendor === "DTDC" && !otherVendor) {
-      toast.error("Please select a branch for " + selectedVendor);
-      return;
-    }
-
     let finalVendorName = selectedVendor;
     if (selectedVendor === "Other") {
       finalVendorName = otherVendor;
-    } else if (selectedVendor === "DTDC") {
-      finalVendorName = `${selectedVendor} (${otherVendor})`;
     }
 
     setUploading(true);
@@ -422,34 +415,17 @@ const DocketManagement = () => {
                   >
                     <option value="">Choose a vendor...</option>
                     <option value="BlueDart">BlueDart</option>
-                    <option value="DTDC">DTDC</option>
+                    <option value="DTDC (Hirak)">DTDC (Hirak)</option>
+                    <option value="DTDC (Sanjay)">DTDC (Sanjay)</option>
                     <option value="Delhivery">Delhivery</option>
                     <option value="Safe Express">Safe Express</option>
                     <option value="India Post">India Post</option>
                     <option value="I Carry">I Carry</option>
                     <option value="Other">Other</option>
-                    {vendors.map((v) => (
-                       !["BlueDart", "DTDC", "Delhivery", "Safe Express", "India Post", "I Carry", "Other"].includes(v.name) && (
-                        <option key={v._id} value={v.name}>{v.name}</option>
-                       )
-                    ))}
                   </select>
                 </div>
 
-                {selectedVendor === "DTDC" && (
-                  <div>
-                    <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Select Branch</label>
-                    <select
-                      value={otherVendor} // reusing otherVendor state for branch name to save state
-                      onChange={(e) => setOtherVendor(e.target.value)}
-                      className="w-full bg-gray-50 border border-gray-200 p-4 rounded-2xl outline-none focus:ring-2 focus:ring-orange-500 font-bold text-gray-900 transition-all"
-                    >
-                      <option value="">Choose a branch...</option>
-                      <option value="Hirak">Hirak</option>
-                      <option value="Sanjay">Sanjay</option>
-                    </select>
-                  </div>
-                )}
+
 
                 {selectedVendor === "Other" && (
                   <div>

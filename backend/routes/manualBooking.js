@@ -220,6 +220,20 @@ router.post("/", authMiddleware, uploadPaymentProof.single("paymentProof"), asyn
       }
     }
 
+    // Check Office Mail Service Status
+    let shouldSendEmail = true;
+    if (newBooking.officeId) {
+      try {
+        const Office = require("../models/Office");
+        const office = await Office.findById(newBooking.officeId);
+        if (office && office.enableMailService === false) {
+          shouldSendEmail = false;
+        }
+      } catch (err) {
+        console.error("Error checking office mail service:", err);
+      }
+    }
+
     // Generate Razorpay Payment Link if amount > 0 and sendPaymentLink is true
     if (newBooking.pricing?.totalAmount > 0 && razorpay && sendPaymentLink) {
       try {
@@ -233,7 +247,7 @@ router.post("/", authMiddleware, uploadPaymentProof.single("paymentProof"), asyn
             email: newBooking.senderDetails.email || "info@engineersparcel.com",
             contact: /^(\d)\1{9}$/.test(newBooking.senderDetails.phone) ? "" : (newBooking.senderDetails.phone || "")
           },
-          notify: { sms: true, email: true },
+          notify: { sms: shouldSendEmail, email: shouldSendEmail },
           reminder_enable: true,
           notes: {
             bookingId: newBooking.bookingId,
@@ -249,7 +263,7 @@ router.post("/", authMiddleware, uploadPaymentProof.single("paymentProof"), asyn
     }
 
     // Automated Email Receipt with PDF Attachment
-    if (newBooking.senderDetails.email) {
+    if (newBooking.senderDetails.email && shouldSendEmail) {
       try {
         const amount = newBooking.pricing?.totalAmount || 0;
         const pricing = newBooking.pricing || {};

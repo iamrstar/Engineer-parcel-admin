@@ -102,6 +102,18 @@ router.post("/verify", adminAuth, async (req, res) => {
         if (estimatedDelivery) booking.estimatedDelivery = estimatedDelivery;
         booking.adminVerified = true;
 
+        // Check Office Mail Service Status
+        let shouldSendEmail = true;
+        if (booking.officeId) {
+            try {
+                const Office = require("../models/Office");
+                const office = await Office.findById(booking.officeId);
+                if (office && office.enableMailService === false) {
+                    shouldSendEmail = false;
+                }
+            } catch (err) {}
+        }
+
         // Generate or Reuse Payment Link
         let finalPaymentLink = booking.paymentLink;
 
@@ -118,7 +130,7 @@ router.post("/verify", adminAuth, async (req, res) => {
                             email: booking.senderDetails.email || "info@engineersparcel.com",
                             contact: /^(\d)\1{9}$/.test(booking.senderDetails.phone) ? "" : (booking.senderDetails.phone || "")
                         },
-                        notify: { sms: true, email: true },
+                        notify: { sms: shouldSendEmail, email: shouldSendEmail },
                         reminder_enable: true,
                         notes: {
                             bookingId: booking.bookingId,
@@ -132,7 +144,7 @@ router.post("/verify", adminAuth, async (req, res) => {
                     }
                 }
 
-                if (finalPaymentLink && booking.senderDetails?.email) {
+                if (finalPaymentLink && booking.senderDetails?.email && shouldSendEmail) {
                     const amount = pricing.totalAmount || 0;
                     const emailHtml = `
                 <div style="font-family: sans-serif; color: #333; max-width: 600px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
@@ -181,6 +193,20 @@ router.post("/verify", adminAuth, async (req, res) => {
                 console.error("Razorpay Link Error:", paymentErr);
             }
         } else if (sendPaymentLink === false && booking.senderDetails?.email) {
+            // Check Office Mail Service Status
+            let shouldSendEmail = true;
+            if (booking.officeId) {
+                try {
+                    const Office = require("../models/Office");
+                    const office = await Office.findById(booking.officeId);
+                    if (office && office.enableMailService === false) {
+                        shouldSendEmail = false;
+                    }
+                } catch (err) {}
+            }
+
+            if (!shouldSendEmail) return res.json({ message: "Booking verified successfully." });
+
             // Send Simple Verification Email Without Payment Link
             try {
                 const amount = pricing.totalAmount || 0;

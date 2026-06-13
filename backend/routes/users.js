@@ -187,6 +187,42 @@ router.post("/login", async (req, res) => {
     }
 });
 
+// @route   POST /api/users/impersonate
+// @desc    Admin impersonates an office user
+// @access  Admin
+router.post("/impersonate", adminAuth, async (req, res) => {
+    try {
+        const { userId } = req.body;
+        const user = await User.findById(userId);
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+
+        const token = jwt.sign(
+            { id: user._id, role: user.role },
+            process.env.JWT_SECRET || "your_super_secret_jwt_key_here",
+            { expiresIn: "7d" }
+        );
+
+        res.json({
+            token,
+            user: {
+                id: user._id,
+                name: user.name,
+                username: user.username,
+                phone: user.phone,
+                role: user.role,
+                permissions: user.permissions,
+                officeId: user.officeId,
+                impersonated: true,
+            },
+        });
+    } catch (error) {
+        console.error("Impersonation error:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
 // @route   GET /api/users/tasks
 // @desc    Get assigned tasks for the logged in user
 // @access  User (Rider/Agent)
