@@ -23,6 +23,7 @@ import Attendance from "./pages/Attendance"
 import AttendanceReport from "./pages/AttendanceReport"
 import AccessControl from "./pages/AccessControl"
 import Offices from "./pages/Offices"
+import Leads from "./pages/Leads"
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth()
@@ -233,6 +234,16 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <Queries />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/leads"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Leads />
                 </Layout>
               </ProtectedRoute>
             }

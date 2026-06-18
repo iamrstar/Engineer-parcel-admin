@@ -76,6 +76,7 @@ const attendanceRoutes = require("./routes/attendance");
 const queryRoutes = require("./routes/queries");
 const officeRoutes = require("./routes/offices");
 const accessControlRoutes = require("./routes/accessControl");
+const leadRoutes = require("./routes/leads");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/bookings", bookingRoutes);
@@ -95,6 +96,7 @@ app.use("/api/attendance", attendanceRoutes);
 app.use("/api/queries", queryRoutes);
 app.use("/api/offices", officeRoutes);
 app.use("/api/access-control", accessControlRoutes);
+app.use("/api/leads", leadRoutes);
 
 app.use("/api/intake", intakeRoutes);
 
@@ -165,6 +167,15 @@ Booking.watch().on('change', (change) => {
         bookingMongoId: doc._id
       });
     }
+  }
+});
+
+const Lead = require("./models/Lead");
+// 3. Watch for New Leads (Main Website)
+Lead.watch().on('change', (change) => {
+  if (change.operationType === 'insert') {
+    const doc = change.fullDocument;
+    io.emit("new_lead", doc);
   }
 });
 

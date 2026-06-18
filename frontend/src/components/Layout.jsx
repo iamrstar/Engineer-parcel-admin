@@ -200,6 +200,53 @@ const Layout = ({ children }) => {
     })
   }
 
+  const showLeadAlert = (lead) => {
+    if (!audioRef.current) {
+      const audio = new Audio("/notification.mp3")
+      audio.play().catch(e => console.error("Audio play failed:", e))
+    }
+
+    toast((t) => (
+      <div className="flex flex-col gap-3 min-w-[300px] bg-white p-1">
+        <div className="flex items-center gap-3 border-b border-blue-100 pb-2">
+          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center animate-pulse">
+            <Users className="h-5 w-5 text-blue-600" />
+          </div>
+          <div>
+            <h4 className="font-bold text-gray-900 leading-tight">New Lead Alert!</h4>
+            <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">From Main Website</p>
+          </div>
+        </div>
+
+        <div className="py-1">
+          <p className="text-sm text-gray-700 font-medium leading-relaxed">{lead.name} ({lead.phone})</p>
+        </div>
+
+        <div className="flex gap-2 pt-2 border-t border-gray-100">
+          <button
+            onClick={() => {
+              toast.dismiss(t.id)
+              navigate("/leads")
+            }}
+            className="flex-1 px-4 py-2.5 bg-blue-500 text-white rounded-xl hover:bg-blue-600 font-bold shadow-lg shadow-blue-100 transition-all active:scale-95 text-xs flex items-center justify-center gap-2"
+          >
+            View Leads
+          </button>
+          <button
+            onClick={() => toast.dismiss(t.id)}
+            className="px-4 py-2.5 bg-gray-100 text-gray-600 rounded-xl hover:bg-gray-200 font-bold transition-all text-xs"
+          >
+            Dismiss
+          </button>
+        </div>
+      </div>
+    ), {
+      duration: Infinity,
+      position: 'top-right',
+      style: { border: 'none', padding: '12px', borderRadius: '16px', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)' },
+    })
+  }
+
   const fetchCount = async (silent = false) => {
     try {
       const token = localStorage.getItem("adminToken") || localStorage.getItem("token")
@@ -277,6 +324,11 @@ const Layout = ({ children }) => {
         console.log("🎁 Real-time Incentive Task:", data)
         showIncentiveAlert(data)
       })
+
+      socket.on("new_lead", (data) => {
+        console.log("👤 Real-time Lead:", data)
+        showLeadAlert(data)
+      })
     }
 
     fetchCount()
@@ -287,6 +339,7 @@ const Layout = ({ children }) => {
       socket.off("new_booking")
       socket.off("status_update")
       socket.off("new_incentive_task")
+      socket.off("new_lead")
       socket.disconnect()
     }
   }, [])
@@ -311,11 +364,12 @@ const Layout = ({ children }) => {
     { name: "Partner Management", href: "/partners", icon: Building },
     { name: "Docket Management", href: "/docket-management", icon: ClipboardList },
     { name: "Manage Queries", href: "/queries", icon: MessageCircle },
+    { name: "Leads", href: "/leads", icon: Users },
     { name: "Offices", href: "/offices", icon: Building },
     { name: "Access Control", href: "/access-control", icon: UserCheck },
   ]
 
-  const defaultStaffAllowed = ["Dashboard", "Booking", "E-Docket", "Pincodes", "Create Order", "Partner Management", "Staff Tasks", "Manage Queries", "Docket Management"];
+  const defaultStaffAllowed = ["Dashboard", "Booking", "E-Docket", "Pincodes", "Create Order", "Partner Management", "Staff Tasks", "Manage Queries", "Docket Management", "Leads"];
   
   const navigation = isAdmin 
     ? allNavigation 
