@@ -45,13 +45,15 @@ router.get("/search/:query", adminAuth, async (req, res) => {
 
 // CREATE vendor
 router.post("/", adminAuth, async (req, res) => {
-    const data = { ...req.body };
-    if (!data.apiKey) {
-        data.apiKey = "ep_live_" + require('crypto').randomBytes(16).toString('hex');
-    }
-    const vendor = new Vendor(data);
     try {
-        if (!vendor.partnerId) {
+        const data = { ...req.body };
+        
+        // Auto-generate API key if not provided
+        if (!data.apiKey) {
+            data.apiKey = "ep_live_" + require('crypto').randomBytes(16).toString('hex');
+        }
+
+        if (!data.partnerId) {
             let counter = await Counter.findOne({ id: "partnerId" });
             
             // If counter doesn't exist, initialize it based on the highest existing ID (or at least 11 as requested)
@@ -80,14 +82,10 @@ router.post("/", adminAuth, async (req, res) => {
                 { new: true }
             );
 
-            req.body.partnerId = `PAT${String(counter.seq).padStart(4, '0')}`;
+            data.partnerId = `PAT${String(counter.seq).padStart(4, '0')}`;
         }
         
-        if (!req.body.apiKey) {
-            delete req.body.apiKey;
-        }
-
-        const vendor = new Vendor(req.body);
+        const vendor = new Vendor(data);
         const newVendor = await vendor.save();
         res.status(201).json(newVendor);
     } catch (err) {
