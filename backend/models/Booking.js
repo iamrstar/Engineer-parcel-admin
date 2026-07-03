@@ -246,17 +246,11 @@ bookingSchema.pre("validate", async function (next) {
       let mainQuery = { bookingId: regex };
       let intakeQuery = { trackingId: regex };
 
-      // Isolate sequence per office to prevent jumps
-      if (this.officeId) {
-        mainQuery.officeId = this.officeId;
-        intakeQuery.officeId = this.officeId;
-      } else {
-        // Legacy bookings without an office
-        mainQuery.officeId = { $exists: false };
-        intakeQuery.officeId = { $exists: false };
-      }
+      // Find the highest sequence number for this prefix regardless of office
+      // to prevent duplicate key errors since bookingId is unique across the collection
 
-      // Sort by creation date to get the true latest sequence for this office
+
+      // Sort by creation date to get a good starting point
       const lastMain = await Booking.findOne(mainQuery).sort({ createdAt: -1 });
       const lastIntake = await IntakeBooking.findOne(intakeQuery).sort({ createdAt: -1 });
 
@@ -274,8 +268,19 @@ bookingSchema.pre("validate", async function (next) {
         nextNum = maxFound + 1;
       }
 
-      // Pad to at least 5 digits, but it will seamlessly accommodate 6 digits like 100001
-      this.bookingId = `${prefix}${String(nextNum).padStart(5, "0")}`;
+      let isUnique = false;
+      while (!isUnique) {
+        let proposedId = `${prefix}${String(nextNum).padStart(5, "0")}`;
+        const existingMain = await Booking.findOne({ bookingId: proposedId });
+        const existingIntake = await IntakeBooking.findOne({ trackingId: proposedId });
+        
+        if (!existingMain && !existingIntake) {
+          this.bookingId = proposedId;
+          isUnique = true;
+        } else {
+          nextNum++;
+        }
+      }
     } catch (err) {
       console.error("Error generating sequential bookingId:", err);
       // Fallback to timestamp to prevent saving error, but should not happen
