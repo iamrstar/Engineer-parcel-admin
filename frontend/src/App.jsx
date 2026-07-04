@@ -24,6 +24,10 @@ import AttendanceReport from "./pages/AttendanceReport"
 import AccessControl from "./pages/AccessControl"
 import Offices from "./pages/Offices"
 import Leads from "./pages/Leads"
+import PartnerPortalLogin from "./pages/partner-portal/Login"
+import PartnerPortalDashboard from "./pages/partner-portal/Dashboard"
+import PartnerPortalOrders from "./pages/partner-portal/Orders"
+import PartnerPortalLayout from "./components/PartnerPortalLayout"
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth()
@@ -248,6 +252,26 @@ function App() {
               </ProtectedRoute>
             }
           />
+          
+          {/* Partner Portal Routes */}
+          <Route path="/partner-portal/login" element={<PartnerPortalLogin />} />
+          <Route
+            path="/partner-portal/dashboard"
+            element={
+              <PartnerPortalLayout>
+                <PartnerPortalDashboard />
+              </PartnerPortalLayout>
+            }
+          />
+          <Route
+            path="/partner-portal/orders"
+            element={
+              <PartnerPortalLayout>
+                <PartnerPortalOrders />
+              </PartnerPortalLayout>
+            }
+          />
+
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </Router>

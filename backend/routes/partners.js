@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const bcrypt = require("bcryptjs");
 const Vendor = require("../models/Partner"); // We'll keep the variable Vendor for now so we don't have to rename everything in this file, but require Partner model
 const Counter = require("../models/Counter");
 const adminAuth = require("../middleware/adminAuth");
@@ -48,6 +49,11 @@ router.post("/", adminAuth, async (req, res) => {
     try {
         const data = { ...req.body };
         
+        if (data.password) {
+            const salt = await bcrypt.genSalt(10);
+            data.password = await bcrypt.hash(data.password, salt);
+        }
+
         // Auto-generate API key if not provided
         if (!data.apiKey) {
             data.apiKey = "ep_live_" + require('crypto').randomBytes(16).toString('hex');
@@ -98,6 +104,14 @@ router.put("/:id", adminAuth, async (req, res) => {
     try {
         let updateData = { ...req.body };
         let updateQuery = { $set: updateData };
+
+        if (updateData.password) {
+            const salt = await bcrypt.genSalt(10);
+            updateData.password = await bcrypt.hash(updateData.password, salt);
+        } else {
+            // Remove password from update if it's empty to prevent un-setting it
+            delete updateData.password;
+        }
 
         if (updateData.apiKey === "") {
             delete updateData.apiKey;

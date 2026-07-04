@@ -67,6 +67,7 @@ const intakeRoutes = require("./routes/intake");
 const userRoutes = require("./routes/users");
 const partnerRoutes = require("./routes/partners");
 const partnerApiRoutes = require("./routes/partnerApiRoutes");
+const partnerPortalRoutes = require("./routes/partnerPortal");
 const vendorPaymentRoutes = require("./routes/vendorPayments");
 const analyticsRoutes = require("./routes/analytics");
 const docketRoutes = require("./routes/dockets");
@@ -87,6 +88,7 @@ app.use("/api/email", emailRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/partners", partnerRoutes); // Internal admin routes for partner management
 app.use("/api/v1/partners", partnerApiRoutes); // Public API routes for partners
+app.use("/api/v1/partners/portal", partnerPortalRoutes); // Partner Portal UI routes
 app.use("/api/vendor-payments", vendorPaymentRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/dockets", docketRoutes);

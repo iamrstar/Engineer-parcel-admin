@@ -13,16 +13,31 @@ router.post("/orders", requireApiKey, async (req, res) => {
             return res.status(400).json({ error: "senderDetails and receiverDetails are required" });
         }
 
+        let weight = packageDetails?.weight || 0;
+        if (packageDetails?.weightUnit === 'g') {
+            weight = weight / 1000;
+        }
+        let chargeable = Math.ceil(weight);
+        if (chargeable < 1) chargeable = 1;
+
+        const totalAmount = chargeable * (partner.pricePerKg || 0);
+
         // Create booking
         const booking = new Booking({
             serviceType: serviceType || "express",
             senderDetails,
             receiverDetails,
-            packageDetails: packageDetails || { weight: 0 },
+            packageDetails: { 
+                ...packageDetails, 
+                chargeableWeight: chargeable, 
+                chargeableWeightUnit: "kg" 
+            },
+            pricing: { totalAmount },
             isVendorBooking: true, // Reusing existing system
             vendorId: partner.partnerId,
             vendorName: partner.name,
             paymentMethod: "online", // Or COD based on payload
+            bookingSource: "api" // Mark the source explicitly
         });
 
         const newBooking = await booking.save();

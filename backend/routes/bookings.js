@@ -7,6 +7,7 @@ const adminAuth = require("../middleware/adminAuth");
 const Razorpay = require("razorpay");
 const { generateReceiptPDF, generateOfficeLabelPDF } = require("../utils/pdfService");
 const sendEmail = require("../utils/sendEmail");
+const Partner = require("../models/Partner");
 
 // Initialize Razorpay
 let razorpay;
@@ -570,20 +571,35 @@ router.put("/bulk/assign-vendor", adminAuth, async (req, res) => {
       return res.status(400).json({ message: "Invalid request data" });
     }
 
-    await Booking.updateMany(
-      { _id: { $in: bookingIds } },
-      { 
-        $set: { vendorId, vendorName, isVendorBooking: true },
-        $push: {
-          trackingHistory: {
-            location: "Hub",
-            timestamp: new Date(),
-            status: "pending",
-            description: `Bulk assigned to Vendor ${vendorName}`
+    const vendor = await Partner.findOne({ partnerId: vendorId });
+    const pricePerKg = vendor?.pricePerKg || 0;
+
+    const bookings = await Booking.find({ _id: { $in: bookingIds } });
+
+    for (const booking of bookings) {
+      let weight = booking.packageDetails?.weight || 0;
+      if (booking.packageDetails?.weightUnit === 'g') {
+        weight = weight / 1000;
+      }
+      let chargeable = Math.ceil(weight);
+      if (chargeable < 1) chargeable = 1;
+
+      const totalAmount = chargeable * pricePerKg;
+
+      await Booking.updateOne(
+        { _id: booking._id },
+        { 
+          $set: { 
+            vendorId, 
+            vendorName, 
+            isVendorBooking: true,
+            "pricing.totalAmount": totalAmount,
+            "packageDetails.chargeableWeight": chargeable,
+            "packageDetails.chargeableWeightUnit": "kg"
           }
         }
-      }
-    );
+      );
+    }
 
     // Notify Admins
     const io = req.app.get("socketio");

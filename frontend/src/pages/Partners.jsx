@@ -188,7 +188,9 @@ const Vendors = () => {
     pincode: "",
     landmark: "",
     apiKey: "",
-    webhookUrl: ""
+    webhookUrl: "",
+    password: "",
+    pricePerKg: 0
   })
 
   useEffect(() => {
@@ -376,7 +378,9 @@ const Vendors = () => {
         pincode: vendor.pincode || "",
         landmark: vendor.landmark || "",
         apiKey: vendor.apiKey || "",
-        webhookUrl: vendor.webhookUrl || ""
+        webhookUrl: vendor.webhookUrl || "",
+        password: "",
+        pricePerKg: vendor.pricePerKg || 0
       })
     } else {
       setEditingVendor(null)
@@ -392,7 +396,9 @@ const Vendors = () => {
         pincode: "",
         landmark: "",
         apiKey: "",
-        webhookUrl: ""
+        webhookUrl: "",
+        password: "",
+        pricePerKg: 0
       })
     }
     setPincodeSuccess(vendor ? true : false)
@@ -620,6 +626,28 @@ const Vendors = () => {
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     className="w-full px-4 py-2.5 bg-gray-50 dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm"
                     placeholder="vendor@example.com"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Password {editingVendor && "(Leave blank to keep current)"}</label>
+                  <input
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm"
+                    placeholder="Portal Password"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Price Per Kg (₹)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={formData.pricePerKg}
+                    onChange={(e) => setFormData({ ...formData, pricePerKg: Number(e.target.value) })}
+                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm"
+                    placeholder="e.g. 50"
                   />
                 </div>
 

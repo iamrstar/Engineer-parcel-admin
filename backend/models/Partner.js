@@ -16,6 +16,14 @@ const partnerSchema = new mongoose.Schema({
     apiSecretHash: {
         type: String,
     },
+    password: {
+        type: String,
+        select: false, // Don't return by default
+    },
+    pricePerKg: {
+        type: Number,
+        default: 0,
+    },
     webhookUrl: {
         type: String,
     },
