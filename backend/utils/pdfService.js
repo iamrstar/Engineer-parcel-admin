@@ -89,8 +89,9 @@ function parseItems(itemsStr, totalCount) {
 /**
  * Compact Single-Receipt PDF Generator for Engineers Parcel.
  * Optimized for top-alignment with restored Date/No and complete Destination.
+ * If 'invoice' object is passed, generates a TAX INVOICE instead of E-RECEIPT.
  */
-async function generateReceiptPDF(booking) {
+async function generateReceiptPDF(booking, invoice = null, receiptGst = null) {
     try {
         const pdfDoc = await PDFDocument.create();
         const page = pdfDoc.addPage([595.28, 841.89]); // A4
@@ -191,18 +192,26 @@ async function generateReceiptPDF(booking) {
         const r2Y = globalY - r2H;
         const tid = booking.trackingId || booking.bookingId || 'EP-PENDING';
         page.drawRectangle({ x: startX, y: r2Y, width: tableWidth, height: r2H, color: headerBg });
-        drawCell('BOOKING E-RECEIPT', startX, globalY, midX - startX, r2H, fonts.bold, 11, 'center');
+        drawCell(invoice ? 'TAX INVOICE' : 'BOOKING E-RECEIPT', startX, globalY, midX - startX, r2H, fonts.bold, 11, 'center');
         drawCell(`TRACKING ID: ${tid}`, midX, globalY, endX - midX, r2H, fonts.bold, 9, 'center');
         drawVLine(midX, globalY, r2Y);
         drawHLine(r2Y);
         globalY = r2Y;
 
-        // --- 4. DATE & RECEIPT NO (RESTORED) ---
+        // --- 4. DATE & RECEIPT/INVOICE NO ---
         const r3H = 18;
         const r3Y = globalY - r3H;
-        const resDate = booking.createdAt ? new Date(booking.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }) : new Date().toLocaleDateString('en-IN');
-        drawCell(`Receipt Date: ${resDate}`, startX, globalY, midX - startX, r3H, fonts.regular, 8.5);
-        drawCell(`Receipt No: EP/${new Date().getFullYear()}/${tid.split('-').pop()}`, midX, globalY, endX - midX, r3H, fonts.regular, 8.5);
+        
+        if (invoice) {
+            const resDate = invoice.createdAt ? new Date(invoice.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }) : new Date().toLocaleDateString('en-IN');
+            drawCell(`Invoice Date: ${resDate}`, startX, globalY, midX - startX, r3H, fonts.regular, 8.5);
+            drawCell(`Invoice No: ${invoice.invoiceNumber}`, midX, globalY, endX - midX, r3H, fonts.regular, 8.5);
+        } else {
+            const resDate = booking.createdAt ? new Date(booking.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }) : new Date().toLocaleDateString('en-IN');
+            drawCell(`Receipt Date: ${resDate}`, startX, globalY, midX - startX, r3H, fonts.regular, 8.5);
+            drawCell(`Receipt No: EP/${new Date().getFullYear()}/${tid.split('-').pop()}`, midX, globalY, endX - midX, r3H, fonts.regular, 8.5);
+        }
+        
         drawVLine(midX, globalY, r3Y);
         drawHLine(r3Y);
         globalY = r3Y;
@@ -218,7 +227,7 @@ async function generateReceiptPDF(booking) {
         globalY = dhY;
 
         const startDetY = globalY;
-        const renderCol = (det, x) => {
+        const renderCol = (det, x, isSender = false) => {
             let y = startDetY - 12;
             const sz = 8;
             const drawF = (l, v) => {
@@ -228,6 +237,15 @@ async function generateReceiptPDF(booking) {
             };
             drawF('Name', det?.name);
             drawF('Phone', det?.phone);
+            
+            if (isSender) {
+                if (invoice && invoice.senderGst) {
+                    drawF('GSTIN', invoice.senderGst);
+                } else if (receiptGst) {
+                    drawF('GSTIN', receiptGst);
+                }
+            }
+            
             let a = det?.address || '';
             if (det?.address1) a = `${det.address1}, ${det.address2 || ''}`.trim();
             if (det?.landmark) a += ` (${det.landmark})`;
@@ -236,8 +254,8 @@ async function generateReceiptPDF(booking) {
             return y;
         };
 
-        const yS = renderCol(booking.senderDetails, startX);
-        const yR = renderCol(booking.receiverDetails, midX);
+        const yS = renderCol(booking.senderDetails, startX, true);
+        const yR = renderCol(booking.receiverDetails, midX, false);
         const detBot = Math.min(yS, yR, startDetY - 60) - 5;
         drawVLine(midX, startDetY, detBot);
         drawHLine(detBot);
@@ -797,7 +815,7 @@ async function generateCombinedPDF(booking, options = { receipt: true, label: tr
         const includeDecl = options.declaration !== 'false' && options.declaration !== false;
 
         if (includeReceipt) {
-            const receiptBytes = await generateReceiptPDF(booking);
+            const receiptBytes = await generateReceiptPDF(booking, null, options.senderGst);
             const receiptDoc = await PDFDocument.load(receiptBytes);
             const receiptPages = await mergedPdf.copyPages(receiptDoc, receiptDoc.getPageIndices());
             receiptPages.forEach(page => mergedPdf.addPage(page));

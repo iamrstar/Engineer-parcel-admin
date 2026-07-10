@@ -820,10 +820,15 @@ router.get("/:id/receipt", authMiddleware, async (req, res) => {
       }
     }
 
+    // Fetch invoice to get senderGst if it exists
+    const Invoice = require("../models/Invoice");
+    const invoice = await Invoice.findOne({ bookingId: booking._id });
+    const senderGst = invoice ? invoice.senderGst : req.query.gst;
+
     // Generate PDF
     const { receipt, label, declaration } = req.query;
     const { generateCombinedPDF } = require("../utils/pdfService");
-    const pdfBuffer = await generateCombinedPDF(booking, { receipt, label, declaration });
+    const pdfBuffer = await generateCombinedPDF(booking, { receipt, label, declaration, senderGst });
 
     res.set({
       "Content-Type": "application/pdf",

@@ -78,6 +78,7 @@ const queryRoutes = require("./routes/queries");
 const officeRoutes = require("./routes/offices");
 const accessControlRoutes = require("./routes/accessControl");
 const leadRoutes = require("./routes/leads");
+const invoiceRoutes = require("./routes/invoices");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/bookings", bookingRoutes);
@@ -99,6 +100,7 @@ app.use("/api/queries", queryRoutes);
 app.use("/api/offices", officeRoutes);
 app.use("/api/access-control", accessControlRoutes);
 app.use("/api/leads", leadRoutes);
+app.use("/api/invoices", invoiceRoutes);
 
 app.use("/api/intake", intakeRoutes);
 

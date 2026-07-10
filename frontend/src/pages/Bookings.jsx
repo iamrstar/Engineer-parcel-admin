@@ -252,6 +252,58 @@ const Bookings = () => {
     }
   }
 
+  const handleDownloadInvoicePdf = async (bookingId, invoiceNumber) => {
+    try {
+      const toastId = toast.loading("Downloading PDF...");
+      const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
+      
+      const response = await axios.get(
+        `${import.meta.env.VITE_API_URL}/api/invoices/booking/${bookingId}/pdf`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+          responseType: 'blob'
+        }
+      );
+      
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `Invoice_${invoiceNumber.replace(/\//g, '-')}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      toast.dismiss(toastId);
+      toast.success("PDF downloaded successfully!");
+    } catch (error) {
+      console.error("Error downloading PDF:", error);
+      toast.dismiss();
+      toast.error("Failed to download PDF.");
+    }
+  };
+
+  const handleDeleteInvoice = async () => {
+    if (!existingInvoice) return;
+    if (!window.confirm("Are you sure you want to delete this invoice? The sequence will be rolled back if this is the most recently generated invoice.")) return;
+    
+    setIsDeletingInvoice(true);
+    try {
+      const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
+      await axios.delete(`${import.meta.env.VITE_API_URL}/api/invoices/booking/${existingInvoice.bookingId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      toast.success("Invoice deleted successfully");
+      setInvoiceModalOpen(false);
+      setExistingInvoice(null);
+    } catch (err) {
+      console.error("Error deleting invoice:", err);
+      toast.error(err.response?.data?.message || "Failed to delete invoice");
+    } finally {
+      setIsDeletingInvoice(false);
+    }
+  };
+
   useEffect(() => {
     fetchRiders()
     fetchOffices()
@@ -391,8 +443,10 @@ const Bookings = () => {
   // Docket Assignment State
   const [docketModal, setDocketModal] = useState({ open: false, booking: null })
   const [docketVendor, setDocketVendor] = useState("")
-  const [otherDocketVendor, setOtherDocketVendor] = useState("")
-  const [docketId, setDocketId] = useState("")
+  const [otherDocketVendor, setOtherDocketVendor] = useState("");
+  const [docketId, setDocketId] = useState("");
+  const [receiptGst, setReceiptGst] = useState("");
+
   const [isAssigningDocket, setIsAssigningDocket] = useState(false)
   const [isTrackingIdEditable, setIsTrackingIdEditable] = useState(false)
   const [unassignModal, setUnassignModal] = useState({ open: false })
@@ -404,6 +458,16 @@ const Bookings = () => {
   const [amountReceived, setAmountReceived] = useState("")
   const [paymentProof, setPaymentProof] = useState(null)
   const [isUpdatingPayment, setIsUpdatingPayment] = useState(false)
+
+  // Invoice State
+  const [invoiceModalOpen, setInvoiceModalOpen] = useState(false)
+  const [invoiceBookings, setInvoiceBookings] = useState([])
+  const [senderGst, setSenderGst] = useState("")
+  const [invoiceCompany, setInvoiceCompany] = useState("SRQ ENGINEERS PARCEL AND HAUL PRIVATE LIMITED")
+  const [isGeneratingInvoice, setIsGeneratingInvoice] = useState(false)
+  const [generatedInvoices, setGeneratedInvoices] = useState([])
+  const [existingInvoice, setExistingInvoice] = useState(null)
+  const [isDeletingInvoice, setIsDeletingInvoice] = useState(false)
 
   useEffect(() => {
     fetchBookings()
@@ -874,6 +938,35 @@ const Bookings = () => {
                               <span className="text-xs font-bold uppercase">PDF</span>
                             </button>
                           )}
+                          {(booking.trackingId || booking.bookingId) && (
+                            <button
+                              onClick={async () => {
+                                setInvoiceBookings([booking._id]);
+                                setSenderGst("");
+                                setInvoiceCompany("SRQ ENGINEERS PARCEL AND HAUL PRIVATE LIMITED");
+                                setGeneratedInvoices([]);
+                                setExistingInvoice(null);
+                                setInvoiceModalOpen(true);
+                                
+                                try {
+                                  const t = localStorage.getItem("adminToken") || localStorage.getItem("token");
+                                  const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/invoices/booking/${booking._id}`, {
+                                    headers: { Authorization: `Bearer ${t}` }
+                                  });
+                                  setExistingInvoice(res.data);
+                                } catch (err) {
+                                  if (err.response && err.response.status !== 404) {
+                                    console.error("Error fetching invoice", err);
+                                  }
+                                }
+                              }}
+                              className="p-1 px-2.5 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 rounded-lg flex items-center gap-1.5 border border-blue-100 dark:border-blue-500/20 transition-colors"
+                              title="Generate Invoice"
+                            >
+                              <FileText className="h-4 w-4" />
+                              <span className="text-xs font-bold uppercase">INVOICE</span>
+                            </button>
+                          )}
                           <button
                             onClick={() => {
                               setPaymentBooking(booking);
@@ -1002,6 +1095,20 @@ const Bookings = () => {
                   >
                     <Tag className="w-4 h-4" />
                     Assign Docket
+                  </button>
+                  <button
+                    onClick={() => {
+                      setInvoiceBookings(selectedIds);
+                      setSenderGst("");
+                      setInvoiceCompany("SRQ ENGINEERS PARCEL AND HAUL PRIVATE LIMITED");
+                      setGeneratedInvoices([]);
+                      setExistingInvoice(null);
+                      setInvoiceModalOpen(true);
+                    }}
+                    className="flex items-center gap-2 hover:bg-gray-800 px-3 py-2 rounded-xl transition-colors text-sm font-bold text-blue-400"
+                  >
+                    <FileText className="w-4 h-4" />
+                    Generate Invoice
                   </button>
                   {selectedIds.length === 1 && (
                     <button
@@ -1410,6 +1517,20 @@ const Bookings = () => {
                       <span className="block text-xs text-gray-500 dark:text-gray-400">Legal declaration signed by sender</span>
                     </div>
                   </label>
+
+                  {pdfOptions.receipt && (
+                    <div className="mt-4 p-3 bg-white dark:bg-[#1A1A1A] rounded-lg border border-gray-200 dark:border-white/10">
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Sender GST Number (Optional)</label>
+                      <input
+                        type="text"
+                        value={receiptGst}
+                        onChange={(e) => setReceiptGst(e.target.value)}
+                        placeholder="e.g. 29ABCDE1234F1Z5"
+                        className="w-full px-3 py-2 bg-gray-50 dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-2 focus:ring-red-500 font-medium text-sm"
+                      />
+                      <p className="text-[10px] text-gray-400 mt-1">Leave blank to auto-fetch if an invoice was already generated.</p>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1424,7 +1545,7 @@ const Bookings = () => {
                     try {
                       const t = localStorage.getItem("adminToken") || localStorage.getItem("token")
                       const response = await axios.get(
-                        `${import.meta.env.VITE_API_URL}/api/bookings/${pdfBooking?._id}/receipt?receipt=${pdfOptions.receipt}&label=${pdfOptions.label}&declaration=${pdfOptions.declaration}`,
+                        `${import.meta.env.VITE_API_URL}/api/bookings/${pdfBooking?._id}/receipt?receipt=${pdfOptions.receipt}&label=${pdfOptions.label}&declaration=${pdfOptions.declaration}&gst=${receiptGst}`,
                         {
                           headers: { Authorization: `Bearer ${t}` },
                           responseType: "blob"
@@ -1449,7 +1570,10 @@ const Bookings = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setPdfModalOpen(false)}
+                  onClick={() => {
+                    setPdfModalOpen(false);
+                    setReceiptGst("");
+                  }}
                   className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 dark:border-white/10 shadow-sm px-4 py-2 bg-white dark:bg-[#1A1A1A] text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition-colors"
                 >
                   Cancel
@@ -2038,6 +2162,162 @@ const Bookings = () => {
                 >
                   Cancel
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Generate Invoice Modal */}
+      {invoiceModalOpen && (
+        <div className="fixed inset-0 z-[80] overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true" onClick={() => !isGeneratingInvoice && setInvoiceModalOpen(false)}>
+              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+            </div>
+
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+            <div className="inline-block align-bottom bg-white dark:bg-[#1A1A1A] rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-md sm:w-full border border-gray-100 dark:border-white/10">
+              <div className="bg-white dark:bg-[#1A1A1A] px-6 pt-6 pb-4 sm:p-8 sm:pb-6">
+                <h3 className="text-xl leading-6 font-bold text-gray-900 dark:text-white mb-4">
+                  Generate GST Invoice
+                </h3>
+                
+                {existingInvoice ? (
+                  <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg text-center">
+                    <FileText className="w-12 h-12 text-gray-400 mx-auto mb-2" />
+                    <p className="text-gray-800 font-bold mb-1">Invoice Already Generated</p>
+                    <p className="text-sm text-gray-600 mb-4">Invoice Number: <span className="font-mono bg-white px-2 py-1 rounded border border-gray-200">{existingInvoice.invoiceNumber}</span></p>
+                    <p className="text-xs text-gray-500">Company: {existingInvoice.companyName}</p>
+                    <p className="text-xs text-gray-500">Sender GST: {existingInvoice.senderGst}</p>
+                  </div>
+                ) : generatedInvoices && generatedInvoices.length > 0 ? (
+                  <div className="p-4 bg-green-50 border border-green-200 rounded-lg text-center max-h-64 overflow-y-auto">
+                    <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto mb-2" />
+                    <p className="text-green-800 font-bold mb-1">Generated {generatedInvoices.length} Invoice(s)!</p>
+                    <div className="mt-4 text-sm text-green-700 flex flex-col gap-2">
+                      {generatedInvoices.map((inv, idx) => (
+                        <div key={idx} className="flex items-center justify-between bg-white px-3 py-2 rounded border border-green-200">
+                          <span>Invoice: <span className="font-mono font-bold">{inv.invoiceNumber}</span></span>
+                          <button 
+                            onClick={() => handleDownloadInvoicePdf(inv.bookingId, inv.invoiceNumber)}
+                            className="text-xs font-bold text-blue-600 hover:text-blue-800 underline"
+                          >
+                            Download PDF
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Generating for {invoiceBookings.length} booking(s)</p>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Sender GST Number</label>
+                      <input
+                        type="text"
+                        value={senderGst}
+                        onChange={(e) => setSenderGst(e.target.value)}
+                        placeholder="Enter Sender GST"
+                        className="w-full px-4 py-2.5 bg-white dark:bg-[#1A1A1A] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 font-medium"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Select Company / Bank</label>
+                      <select
+                        value={invoiceCompany}
+                        onChange={(e) => setInvoiceCompany(e.target.value)}
+                        className="w-full px-4 py-2.5 bg-white dark:bg-[#1A1A1A] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 font-medium"
+                      >
+                        <option value="SRQ ENGINEERS PARCEL AND HAUL PRIVATE LIMITED">SRQ ENGINEERS PARCEL (UCO Bank)</option>
+                        <option value="ENGGPARCEL SERVICES LLP">ENGGPARCEL SERVICES (ICICI Bank)</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-gray-50 dark:bg-[#111111] px-6 py-4 sm:px-8 sm:flex sm:flex-row-reverse gap-3">
+                {existingInvoice ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadInvoicePdf(existingInvoice.bookingId, existingInvoice.invoiceNumber)}
+                      className="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-6 py-2.5 bg-blue-600 text-base font-bold text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm transition-all"
+                    >
+                      Download PDF
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isDeletingInvoice}
+                      onClick={handleDeleteInvoice}
+                      className="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-6 py-2.5 bg-red-600 text-base font-bold text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 transition-all"
+                    >
+                      {isDeletingInvoice ? 'Deleting...' : 'Delete & Reset Invoice'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isDeletingInvoice}
+                      onClick={() => setInvoiceModalOpen(false)}
+                      className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 dark:border-white/10 shadow-sm px-4 py-2.5 bg-white dark:bg-[#1A1A1A] text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:bg-[#111111] sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition-all"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : generatedInvoices.length === 0 ? (
+                  <>
+                    <button
+                      type="button"
+                      disabled={isGeneratingInvoice || !senderGst}
+                      onClick={async () => {
+                        try {
+                          setIsGeneratingInvoice(true);
+                          const t = localStorage.getItem("adminToken") || localStorage.getItem("token");
+                          const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/invoices/generate`, {
+                            bookingIds: invoiceBookings,
+                            senderGst,
+                            company: invoiceCompany
+                          }, {
+                            headers: { Authorization: `Bearer ${t}` }
+                          });
+                          
+                          toast.success(res.data.message);
+                          setGeneratedInvoices(res.data.invoices);
+                          // Clear selection if it was bulk
+                          if (invoiceBookings.length > 1) {
+                            setSelectedIds([]);
+                          }
+                        } catch (err) {
+                          toast.error(err.response?.data?.message || "Failed to generate invoices");
+                          console.error(err);
+                        } finally {
+                          setIsGeneratingInvoice(false);
+                        }
+                      }}
+                      className="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-6 py-2.5 bg-blue-600 text-base font-bold text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 transition-all"
+                    >
+                      {isGeneratingInvoice ? 'Generating...' : `Generate ${invoiceBookings.length} Invoice(s)`}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isGeneratingInvoice}
+                      onClick={() => setInvoiceModalOpen(false)}
+                      className="mt-3 w-full inline-flex justify-center rounded-lg border border-gray-300 dark:border-white/10 shadow-sm px-4 py-2.5 bg-white dark:bg-[#1A1A1A] text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:bg-[#111111] sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm transition-all"
+                    >
+                      Cancel
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setInvoiceModalOpen(false)}
+                    className="w-full inline-flex justify-center rounded-lg border border-transparent shadow-sm px-6 py-2.5 bg-gray-600 text-base font-bold text-white hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 sm:ml-3 sm:w-auto sm:text-sm transition-all"
+                  >
+                    Close
+                  </button>
+                )}
               </div>
             </div>
           </div>
