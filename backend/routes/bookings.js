@@ -103,6 +103,90 @@ const sendDeliveryEmail = async (booking) => {
 };
 
 /** ------------------------
+ * 📊 Performance Leaderboard
+ * ------------------------ */
+router.get("/stats/performance-leaderboard", adminAuth, async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    let matchQuery = { status: 'delivered' };
+    
+    if (startDate && endDate) {
+      matchQuery.createdAt = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate)
+      };
+    }
+
+    const bookings = await Booking.find(matchQuery)
+      .populate('salesAgent', 'name role')
+      .populate('handlingAgent', 'name role')
+      .populate('packagingAgent', 'name role')
+      .lean();
+
+    const performanceMap = {};
+
+    const initUser = (user) => {
+      if (!user || !user._id) return;
+      const id = user._id.toString();
+      if (!performanceMap[id]) {
+        performanceMap[id] = {
+          _id: id,
+          name: user.name,
+          role: user.role,
+          salesCount: 0,
+          salesRevenue: 0,
+          handlingCount: 0,
+          handlingRevenue: 0,
+          packagingCount: 0,
+          packagingRevenue: 0,
+          bookingsTouched: []
+        };
+      }
+    };
+
+    bookings.forEach(booking => {
+      const rev = booking.pricing?.totalAmount || 0;
+      
+      if (booking.salesAgent) {
+        initUser(booking.salesAgent);
+        performanceMap[booking.salesAgent._id].salesCount += 1;
+        performanceMap[booking.salesAgent._id].salesRevenue += rev;
+        if (!performanceMap[booking.salesAgent._id].bookingsTouched.includes(booking.bookingId)) {
+          performanceMap[booking.salesAgent._id].bookingsTouched.push(booking.bookingId);
+        }
+      }
+      if (booking.handlingAgent) {
+        initUser(booking.handlingAgent);
+        performanceMap[booking.handlingAgent._id].handlingCount += 1;
+        performanceMap[booking.handlingAgent._id].handlingRevenue += rev;
+        if (!performanceMap[booking.handlingAgent._id].bookingsTouched.includes(booking.bookingId)) {
+          performanceMap[booking.handlingAgent._id].bookingsTouched.push(booking.bookingId);
+        }
+      }
+      if (booking.packagingAgent) {
+        initUser(booking.packagingAgent);
+        performanceMap[booking.packagingAgent._id].packagingCount += 1;
+        performanceMap[booking.packagingAgent._id].packagingRevenue += rev;
+        if (!performanceMap[booking.packagingAgent._id].bookingsTouched.includes(booking.bookingId)) {
+          performanceMap[booking.packagingAgent._id].bookingsTouched.push(booking.bookingId);
+        }
+      }
+    });
+
+    const leaderboard = Object.values(performanceMap).sort((a, b) => {
+      const aTotal = a.salesRevenue + a.handlingRevenue + a.packagingRevenue;
+      const bTotal = b.salesRevenue + b.handlingRevenue + b.packagingRevenue;
+      return bTotal - aTotal; // Descending
+    });
+
+    res.json(leaderboard);
+  } catch (error) {
+    console.error('Performance Leaderboard Error:', error);
+    res.status(500).json({ error: 'Failed to fetch performance leaderboard' });
+  }
+});
+
+/** ------------------------
  * 📊 Dashboard & Test Routes
  * ------------------------ */
 router.get("/stats/dashboard", authMiddleware, async (req, res) => {
@@ -921,7 +1005,12 @@ router.get("/:id", authMiddleware, async (req, res) => {
     const booking = await Booking.findOne(query)
       .populate('assignedRider', 'name phone')
       .populate('pickupRider', 'name phone')
-      .populate('deliveryRider', 'name phone');
+      .populate('deliveryRider', 'name phone')
+      .populate('salesAgent', 'name')
+      .populate('handlingAgent', 'name')
+      .populate('packagingAgent', 'name')
+      .populate('verifiedBy', 'name')
+      .populate('cancelledBy', 'name');
       
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
@@ -1025,7 +1114,7 @@ router.put("/:id", authMiddleware, async (req, res) => {
 
     // Prevent populated objects from causing CastErrors during flatten/update
     const cleanBody = { ...req.body };
-    const idFields = ['assignedRider', 'pickupRider', 'deliveryRider', 'userId', 'vendorId'];
+    const idFields = ['assignedRider', 'pickupRider', 'deliveryRider', 'userId', 'vendorId', 'salesAgent', 'handlingAgent', 'packagingAgent'];
     
     idFields.forEach(field => {
       if (cleanBody[field]) {

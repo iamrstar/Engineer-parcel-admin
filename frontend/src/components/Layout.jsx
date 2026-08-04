@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useAuth } from "../contexts/AuthContext"
 import axios from "axios"
 import toast from "react-hot-toast"
-import { Package, LayoutDashboard, FileText, MapPin, Ticket, LogOut, Menu, X, BarChart, Bell, Users, Building, CheckSquare, ClipboardList, UserCheck, MessageCircle, CheckCircle, Moon, Sun, Gift } from "lucide-react"
+import { Package, LayoutDashboard, FileText, MapPin, Ticket, LogOut, Menu, X, BarChart, Bell, Users, Building, CheckSquare, ClipboardList, UserCheck, MessageCircle, CheckCircle, Moon, Sun, Gift, Trophy } from "lucide-react"
 import { socket } from "../utils/socket"
 import { Activity as ActivityIcon } from "lucide-react"
 import { useTheme } from "../contexts/ThemeContext"
@@ -345,7 +345,7 @@ const Layout = ({ children }) => {
   }, [])
 
   const { user } = useAuth()
-  const isAdmin = user && (!user.role || user.role === 'admin')
+  const isAdmin = user && (!user.role || user.role.toLowerCase() === 'admin' || user.role.toLowerCase() === 'main_admin')
 
   const allNavigation = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
@@ -353,6 +353,7 @@ const Layout = ({ children }) => {
     { name: "E-Docket", href: "/e-docket", icon: Package, badge: eDocketCount },
     { name: "Sales Report", href: "/sales-report", icon: BarChart },
     { name: "Web Analytics", href: "/analytics", icon: ActivityIcon },
+    { name: "Performance", href: "/performance", icon: Trophy },
     { name: "Pincodes", href: "/pincodes", icon: MapPin },
     { name: "Coupons", href: "/coupons", icon: Ticket },
     { name: "Create Order", href: "/manual-booking", icon: Ticket },
@@ -369,7 +370,7 @@ const Layout = ({ children }) => {
     { name: "Access Control", href: "/access-control", icon: UserCheck },
   ]
 
-  const defaultStaffAllowed = ["Dashboard", "Booking", "E-Docket", "Pincodes", "Create Order", "Partner Management", "Staff Tasks", "Manage Queries", "Docket Management", "Leads"];
+  const defaultStaffAllowed = ["Dashboard", "Booking", "E-Docket", "Pincodes", "Create Order", "Partner Management", "Staff Tasks", "Manage Queries", "Docket Management", "Leads", "Performance"];
   
   const navigation = isAdmin 
     ? allNavigation 

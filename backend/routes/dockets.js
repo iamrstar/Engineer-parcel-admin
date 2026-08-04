@@ -106,6 +106,7 @@ router.get("/next/:vendorName", async (req, res) => {
   try {
     const { vendorName } = req.params;
     const { startsWith } = req.query;
+    console.log("NEXT DOCKET REQ:", req.url, req.params, req.query);
     
     // Find the oldest available docket for this vendor
     const escapedVendorName = vendorName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

@@ -683,6 +683,76 @@ const BookingDetail = () => {
       </div>
     </div>
 
+      {/* Internal Roles Assignment */}
+      <div className="mb-4 sm:mb-6 bg-white dark:bg-[#1A1A1A] rounded-lg shadow p-4 sm:p-6 border border-gray-100 dark:border-white/10">
+        <div className="flex items-center mb-4">
+          <User className="h-5 w-5 text-blue-500 mr-2" />
+          <h3 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white">Internal Roles (Performance Tracking)</h3>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Sales Agent */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Sales / Acquisition</label>
+            {editMode ? (
+              <select
+                value={typeof booking.salesAgent === 'object' ? booking.salesAgent?._id : (booking.salesAgent || '')}
+                onChange={(e) => setBooking({ ...booking, salesAgent: e.target.value })}
+                className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#1A1A1A]"
+              >
+                <option value="">Select Staff</option>
+                {riders.map(r => (
+                  <option key={r._id} value={r._id}>{r.name} ({r.role})</option>
+                ))}
+              </select>
+            ) : (
+              <p className="text-sm sm:text-base text-gray-900 dark:text-white font-medium">
+                {booking.salesAgent ? (typeof booking.salesAgent === 'object' ? booking.salesAgent.name : 'Staff Assigned') : 'Unassigned'}
+              </p>
+            )}
+          </div>
+          {/* Handling Agent */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Handling / Ops</label>
+            {editMode ? (
+              <select
+                value={typeof booking.handlingAgent === 'object' ? booking.handlingAgent?._id : (booking.handlingAgent || '')}
+                onChange={(e) => setBooking({ ...booking, handlingAgent: e.target.value })}
+                className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#1A1A1A]"
+              >
+                <option value="">Select Staff</option>
+                {riders.map(r => (
+                  <option key={r._id} value={r._id}>{r.name} ({r.role})</option>
+                ))}
+              </select>
+            ) : (
+              <p className="text-sm sm:text-base text-gray-900 dark:text-white font-medium">
+                {booking.handlingAgent ? (typeof booking.handlingAgent === 'object' ? booking.handlingAgent.name : 'Staff Assigned') : 'Unassigned'}
+              </p>
+            )}
+          </div>
+          {/* Packaging Agent */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Packaging / Dispatch</label>
+            {editMode ? (
+              <select
+                value={typeof booking.packagingAgent === 'object' ? booking.packagingAgent?._id : (booking.packagingAgent || '')}
+                onChange={(e) => setBooking({ ...booking, packagingAgent: e.target.value })}
+                className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#1A1A1A]"
+              >
+                <option value="">Select Staff</option>
+                {riders.map(r => (
+                  <option key={r._id} value={r._id}>{r.name} ({r.role})</option>
+                ))}
+              </select>
+            ) : (
+              <p className="text-sm sm:text-base text-gray-900 dark:text-white font-medium">
+                {booking.packagingAgent ? (typeof booking.packagingAgent === 'object' ? booking.packagingAgent.name : 'Staff Assigned') : 'Unassigned'}
+              </p>
+            )}
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Sender Details */}
         <div className="bg-white dark:bg-[#1A1A1A] rounded-lg shadow p-4 sm:p-6">

@@ -78,6 +78,9 @@ router.post("/", authMiddleware, uploadPaymentProof.single("paymentProof"), asyn
       sendPaymentLink = true,
       createdBy = null,
       amountReceived = 0,
+      salesAgent = null,
+      handlingAgent = null,
+      packagingAgent = null,
     } = bodyData;
 
     // Required fields check
@@ -161,6 +164,9 @@ router.post("/", authMiddleware, uploadPaymentProof.single("paymentProof"), asyn
       bookingSource,
       officeId: req.user ? req.user.officeId : (req.admin ? req.admin.officeId : req.body.officeId),
       createdBy: req.user ? req.user.id : (req.admin ? req.admin.id : null),
+      salesAgent,
+      handlingAgent,
+      packagingAgent,
     });
 
     await newBooking.save();

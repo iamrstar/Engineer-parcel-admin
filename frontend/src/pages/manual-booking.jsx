@@ -1,9 +1,11 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
+import { User } from "lucide-react";
 
 export default function ManualBooking() {
   const { user } = useAuth();
+  const isAdmin = user && (!user.role || user.role.toLowerCase() === 'admin' || user.role.toLowerCase() === 'main_admin');
   const [step, setStep] = useState(1);
   const [showPaymentLinkModal, setShowPaymentLinkModal] = useState(false);
   const [formData, setFormData] = useState({
@@ -65,6 +67,9 @@ export default function ManualBooking() {
     amountReceived: "",
     vendorBranch: "",
     vendorSeries: "",
+    salesAgent: user?.id || "",
+    handlingAgent: user?.id || "",
+    packagingAgent: user?.id || "",
   });
   const [paymentProof, setPaymentProof] = useState(null);
   const [generatedId, setGeneratedId] = useState("");
@@ -81,12 +86,30 @@ export default function ManualBooking() {
   const [vendorResults, setVendorResults] = useState([]);
   const [showVendorDropdown, setShowVendorDropdown] = useState(false);
   const [offices, setOffices] = useState([]);
+  const [staff, setStaff] = useState([]);
 
   useEffect(() => {
-    if (user?.role === "admin") {
+    if (isAdmin) {
       fetchOffices();
     }
+    fetchStaff();
   }, [user]);
+
+  const fetchStaff = async () => {
+    try {
+      const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/users`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        // Filter to show internal staff/agents
+        setStaff(data.filter(u => u.role === "admin" || u.role === "office_admin" || u.role === "agent" || u.role === "staff"));
+      }
+    } catch (err) {
+      console.error("Failed to fetch staff", err);
+    }
+  };
 
   const fetchOffices = async () => {
     try {
@@ -123,7 +146,7 @@ export default function ManualBooking() {
     if (!vendor) return;
     try {
       const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
-      let url = `${import.meta.env.VITE_API_URL}/api/dockets/next/${vendor}`;
+      let url = `${import.meta.env.VITE_API_URL}/api/dockets/next/${encodeURIComponent(vendor)}`;
       if (series) {
         url += `?startsWith=${series}`;
       }
@@ -302,6 +325,9 @@ export default function ManualBooking() {
       laborRequired: false,
       paymentStatus: "pending",
       amountReceived: "",
+      salesAgent: user?.id || "",
+      handlingAgent: user?.id || "",
+      packagingAgent: user?.id || "",
     });
     setPaymentProof(null);
     setVendorSearch("");
@@ -366,7 +392,7 @@ export default function ManualBooking() {
     const payload = {
       serviceType: formData.serviceType.toLowerCase(),
       pickupPincode: formData.pickupPincode,
-      deliveryPincode: formData.deliveryPincode, // Corrected from dropPincode
+      deliveryPincode: formData.deliveryPincode,
       pickupDate: formData.pickupDate,
       pickupSlot: formData.pickupSlot,
       deliveryDate: new Date(Date.now() + 4 * 86400000).toISOString().split("T")[0],
@@ -485,7 +511,10 @@ export default function ManualBooking() {
         }
       }),
       sendPaymentLink,
-      createdBy: user?._id, // Track who created the booking
+      createdBy: user?._id,
+      salesAgent: formData.salesAgent,
+      handlingAgent: formData.handlingAgent,
+      packagingAgent: formData.packagingAgent,
       officeId: user?.officeId || formData.officeId || null,
     };
 
@@ -530,7 +559,6 @@ export default function ManualBooking() {
         Manual Order Entry
       </h1>
 
-      {/* Stepper UI */}
       <div className="flex justify-between mb-10 px-4 relative">
         <div className="absolute top-1/2 left-4 right-4 h-0.5 bg-gray-200 -translate-y-1/2 z-0"></div>
         {[1, 2, 3].map((s) => (
@@ -547,7 +575,7 @@ export default function ManualBooking() {
 
       <form onSubmit={handleSubmit}>
         {step === 1 && (
-          <div className="space-y-6">
+          <div className="space-y-8 animate-fade-in">
             <div className="flex gap-4 p-1 bg-gray-100 dark:bg-[#1A1A1A] border border-transparent dark:border-white/10 rounded-2xl mb-6">
               <button
                 type="button"
@@ -564,9 +592,62 @@ export default function ManualBooking() {
                 Vendor Booking
               </button>
             </div>
+            
+            {isAdmin && (
+              <div className="bg-white dark:bg-[#111111] p-6 rounded-2xl border border-gray-100 dark:border-white/5 shadow-sm space-y-6">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <User className="w-5 h-5 text-orange-500" />
+                  Internal Role Assignment
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Sales / Acquisition</label>
+                    <select
+                      name="salesAgent"
+                      value={formData.salesAgent}
+                      onChange={handleChange}
+                      className="w-full border border-gray-300 dark:border-white/10 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-white dark:bg-[#111111] dark:text-white font-medium"
+                    >
+                      <option value="">Select Staff</option>
+                      {staff.map(s => (
+                        <option key={s._id} value={s._id}>{s.name} ({s.role})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Handling / Ops</label>
+                    <select
+                      name="handlingAgent"
+                      value={formData.handlingAgent}
+                      onChange={handleChange}
+                      className="w-full border border-gray-300 dark:border-white/10 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-white dark:bg-[#111111] dark:text-white font-medium"
+                    >
+                      <option value="">Select Staff</option>
+                      {staff.map(s => (
+                        <option key={s._id} value={s._id}>{s.name} ({s.role})</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Packaging / Dispatch</label>
+                    <select
+                      name="packagingAgent"
+                      value={formData.packagingAgent}
+                      onChange={handleChange}
+                      className="w-full border border-gray-300 dark:border-white/10 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-white dark:bg-[#111111] dark:text-white font-medium"
+                    >
+                      <option value="">Select Staff</option>
+                      {staff.map(s => (
+                        <option key={s._id} value={s._id}>{s.name} ({s.role})</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in slide-in-from-top-4 duration-300">
-              {user?.role === "admin" && offices.length > 0 && (
+              {isAdmin && offices.length > 0 && (
                 <div className="sm:col-span-2">
                   <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Assign to Office (Optional)</label>
                   <select
@@ -595,7 +676,6 @@ export default function ManualBooking() {
                     if (value !== "DTDC") {
                       fetchNextDocket(value === "Other" ? formData.otherVendorName : value);
                     } else {
-                      // DTDC requires branch (and series for Office 2) selection, don't fetch yet
                       setFormData(prev => ({ ...prev, vendorTrackingId: "", vendorBranch: "", vendorSeries: "" }));
                     }
                   }}
@@ -616,7 +696,7 @@ export default function ManualBooking() {
                 </select>
               </div>
 
-              {formData.vendorName === "DTDC" && isOffice2 && (
+              {formData.vendorName === "DTDC" && (
                 <>
                   <div>
                     <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Select Branch</label>
@@ -662,31 +742,6 @@ export default function ManualBooking() {
                     </select>
                   </div>
                 </>
-              )}
-
-              {formData.vendorName === "DTDC" && !isOffice2 && (
-                <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Select Branch</label>
-                  <select
-                    name="vendorBranch"
-                    value={formData.vendorBranch}
-                    onChange={(e) => {
-                      handleChange(e);
-                      if (e.target.value) {
-                        fetchNextDocket(`${formData.vendorName} (${e.target.value})`);
-                      } else {
-                        setFormData(prev => ({ ...prev, vendorTrackingId: "" }));
-                      }
-                    }}
-                    className="w-full border border-gray-300 dark:border-white/10 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-white dark:bg-[#111111] dark:text-white font-medium placeholder-gray-400 dark:placeholder-gray-600"
-                  >
-                    <option value="">Choose a branch...</option>
-                    <option value="Hirak">Hirak</option>
-                    <option value="Saraidhela">Saraidhela</option>
-                    <option value="Ranchi">Ranchi</option>
-                    <option value="Kolkata">Kolkata</option>
-                  </select>
-                </div>
               )}
 
               {formData.vendorName === "Other" && (
@@ -883,7 +938,6 @@ export default function ManualBooking() {
               </div>
             )}
 
-            {/* Shifting-specific fields */}
             {formData.serviceType === "Shifting" && (
               <div className="bg-purple-50 dark:bg-purple-500/10 p-5 rounded-2xl border border-purple-200 dark:border-purple-500/20 space-y-4 animate-in slide-in-from-top-4 duration-300">
                 <h3 className="text-base font-bold text-purple-700 dark:text-purple-400 flex items-center gap-2">

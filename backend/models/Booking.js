@@ -172,6 +172,18 @@ const bookingSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
+    salesAgent: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    handlingAgent: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    packagingAgent: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
     assignedFor: {
       type: String,
       enum: ["pickup", "delivery", "both"],

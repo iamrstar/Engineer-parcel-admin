@@ -16,6 +16,7 @@ import RiderDashboard from "./pages/RiderDashboard"
 import Partners from "./pages/Partners"
 import Tasks from "./pages/Tasks.jsx"
 import Analytics from "./pages/Analytics"
+import PerformanceLeaderboard from "./pages/PerformanceLeaderboard"
 import DocketManagement from "./pages/DocketManagement"
 import TrackingTasks from "./pages/TrackingTasks"
 import Queries from "./pages/Queries"
@@ -198,6 +199,16 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <Analytics />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/performance"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <PerformanceLeaderboard />
                 </Layout>
               </ProtectedRoute>
             }
