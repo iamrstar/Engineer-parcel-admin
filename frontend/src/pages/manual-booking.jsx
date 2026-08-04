@@ -63,11 +63,15 @@ export default function ManualBooking() {
     officeId: "",
     paymentStatus: "pending",
     amountReceived: "",
+    vendorBranch: "",
+    vendorSeries: "",
   });
   const [paymentProof, setPaymentProof] = useState(null);
   const [generatedId, setGeneratedId] = useState("");
   const [isManualId, setIsManualId] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const isOffice2 = user?.name?.toLowerCase().includes("office 2") || user?.officeId?.name?.toLowerCase().includes("office 2");
 
   const [pincodeStatus, setPincodeStatus] = useState({
     pickup: { available: null, isEDL: false, edl: 0 },
@@ -115,11 +119,15 @@ export default function ManualBooking() {
     }
   };
 
-  const fetchNextDocket = async (vendor) => {
+  const fetchNextDocket = async (vendor, series = "") => {
     if (!vendor) return;
     try {
       const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/dockets/next/${vendor}`, {
+      let url = `${import.meta.env.VITE_API_URL}/api/dockets/next/${vendor}`;
+      if (series) {
+        url += `?startsWith=${series}`;
+      }
+      const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
       if (res.ok) {
@@ -574,36 +582,89 @@ export default function ManualBooking() {
                   </select>
                 </div>
               )}
-               <div>
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Shipping Vendor (e.g. BlueDart)</label>
+              {/* Shipping Vendor Selection */}
+              <div>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Shipping Vendor {isOffice2 ? "(e.g. DTDC)" : "(e.g. BlueDart)"}</label>
                 <select
                   name="vendorName"
                   value={formData.vendorName}
                   onChange={(e) => {
                     const value = e.target.value;
                     handleChange(e);
-                    // Only fetch docket if it's not DTDC (which require branch)
+                    
                     if (value !== "DTDC") {
                       fetchNextDocket(value === "Other" ? formData.otherVendorName : value);
                     } else {
-                      // Clear tracking ID since we need the branch first
-                      setFormData(prev => ({ ...prev, vendorTrackingId: "", vendorBranch: "" }));
+                      // DTDC requires branch (and series for Office 2) selection, don't fetch yet
+                      setFormData(prev => ({ ...prev, vendorTrackingId: "", vendorBranch: "", vendorSeries: "" }));
                     }
                   }}
                   className="w-full border border-gray-300 dark:border-white/10 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-white dark:bg-[#111111] dark:text-white font-medium dark:text-white"
                 >
                   <option value="">Select Shipping Partner</option>
-                  <option value="BlueDart">BlueDart</option>
+                  {!isOffice2 && <option value="BlueDart">BlueDart</option>}
                   <option value="DTDC">DTDC</option>
-                  <option value="Delhivery">Delhivery</option>
-                  <option value="Safe Express">Safe Express</option>
-                  <option value="India Post">India Post</option>
-                  <option value="I Carry">I Carry</option>
-                  <option value="Other">Other</option>
+                  {!isOffice2 && (
+                    <>
+                      <option value="Delhivery">Delhivery</option>
+                      <option value="Safe Express">Safe Express</option>
+                      <option value="India Post">India Post</option>
+                      <option value="I Carry">I Carry</option>
+                      <option value="Other">Other</option>
+                    </>
+                  )}
                 </select>
               </div>
 
-              {formData.vendorName === "DTDC" && (
+              {formData.vendorName === "DTDC" && isOffice2 && (
+                <>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Select Branch</label>
+                    <select
+                      name="vendorBranch"
+                      value={formData.vendorBranch}
+                      onChange={(e) => {
+                        const branch = e.target.value;
+                        handleChange(e);
+                        if (branch && formData.vendorSeries) {
+                          fetchNextDocket(`DTDC (${branch})`, formData.vendorSeries);
+                        } else {
+                          setFormData(prev => ({ ...prev, vendorTrackingId: "" }));
+                        }
+                      }}
+                      className="w-full border border-gray-300 dark:border-white/10 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-white dark:bg-[#111111] dark:text-white font-medium placeholder-gray-400 dark:placeholder-gray-600"
+                    >
+                      <option value="">Choose a branch...</option>
+                      <option value="Hirak">Hirak</option>
+                      <option value="Sanjay">Sanjay</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Select Series</label>
+                    <select
+                      name="vendorSeries"
+                      value={formData.vendorSeries}
+                      onChange={(e) => {
+                        const series = e.target.value;
+                        handleChange(e);
+                        if (formData.vendorBranch && series) {
+                          fetchNextDocket(`DTDC (${formData.vendorBranch})`, series);
+                        } else {
+                          setFormData(prev => ({ ...prev, vendorTrackingId: "" }));
+                        }
+                      }}
+                      className="w-full border border-gray-300 dark:border-white/10 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-white dark:bg-[#111111] dark:text-white font-medium placeholder-gray-400 dark:placeholder-gray-600"
+                    >
+                      <option value="">Choose a series...</option>
+                      <option value="V">V</option>
+                      <option value="D">D</option>
+                      <option value="K">K</option>
+                    </select>
+                  </div>
+                </>
+              )}
+
+              {formData.vendorName === "DTDC" && !isOffice2 && (
                 <div>
                   <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Select Branch</label>
                   <select
@@ -613,13 +674,17 @@ export default function ManualBooking() {
                       handleChange(e);
                       if (e.target.value) {
                         fetchNextDocket(`${formData.vendorName} (${e.target.value})`);
+                      } else {
+                        setFormData(prev => ({ ...prev, vendorTrackingId: "" }));
                       }
                     }}
                     className="w-full border border-gray-300 dark:border-white/10 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-white dark:bg-[#111111] dark:text-white font-medium placeholder-gray-400 dark:placeholder-gray-600"
                   >
                     <option value="">Choose a branch...</option>
                     <option value="Hirak">Hirak</option>
-                    <option value="Sanjay">Sanjay</option>
+                    <option value="Saraidhela">Saraidhela</option>
+                    <option value="Ranchi">Ranchi</option>
+                    <option value="Kolkata">Kolkata</option>
                   </select>
                 </div>
               )}

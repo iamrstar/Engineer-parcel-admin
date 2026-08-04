@@ -169,39 +169,191 @@ router.get("/test-log", (req, res) => {
 router.get("/sales/report", adminAuth, async (req, res) => {
   try {
     const { startDate, endDate, serviceType } = req.query;
-    const match = { paymentStatus: "paid" };
+    // Base match: all non-cancelled bookings
+    const match = { status: { $ne: "cancelled" } };
 
+    // Separate match for cancelled bookings tracking (same date/service filters but status=cancelled)
+    const cancelledMatch = { status: "cancelled" };
+
+    // Date filtering: vendor bookings use pickupDate, non-vendor use createdAt
+    const dateFilter = {};
     if (startDate || endDate) {
-      match.createdAt = {};
-      if (startDate) {
-        const start = new Date(startDate);
-        start.setHours(0, 0, 0, 0);
-        match.createdAt.$gte = start;
-      }
-      if (endDate) {
-        const end = new Date(endDate);
-        end.setHours(23, 59, 59, 999);
-        match.createdAt.$lte = end;
-      }
+      const start = startDate ? new Date(startDate) : null;
+      if (start) start.setHours(0, 0, 0, 0);
+      const end = endDate ? new Date(endDate) : null;
+      if (end) end.setHours(23, 59, 59, 999);
+
+      dateFilter.$or = [
+        {
+          isVendorBooking: true,
+          pickupDate: {
+            ...(start && { $gte: start }),
+            ...(end && { $lte: end })
+          }
+        },
+        {
+          $or: [
+            { isVendorBooking: false },
+            { isVendorBooking: { $exists: false } },
+            { isVendorBooking: null }
+          ],
+          createdAt: {
+            ...(start && { $gte: start }),
+            ...(end && { $lte: end })
+          }
+        }
+      ];
+      match.$or = dateFilter.$or;
+      cancelledMatch.$or = dateFilter.$or;
     }
 
     if (serviceType && serviceType !== "all") {
       match.serviceType = serviceType;
+      cancelledMatch.serviceType = serviceType;
     }
 
     if (req.admin && req.admin.officeId) {
       match.officeId = req.admin.officeId;
+      cancelledMatch.officeId = req.admin.officeId;
     } else if (req.query.officeId && req.query.officeId !== "all") {
       match.officeId = req.query.officeId;
+      cancelledMatch.officeId = req.query.officeId;
     }
 
+    // Shared $addFields for effectiveDate
+    const effectiveDateStage = {
+      $addFields: {
+        effectiveDate: {
+          $cond: {
+            if: { $and: [{ $eq: ["$isVendorBooking", true] }, { $ne: ["$pickupDate", null] }] },
+            then: "$pickupDate",
+            else: "$createdAt"
+          }
+        }
+      }
+    };
+
+    // Determine grouping format: daily if date range is given, otherwise monthly
+    const dateFormat = (startDate && endDate) ? "%Y-%m-%d" : "%Y-%m";
+
+    // 1️⃣ Monthly/Daily report data (existing)
     const reportData = await Booking.aggregate([
+      { $match: match },
+      effectiveDateStage,
+      { $match: { effectiveDate: { $ne: null } } },
+      {
+        $group: {
+          _id: { $dateToString: { format: dateFormat, date: "$effectiveDate", timezone: "Asia/Kolkata" } },
+          totalAmount: {
+            $sum: {
+              $cond: [{ $eq: ["$paymentStatus", "paid"] }, { $ifNull: ["$pricing.totalAmount", 0] }, 0]
+            }
+          },
+          totalBookings: { $sum: 1 },
+          dueOrders: {
+            $sum: {
+              $cond: [
+                { $lte: [{ $ifNull: ["$pricing.totalAmount", 0] }, 0] },
+                1, 0
+              ]
+            }
+          },
+          paidOrders: {
+            $sum: {
+              $cond: [{ $eq: ["$paymentStatus", "paid"] }, 1, 0]
+            }
+          },
+          // COD vs Online split
+          codAmount: {
+            $sum: {
+              $cond: [
+                { $and: [{ $eq: ["$paymentStatus", "paid"] }, { $eq: ["$paymentMethod", "COD"] }] },
+                { $ifNull: ["$pricing.totalAmount", 0] }, 0
+              ]
+            }
+          },
+          codOrders: {
+            $sum: {
+              $cond: [{ $eq: ["$paymentMethod", "COD"] }, 1, 0]
+            }
+          },
+          onlineAmount: {
+            $sum: {
+              $cond: [
+                { $and: [
+                  { $eq: ["$paymentStatus", "paid"] },
+                  { $in: ["$paymentMethod", ["online", "Online"]] }
+                ]},
+                { $ifNull: ["$pricing.totalAmount", 0] }, 0
+              ]
+            }
+          },
+          onlineOrders: {
+            $sum: {
+              $cond: [{ $in: ["$paymentMethod", ["online", "Online"]] }, 1, 0]
+            }
+          }
+        }
+      },
+      { $match: { _id: { $ne: null } } },
+      { $sort: { _id: -1 } },
+      {
+        $project: {
+          _id: 0,
+          month: "$_id",
+          totalAmount: 1,
+          totalBookings: 1,
+          dueOrders: 1,
+          paidOrders: 1,
+          codAmount: 1,
+          codOrders: 1,
+          onlineAmount: 1,
+          onlineOrders: 1
+        }
+      }
+    ]);
+
+    // 2️⃣ Service-wise breakdown
+    const serviceBreakdown = await Booking.aggregate([
       { $match: match },
       {
         $group: {
-          _id: { $dateToString: { format: "%Y-%m", date: "$createdAt" } },
-          totalAmount: { $sum: "$pricing.totalAmount" },
-          totalBookings: { $sum: 1 }
+          _id: "$serviceType",
+          totalBookings: { $sum: 1 },
+          totalRevenue: {
+            $sum: {
+              $cond: [{ $eq: ["$paymentStatus", "paid"] }, { $ifNull: ["$pricing.totalAmount", 0] }, 0]
+            }
+          },
+          paidOrders: {
+            $sum: {
+              $cond: [{ $eq: ["$paymentStatus", "paid"] }, 1, 0]
+            }
+          }
+        }
+      },
+      { $sort: { totalRevenue: -1 } },
+      {
+        $project: {
+          _id: 0,
+          serviceType: "$_id",
+          totalBookings: 1,
+          totalRevenue: 1,
+          paidOrders: 1
+        }
+      }
+    ]);
+
+    // 3️⃣ Cancelled orders by month
+    const cancelledData = await Booking.aggregate([
+      { $match: cancelledMatch },
+      effectiveDateStage,
+      { $match: { effectiveDate: { $ne: null } } },
+      {
+        $group: {
+          _id: { $dateToString: { format: dateFormat, date: "$effectiveDate", timezone: "Asia/Kolkata" } },
+          cancelledCount: { $sum: 1 },
+          cancelledAmount: { $sum: { $ifNull: ["$pricing.totalAmount", 0] } }
         }
       },
       { $sort: { _id: -1 } },
@@ -209,13 +361,13 @@ router.get("/sales/report", adminAuth, async (req, res) => {
         $project: {
           _id: 0,
           month: "$_id",
-          totalAmount: 1,
-          totalBookings: 1
+          cancelledCount: 1,
+          cancelledAmount: 1
         }
       }
     ]);
 
-    res.json({ success: true, reportData });
+    res.json({ success: true, reportData, serviceBreakdown, cancelledData });
   } catch (error) {
     console.error("Sales Report Error:", error);
     res.status(500).json({ success: false, message: "Server error" });

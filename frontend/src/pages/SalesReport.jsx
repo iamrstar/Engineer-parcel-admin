@@ -1,21 +1,36 @@
 import React, { useState, useEffect } from "react"
 import axios from "axios"
 import toast from "react-hot-toast"
-import { Lock, Printer, IndianRupee, PieChart, FileDown, Calendar, Filter, RotateCcw } from "lucide-react"
+import { Lock, Printer, IndianRupee, PieChart, FileDown, Calendar, Filter, RotateCcw, AlertCircle, TrendingUp, Percent, CreditCard, XCircle, Activity, Package, BarChart2 } from "lucide-react"
 import * as XLSX from "xlsx"
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart as RechartsPieChart, Pie, Cell, Legend } from "recharts"
 
 const SalesReport = () => {
     const [isAuthenticated, setIsAuthenticated] = useState(false)
     const [password, setPassword] = useState("")
     const [loading, setLoading] = useState(false)
     const [reportData, setReportData] = useState([])
+    const [serviceBreakdown, setServiceBreakdown] = useState([])
+    const [cancelledData, setCancelledData] = useState([])
     const [startDate, setStartDate] = useState("")
     const [endDate, setEndDate] = useState("")
     const [serviceType, setServiceType] = useState("all")
+    const [marginPercent, setMarginPercent] = useState(40)
 
     // Calculate totals
     const totalRevenue = reportData.reduce((sum, item) => sum + item.totalAmount, 0)
     const totalBookings = reportData.reduce((sum, item) => sum + item.totalBookings, 0)
+    const totalPaidOrders = reportData.reduce((sum, item) => sum + (item.paidOrders || 0), 0)
+    const totalDueOrders = reportData.reduce((sum, item) => sum + (item.dueOrders || 0), 0)
+    const totalProfit = totalRevenue * (marginPercent / 100)
+    
+    // Analytics
+    const aov = totalPaidOrders > 0 ? (totalRevenue / totalPaidOrders) : 0
+    const collectionRate = totalBookings > 0 ? (totalPaidOrders / totalBookings) * 100 : 0
+    const totalCancelled = cancelledData.reduce((sum, item) => sum + item.cancelledCount, 0)
+    
+    const totalCOD = reportData.reduce((sum, item) => sum + (item.codAmount || 0), 0)
+    const totalOnline = reportData.reduce((sum, item) => sum + (item.onlineAmount || 0), 0)
 
     useEffect(() => {
         if (isAuthenticated) {
@@ -46,6 +61,8 @@ const SalesReport = () => {
             })
             if (res.data.success) {
                 setReportData(res.data.reportData)
+                setServiceBreakdown(res.data.serviceBreakdown || [])
+                setCancelledData(res.data.cancelledData || [])
             } else {
                 toast.error("Failed to load report data")
             }
@@ -67,13 +84,21 @@ const SalesReport = () => {
             return
         }
         const data = reportData.map(item => {
-            const [year, monthNum] = item.month.split("-")
-            const date = new Date(year, monthNum - 1)
-            const monthName = date.toLocaleString('default', { month: 'long', year: 'numeric' })
+            const isDaily = item.month.split("-").length === 3
+            let displayDate = item.month
+            if (!isDaily) {
+                const [year, monthNum] = item.month.split("-")
+                const date = new Date(year, monthNum - 1)
+                displayDate = date.toLocaleString('default', { month: 'long', year: 'numeric' })
+            }
+            const profit = item.totalAmount * (marginPercent / 100)
             return {
-                "Month": monthName,
+                "Date/Month": displayDate,
                 "Total Bookings": item.totalBookings,
-                "Revenue (₹)": item.totalAmount
+                "Paid Orders": item.paidOrders || 0,
+                "Revenue (₹)": item.totalAmount,
+                [`Est. Profit @ ${marginPercent}% (₹)`]: Math.round(profit * 100) / 100,
+                "₹0 Orders": item.dueOrders || 0
             }
         })
         const ws = XLSX.utils.json_to_sheet(data)
@@ -188,6 +213,20 @@ const SalesReport = () => {
                         </select>
                     </div>
 
+                    <div className="flex items-center gap-2 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-200">
+                        <Percent className="w-4 h-4 text-emerald-600" />
+                        <span className="text-sm font-medium text-emerald-700">Margin</span>
+                        <input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={marginPercent}
+                            onChange={(e) => setMarginPercent(Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
+                            className="bg-transparent border-none text-sm focus:ring-0 p-0 w-12 font-bold text-emerald-700 text-center"
+                        />
+                        <span className="text-sm font-medium text-emerald-700">%</span>
+                    </div>
+
                     <button
                         onClick={handleReset}
                         className="flex items-center gap-2 text-gray-500 hover:text-gray-700 font-medium text-sm px-2"
@@ -205,25 +244,194 @@ const SalesReport = () => {
             ) : (
                 <>
                     {/* Summary Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex items-center gap-4">
-                            <div className="bg-green-100 p-4 rounded-full">
-                                <IndianRupee className="w-8 h-8 text-green-600" />
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center gap-4 hover:shadow-md transition-shadow">
+                            <div className="bg-green-100 p-3.5 rounded-full flex-shrink-0">
+                                <IndianRupee className="w-7 h-7 text-green-600" />
                             </div>
-                            <div>
-                                <p className="text-sm font-medium text-gray-500 mb-1">Total Lifetime Revenue</p>
-                                <h3 className="text-3xl font-bold text-gray-900">₹{totalRevenue.toLocaleString()}</h3>
-                            </div>
-                        </div>
-                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex items-center gap-4">
-                            <div className="bg-blue-100 p-4 rounded-full">
-                                <PieChart className="w-8 h-8 text-blue-600" />
-                            </div>
-                            <div>
-                                <p className="text-sm font-medium text-gray-500 mb-1">Total Successful Bookings</p>
-                                <h3 className="text-3xl font-bold text-gray-900">{totalBookings.toLocaleString()}</h3>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium text-gray-500 mb-1 truncate">Total Revenue</p>
+                                <h3 className="text-2xl font-bold text-gray-900 truncate">₹{totalRevenue.toLocaleString()}</h3>
                             </div>
                         </div>
+                        
+                        <div className="bg-white rounded-xl shadow-sm border border-emerald-200 p-5 flex items-center gap-4 hover:shadow-md transition-shadow">
+                            <div className="bg-emerald-100 p-3.5 rounded-full flex-shrink-0">
+                                <TrendingUp className="w-7 h-7 text-emerald-600" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium text-gray-500 mb-1 truncate">Est. Profit ({marginPercent}%)</p>
+                                <h3 className="text-2xl font-bold text-emerald-600 truncate">₹{totalProfit.toLocaleString(undefined, { maximumFractionDigits: 2 })}</h3>
+                                <p className="text-xs text-emerald-500 font-medium truncate">@ {marginPercent}% margin</p>
+                            </div>
+                        </div>
+                        
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center gap-4 hover:shadow-md transition-shadow">
+                            <div className="bg-blue-100 p-3.5 rounded-full flex-shrink-0">
+                                <PieChart className="w-7 h-7 text-blue-600" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium text-gray-500 mb-1 truncate">Total Bookings</p>
+                                <h3 className="text-2xl font-bold text-gray-900 truncate">{totalBookings.toLocaleString()}</h3>
+                            </div>
+                        </div>
+                        
+                        <div className="bg-white rounded-xl shadow-sm border border-orange-200 p-5 flex items-center gap-4 hover:shadow-md transition-shadow">
+                            <div className="bg-orange-100 p-3.5 rounded-full flex-shrink-0">
+                                <AlertCircle className="w-7 h-7 text-orange-600" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium text-gray-500 mb-1 truncate">₹0 Amount Orders</p>
+                                <h3 className="text-2xl font-bold text-orange-600 truncate">{totalDueOrders.toLocaleString()}</h3>
+                                <p className="text-xs text-orange-500 font-medium truncate">Needs pricing</p>
+                            </div>
+                        </div>
+
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center gap-4 hover:shadow-md transition-shadow">
+                            <div className="bg-indigo-100 p-3.5 rounded-full flex-shrink-0">
+                                <Activity className="w-7 h-7 text-indigo-600" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium text-gray-500 mb-1 truncate">Average Order Value</p>
+                                <h3 className="text-2xl font-bold text-gray-900 truncate">₹{aov.toLocaleString(undefined, { maximumFractionDigits: 2 })}</h3>
+                            </div>
+                        </div>
+                        
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center gap-4 hover:shadow-md transition-shadow">
+                            <div className="bg-teal-100 p-3.5 rounded-full flex-shrink-0">
+                                <Percent className="w-7 h-7 text-teal-600" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium text-gray-500 mb-1 truncate">Collection Rate</p>
+                                <h3 className="text-2xl font-bold text-gray-900 truncate">{collectionRate.toFixed(1)}%</h3>
+                                <p className="text-xs text-gray-500 font-medium truncate">{totalPaidOrders} paid out of {totalBookings}</p>
+                            </div>
+                        </div>
+                        
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center gap-4 hover:shadow-md transition-shadow">
+                            <div className="bg-purple-100 p-3.5 rounded-full flex-shrink-0">
+                                <CreditCard className="w-7 h-7 text-purple-600" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium text-gray-500 mb-1 truncate">Payment Split</p>
+                                <h3 className="text-lg font-bold text-gray-900 truncate">COD: ₹{totalCOD.toLocaleString()}</h3>
+                                <p className="text-sm text-purple-600 font-semibold truncate">Online: ₹{totalOnline.toLocaleString()}</p>
+                            </div>
+                        </div>
+                        
+                        <div className="bg-white rounded-xl shadow-sm border border-red-200 p-5 flex items-center gap-4 hover:shadow-md transition-shadow">
+                            <div className="bg-red-100 p-3.5 rounded-full flex-shrink-0">
+                                <XCircle className="w-7 h-7 text-red-600" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium text-gray-500 mb-1 truncate">Cancelled Orders</p>
+                                <h3 className="text-2xl font-bold text-red-600 truncate">{totalCancelled.toLocaleString()}</h3>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Charts Section */}
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8 print:hidden">
+                        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                            <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
+                                <BarChart2 className="w-5 h-5 text-primary-500" />
+                                Revenue Trend
+                            </h3>
+                            <div className="h-72 w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart
+                                        data={[...reportData].reverse()} // Reverse so oldest is on left
+                                        margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                                    >
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f3f4f6" />
+                                        <XAxis 
+                                            dataKey="month" 
+                                            tickFormatter={(val) => {
+                                                if (val.split("-").length === 3) return val // Daily
+                                                const [year, month] = val.split("-")
+                                                return new Date(year, month - 1).toLocaleString('default', { month: 'short', year: '2-digit' })
+                                            }}
+                                            tick={{ fill: '#6b7280', fontSize: 12 }}
+                                            axisLine={false}
+                                            tickLine={false}
+                                        />
+                                        <YAxis 
+                                            tickFormatter={(val) => `₹${val/1000}k`}
+                                            tick={{ fill: '#6b7280', fontSize: 12 }}
+                                            axisLine={false}
+                                            tickLine={false}
+                                        />
+                                        <RechartsTooltip 
+                                            formatter={(value) => [`₹${value.toLocaleString()}`, 'Revenue']}
+                                            labelFormatter={(label) => `Period: ${label}`}
+                                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                        />
+                                        <Bar dataKey="totalAmount" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                            <h3 className="text-lg font-bold text-gray-900 mb-6 flex items-center gap-2">
+                                <PieChart className="w-5 h-5 text-primary-500" />
+                                Bookings by Service
+                            </h3>
+                            <div className="h-72 w-full">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <RechartsPieChart>
+                                        <Pie
+                                            data={serviceBreakdown}
+                                            cx="50%"
+                                            cy="50%"
+                                            innerRadius={60}
+                                            outerRadius={90}
+                                            paddingAngle={5}
+                                            dataKey="totalBookings"
+                                            nameKey="serviceType"
+                                        >
+                                            {serviceBreakdown.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={['#0ea5e9', '#10b981', '#f59e0b', '#6366f1', '#8b5cf6'][index % 5]} />
+                                            ))}
+                                        </Pie>
+                                        <RechartsTooltip 
+                                            formatter={(value, name) => [value, name.charAt(0).toUpperCase() + name.slice(1)]}
+                                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                        />
+                                        <Legend verticalAlign="bottom" height={36} iconType="circle" formatter={(value) => <span className="capitalize text-gray-700 font-medium">{value}</span>} />
+                                    </RechartsPieChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Service Breakdown */}
+                    <div className="mb-8 bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                        <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                            <Package className="w-5 h-5 text-primary-500" />
+                            Service-wise Breakdown
+                        </h3>
+                        {serviceBreakdown.length > 0 ? (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                {serviceBreakdown.map((service) => (
+                                    <div key={service.serviceType} className="border border-gray-100 rounded-lg p-4 bg-gray-50">
+                                        <p className="font-semibold text-gray-800 capitalize mb-2">{service.serviceType || 'Unknown'}</p>
+                                        <div className="flex justify-between items-end">
+                                            <div>
+                                                <p className="text-xs text-gray-500">Revenue</p>
+                                                <p className="font-bold text-gray-900">₹{(service.totalRevenue || 0).toLocaleString()}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-xs text-gray-500">Bookings</p>
+                                                <p className="font-semibold text-gray-700">{service.totalBookings}</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <p className="text-sm text-gray-500 text-center py-4">No service breakdown data available.</p>
+                        )}
                     </div>
 
                     {/* Data Table */}
@@ -233,7 +441,7 @@ const SalesReport = () => {
                                 <thead className="bg-gray-50">
                                     <tr>
                                         <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                            Month
+                                            {startDate && endDate ? 'Date' : 'Month'}
                                         </th>
                                         <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                                             Total Bookings
@@ -241,31 +449,55 @@ const SalesReport = () => {
                                         <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
                                             Revenue
                                         </th>
+                                        <th className="px-6 py-4 text-right text-xs font-semibold text-emerald-600 uppercase tracking-wider">
+                                            Est. Profit ({marginPercent}%)
+                                        </th>
+                                        <th className="px-6 py-4 text-center text-xs font-semibold text-orange-500 uppercase tracking-wider">
+                                            ₹0 Orders
+                                        </th>
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
                                     {reportData.length === 0 ? (
                                         <tr>
-                                            <td colSpan="3" className="px-6 py-8 text-center text-gray-500">
+                                            <td colSpan="5" className="px-6 py-8 text-center text-gray-500">
                                                 No sales data available yet.
                                             </td>
                                         </tr>
                                     ) : (
                                         reportData.map((item) => {
-                                            const [year, monthNum] = item.month.split("-")
-                                            const date = new Date(year, monthNum - 1)
-                                            const monthName = date.toLocaleString('default', { month: 'long', year: 'numeric' })
+                                            const isDaily = item.month.split("-").length === 3
+                                            let displayDate = item.month
+                                            if (!isDaily) {
+                                                const [year, monthNum] = item.month.split("-")
+                                                const date = new Date(year, monthNum - 1)
+                                                displayDate = date.toLocaleString('default', { month: 'long', year: 'numeric' })
+                                            }
 
                                             return (
                                                 <tr key={item.month} className="hover:bg-gray-50 transition-colors">
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                                        {monthName}
+                                                        {displayDate}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
                                                         {item.totalBookings} bookings
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 text-right">
                                                         ₹{item.totalAmount.toLocaleString()}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-emerald-600 text-right">
+                                                        ₹{(item.totalAmount * (marginPercent / 100)).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center">
+                                                        {(item.dueOrders || 0) > 0 ? (
+                                                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700">
+                                                                {item.dueOrders} due
+                                                            </span>
+                                                        ) : (
+                                                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                                                                All paid
+                                                            </span>
+                                                        )}
                                                     </td>
                                                 </tr>
                                             )
