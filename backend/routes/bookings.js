@@ -1008,9 +1008,7 @@ router.get("/:id", authMiddleware, async (req, res) => {
       .populate('deliveryRider', 'name phone')
       .populate('salesAgent', 'name')
       .populate('handlingAgent', 'name')
-      .populate('packagingAgent', 'name')
-      .populate('verifiedBy', 'name')
-      .populate('cancelledBy', 'name');
+      .populate('packagingAgent', 'name');
       
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
