@@ -5,12 +5,16 @@ import { useParams, useNavigate } from "react-router-dom"
 import axios from "axios"
 import toast from "react-hot-toast"
 import { Package, Truck, MapPin, Calendar, Clock, User, Phone, Mail, ChevronRight, Edit2, Save, Trash2, ArrowLeft, CreditCard, XCircle, Tag, Printer, Bike, RefreshCw, CheckCircle2 } from "lucide-react"
+import { useAuth } from "../contexts/AuthContext"
 
 
 
 const BookingDetail = () => {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { user } = useAuth()
+  const isAdmin = user && (!user.role || user.role.toLowerCase() === 'admin' || user.role.toLowerCase() === 'main_admin' || user.role.toLowerCase() === 'office_admin');
+
 
   const [booking, setBooking] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -22,6 +26,7 @@ const BookingDetail = () => {
   const [showETDPopup, setShowETDPopup] = useState(false)
   const [tempETD, setTempETD] = useState("")
   const [deliveryNotifyModal, setDeliveryNotifyModal] = useState({ open: false, type: "", data: null })
+  const [rolesEnforcementModal, setRolesEnforcementModal] = useState({ open: false, trackData: null, isMainSave: false })
   const [unassignModal, setUnassignModal] = useState({ open: false })
   const [unassigning, setUnassigning] = useState(false)
   const [initialTrackingId, setInitialTrackingId] = useState("")
@@ -224,6 +229,11 @@ const BookingDetail = () => {
   const handleTrackingSave = async (track, notifyValue = null) => {
     try {
       if (notifyValue === null && track.status?.toLowerCase() === "delivered") {
+        const missingRoles = !booking.salesAgent || !booking.handlingAgent || !booking.packagingAgent || !booking.trackingAgent || !booking.internalRolesDescription;
+        if (missingRoles) {
+          setRolesEnforcementModal({ open: true, trackData: track, isMainSave: false });
+          return false;
+        }
         setDeliveryNotifyModal({ open: true, type: "tracking", data: track });
         return false; // Did not save yet
       }
@@ -251,6 +261,11 @@ const BookingDetail = () => {
   const handleSave = async (notify = null) => {
     try {
       if ((notify === null || notify === undefined) && booking.status?.toLowerCase() === "delivered") {
+        const missingRoles = !booking.salesAgent || !booking.handlingAgent || !booking.packagingAgent || !booking.trackingAgent || !booking.internalRolesDescription;
+        if (missingRoles) {
+          setRolesEnforcementModal({ open: true, trackData: null, isMainSave: true });
+          return;
+        }
         setDeliveryNotifyModal({ open: true, type: "save", data: null });
         return;
       }
@@ -689,11 +704,11 @@ const BookingDetail = () => {
           <User className="h-5 w-5 text-blue-500 mr-2" />
           <h3 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white">Internal Roles (Performance Tracking)</h3>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Sales Agent */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Sales / Acquisition</label>
-            {editMode ? (
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Lead by</label>
+            {editMode && (isAdmin || booking?.createdBy === user?.id || booking?.createdBy?._id === user?.id) ? (
               <select
                 value={typeof booking.salesAgent === 'object' ? booking.salesAgent?._id : (booking.salesAgent || '')}
                 onChange={(e) => setBooking({ ...booking, salesAgent: e.target.value })}
@@ -712,8 +727,8 @@ const BookingDetail = () => {
           </div>
           {/* Handling Agent */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Handling / Ops</label>
-            {editMode ? (
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Handled by</label>
+            {editMode && (isAdmin || booking?.createdBy === user?.id || booking?.createdBy?._id === user?.id) ? (
               <select
                 value={typeof booking.handlingAgent === 'object' ? booking.handlingAgent?._id : (booking.handlingAgent || '')}
                 onChange={(e) => setBooking({ ...booking, handlingAgent: e.target.value })}
@@ -732,8 +747,8 @@ const BookingDetail = () => {
           </div>
           {/* Packaging Agent */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Packaging / Dispatch</label>
-            {editMode ? (
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Dispatch by</label>
+            {editMode && (isAdmin || booking?.createdBy === user?.id || booking?.createdBy?._id === user?.id) ? (
               <select
                 value={typeof booking.packagingAgent === 'object' ? booking.packagingAgent?._id : (booking.packagingAgent || '')}
                 onChange={(e) => setBooking({ ...booking, packagingAgent: e.target.value })}
@@ -750,7 +765,47 @@ const BookingDetail = () => {
               </p>
             )}
           </div>
+          {/* Tracking Agent */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tracking by</label>
+            {editMode && (isAdmin || booking?.createdBy === user?.id || booking?.createdBy?._id === user?.id) ? (
+              <select
+                value={typeof booking.trackingAgent === 'object' ? booking.trackingAgent?._id : (booking.trackingAgent || '')}
+                onChange={(e) => setBooking({ ...booking, trackingAgent: e.target.value })}
+                className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#1A1A1A]"
+              >
+                <option value="">Select Staff</option>
+                {riders.map(r => (
+                  <option key={r._id} value={r._id}>{r.name} ({r.role})</option>
+                ))}
+              </select>
+            ) : (
+              <p className="text-sm sm:text-base text-gray-900 dark:text-white font-medium">
+                {booking.trackingAgent ? (typeof booking.trackingAgent === 'object' ? booking.trackingAgent.name : 'Staff Assigned') : 'Unassigned'}
+              </p>
+            )}
+          </div>
         </div>
+        
+        {isAdmin && booking?.roleChangesHistory?.length > 0 && (
+          <div className="mt-6 border-t border-gray-200 dark:border-white/10 pt-4">
+            <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+              <RefreshCw className="w-4 h-4 text-orange-500" />
+              Internal Role Change History
+            </h4>
+            <div className="space-y-3 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+              {booking.roleChangesHistory.slice().reverse().map((change, idx) => (
+                <div key={idx} className="bg-gray-50 dark:bg-[#111111] p-3 rounded-lg text-sm border border-gray-100 dark:border-white/5">
+                  <div className="flex justify-between items-start mb-1">
+                    <span className="font-semibold text-gray-800 dark:text-gray-200">{change.action}</span>
+                    <span className="text-xs text-gray-500">{new Date(change.timestamp).toLocaleString()}</span>
+                  </div>
+                  <p className="text-gray-600 dark:text-gray-400 text-xs mb-1">{change.details}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
@@ -1921,6 +1976,116 @@ const BookingDetail = () => {
         </div>
       )}
 
+
+      {rolesEnforcementModal.open && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black bg-opacity-60 backdrop-blur-sm p-4">
+          <div className="bg-white dark:bg-[#1A1A1A] rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden border border-orange-100">
+            <div className="bg-orange-50 dark:bg-orange-900/20 px-6 py-4 border-b border-orange-100 dark:border-orange-500/20">
+              <h3 className="text-lg font-bold text-orange-800 dark:text-orange-400">Complete Internal Roles First</h3>
+              <p className="text-sm text-orange-600 dark:text-orange-300 mt-1">
+                You must assign all internal roles and provide a description before marking this package as Delivered.
+              </p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Lead by</label>
+                  <select
+                    value={typeof booking.salesAgent === 'object' ? booking.salesAgent?._id : (booking.salesAgent || '')}
+                    onChange={(e) => setBooking({ ...booking, salesAgent: e.target.value })}
+                    className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-orange-500 bg-white dark:bg-[#111111] ${!booking.salesAgent ? 'border-red-300' : 'border-gray-300 dark:border-white/10'}`}
+                  >
+                    <option value="">Select Staff</option>
+                    {riders.map(r => <option key={r._id} value={r._id}>{r.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Handled by</label>
+                  <select
+                    value={typeof booking.handlingAgent === 'object' ? booking.handlingAgent?._id : (booking.handlingAgent || '')}
+                    onChange={(e) => setBooking({ ...booking, handlingAgent: e.target.value })}
+                    className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-orange-500 bg-white dark:bg-[#111111] ${!booking.handlingAgent ? 'border-red-300' : 'border-gray-300 dark:border-white/10'}`}
+                  >
+                    <option value="">Select Staff</option>
+                    {riders.map(r => <option key={r._id} value={r._id}>{r.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Dispatch by</label>
+                  <select
+                    value={typeof booking.packagingAgent === 'object' ? booking.packagingAgent?._id : (booking.packagingAgent || '')}
+                    onChange={(e) => setBooking({ ...booking, packagingAgent: e.target.value })}
+                    className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-orange-500 bg-white dark:bg-[#111111] ${!booking.packagingAgent ? 'border-red-300' : 'border-gray-300 dark:border-white/10'}`}
+                  >
+                    <option value="">Select Staff</option>
+                    {riders.map(r => <option key={r._id} value={r._id}>{r.name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Tracking by</label>
+                  <select
+                    value={typeof booking.trackingAgent === 'object' ? booking.trackingAgent?._id : (booking.trackingAgent || '')}
+                    onChange={(e) => setBooking({ ...booking, trackingAgent: e.target.value })}
+                    className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-orange-500 bg-white dark:bg-[#111111] ${!booking.trackingAgent ? 'border-red-300' : 'border-gray-300 dark:border-white/10'}`}
+                  >
+                    <option value="">Select Staff</option>
+                    {riders.map(r => <option key={r._id} value={r._id}>{r.name}</option>)}
+                  </select>
+                </div>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Delivery Description / Note</label>
+                <textarea
+                  value={booking.internalRolesDescription || ''}
+                  onChange={(e) => setBooking({ ...booking, internalRolesDescription: e.target.value })}
+                  placeholder="Describe delivery details..."
+                  rows={3}
+                  className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-orange-500 bg-white dark:bg-[#111111] ${!booking.internalRolesDescription ? 'border-red-300' : 'border-gray-300 dark:border-white/10'}`}
+                />
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => {
+                    const missingRoles = !booking.salesAgent || !booking.handlingAgent || !booking.packagingAgent || !booking.trackingAgent || !booking.internalRolesDescription;
+                    if (missingRoles) {
+                      toast.error("Please fill all required fields before proceeding.");
+                      return;
+                    }
+                    
+                    // Proceed with delivery
+                    setRolesEnforcementModal({ open: false, trackData: null, isMainSave: false });
+                    
+                    if (rolesEnforcementModal.isMainSave) {
+                      setDeliveryNotifyModal({ open: true, type: "save", data: null });
+                    } else {
+                      setDeliveryNotifyModal({ open: true, type: "tracking", data: rolesEnforcementModal.trackData });
+                    }
+                  }}
+                  className="flex-1 py-2 bg-orange-600 text-white font-bold rounded-lg hover:bg-orange-700 transition-all"
+                >
+                  Confirm & Proceed
+                </button>
+                <button
+                  onClick={() => {
+                    // Cancel delivery
+                    setRolesEnforcementModal({ open: false, trackData: null, isMainSave: false });
+                    if (rolesEnforcementModal.isMainSave) {
+                      setBooking(prev => ({ ...prev, status: "out-for-delivery" })); // Revert status
+                    } else if (rolesEnforcementModal.trackData) {
+                       setBooking(prev => ({ ...prev, newStatus: "" }));
+                    }
+                  }}
+                  className="flex-1 py-2 bg-gray-100 text-gray-700 font-bold rounded-lg hover:bg-gray-200 transition-all"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delivery Notification Confirmation Popup */}
       {deliveryNotifyModal.open && (

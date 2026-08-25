@@ -70,6 +70,7 @@ export default function ManualBooking() {
     salesAgent: user?.id || "",
     handlingAgent: user?.id || "",
     packagingAgent: user?.id || "",
+    trackingAgent: user?.id || "",
   });
   const [paymentProof, setPaymentProof] = useState(null);
   const [generatedId, setGeneratedId] = useState("");
@@ -593,15 +594,14 @@ export default function ManualBooking() {
               </button>
             </div>
             
-            {isAdmin && (
-              <div className="bg-white dark:bg-[#111111] p-6 rounded-2xl border border-gray-100 dark:border-white/5 shadow-sm space-y-6">
+            <div className="bg-white dark:bg-[#111111] p-6 rounded-2xl border border-gray-100 dark:border-white/5 shadow-sm space-y-6">
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
                   <User className="w-5 h-5 text-orange-500" />
                   Internal Role Assignment
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Sales / Acquisition</label>
+                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Lead by</label>
                     <select
                       name="salesAgent"
                       value={formData.salesAgent}
@@ -615,7 +615,7 @@ export default function ManualBooking() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Handling / Ops</label>
+                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Handled by</label>
                     <select
                       name="handlingAgent"
                       value={formData.handlingAgent}
@@ -629,7 +629,7 @@ export default function ManualBooking() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Packaging / Dispatch</label>
+                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Dispatch by</label>
                     <select
                       name="packagingAgent"
                       value={formData.packagingAgent}
@@ -642,9 +642,22 @@ export default function ManualBooking() {
                       ))}
                     </select>
                   </div>
+                  <div>
+                    <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Tracking by</label>
+                    <select
+                      name="trackingAgent"
+                      value={formData.trackingAgent}
+                      onChange={handleChange}
+                      className="w-full border border-gray-300 dark:border-white/10 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-white dark:bg-[#111111] dark:text-white font-medium"
+                    >
+                      <option value="">Select Staff</option>
+                      {staff.map(s => (
+                        <option key={s._id} value={s._id}>{s.name} ({s.role})</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               </div>
-            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in slide-in-from-top-4 duration-300">
               {isAdmin && offices.length > 0 && (
@@ -1330,6 +1343,11 @@ export default function ManualBooking() {
                     type="number"
                     value={formData.totalAmount}
                     onChange={handleChange}
+                    onKeyDown={(e) => {
+                      if (["e", "E", "+", "-"].includes(e.key)) {
+                        e.preventDefault();
+                      }
+                    }}
                     placeholder="Enter Amount"
                     className="w-full border border-orange-200 dark:border-orange-500/20 p-2.5 rounded-lg outline-none focus:ring-2 focus:ring-orange-500 bg-white dark:bg-[#111111] font-bold"
                     required

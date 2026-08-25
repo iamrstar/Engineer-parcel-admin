@@ -184,6 +184,19 @@ const bookingSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
+    trackingAgent: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+    },
+    internalRolesDescription: String,
+    roleChangesHistory: [
+      {
+        action: String,
+        updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        timestamp: { type: Date, default: Date.now },
+        details: String
+      }
+    ],
     assignedFor: {
       type: String,
       enum: ["pickup", "delivery", "both"],

@@ -7,7 +7,7 @@ const ALL_FEATURES = [
   "Dashboard", "Booking", "E-Docket", "Sales Report", "Web Analytics", 
   "Pincodes", "Coupons", "Create Order", "Tasks", "Staff Tasks", 
   "Attendance", "Attendance Report", "User Management", "Partner Management", 
-  "Docket Management", "Manage Queries", "Leads", "Offices", "Performance"
+  "Docket Management", "Manage Queries", "Leads", "Offices", "Performance", "Incentive Report"
 ];
 
 const AccessControl = () => {

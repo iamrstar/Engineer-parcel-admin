@@ -25,9 +25,10 @@ router.post("/mark", userAuth, async (req, res) => {
     }
 
     const now = new Date();
-    // Check if late (after 9:30 AM local time)
-    // Adjusting to local time logic - simplest is to check hours/minutes of current Date object.
-    const isLate = (now.getHours() > 9) || (now.getHours() === 9 && now.getMinutes() > 30);
+    const istTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
+    
+    // Check if late (after 10:30 AM local time / IST)
+    const isLate = (istTime.getHours() > 10) || (istTime.getHours() === 10 && istTime.getMinutes() > 30);
 
     attendance = new Attendance({
       user: req.user._id,

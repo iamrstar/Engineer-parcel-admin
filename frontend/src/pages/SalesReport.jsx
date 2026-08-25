@@ -15,17 +15,20 @@ const SalesReport = () => {
     const [startDate, setStartDate] = useState("")
     const [endDate, setEndDate] = useState("")
     const [serviceType, setServiceType] = useState("all")
+    const [paymentStatus, setPaymentStatus] = useState("all")
+    const [bookingStatus, setBookingStatus] = useState("active")
     const [marginPercent, setMarginPercent] = useState(40)
 
     // Calculate totals
     const totalRevenue = reportData.reduce((sum, item) => sum + item.totalAmount, 0)
+    const totalCollected = reportData.reduce((sum, item) => sum + (item.collectedAmount || 0), 0)
     const totalBookings = reportData.reduce((sum, item) => sum + item.totalBookings, 0)
     const totalPaidOrders = reportData.reduce((sum, item) => sum + (item.paidOrders || 0), 0)
     const totalDueOrders = reportData.reduce((sum, item) => sum + (item.dueOrders || 0), 0)
     const totalProfit = totalRevenue * (marginPercent / 100)
     
     // Analytics
-    const aov = totalPaidOrders > 0 ? (totalRevenue / totalPaidOrders) : 0
+    const aov = totalBookings > 0 ? (totalRevenue / totalBookings) : 0
     const collectionRate = totalBookings > 0 ? (totalPaidOrders / totalBookings) * 100 : 0
     const totalCancelled = cancelledData.reduce((sum, item) => sum + item.cancelledCount, 0)
     
@@ -36,7 +39,7 @@ const SalesReport = () => {
         if (isAuthenticated) {
             fetchReportData()
         }
-    }, [startDate, endDate, serviceType, isAuthenticated])
+    }, [startDate, endDate, serviceType, paymentStatus, bookingStatus, isAuthenticated])
 
     const handleLogin = (e) => {
         e.preventDefault()
@@ -54,7 +57,7 @@ const SalesReport = () => {
             setLoading(true)
             const token = localStorage.getItem("adminToken") || localStorage.getItem("token")
             const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/sales/report`, {
-                params: { startDate, endDate, serviceType },
+                params: { startDate, endDate, serviceType, paymentStatus, bookingStatus },
                 headers: {
                     Authorization: `Bearer ${token}`
                 }
@@ -97,6 +100,7 @@ const SalesReport = () => {
                 "Total Bookings": item.totalBookings,
                 "Paid Orders": item.paidOrders || 0,
                 "Revenue (₹)": item.totalAmount,
+                "Collected (₹)": item.collectedAmount || 0,
                 [`Est. Profit @ ${marginPercent}% (₹)`]: Math.round(profit * 100) / 100,
                 "₹0 Orders": item.dueOrders || 0
             }
@@ -111,6 +115,8 @@ const SalesReport = () => {
         setStartDate("")
         setEndDate("")
         setServiceType("all")
+        setPaymentStatus("all")
+        setBookingStatus("active")
     }
 
     if (!isAuthenticated) {
@@ -213,6 +219,32 @@ const SalesReport = () => {
                         </select>
                     </div>
 
+                    <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
+                        <CreditCard className="w-4 h-4 text-gray-500" />
+                        <select
+                            value={paymentStatus}
+                            onChange={(e) => setPaymentStatus(e.target.value)}
+                            className="bg-transparent border-none text-sm focus:ring-0 p-0 pr-8 font-medium"
+                        >
+                            <option value="all">All Payments</option>
+                            <option value="paid">Paid</option>
+                            <option value="due">Due / Unpaid</option>
+                        </select>
+                    </div>
+
+                    <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
+                        <Activity className="w-4 h-4 text-gray-500" />
+                        <select
+                            value={bookingStatus}
+                            onChange={(e) => setBookingStatus(e.target.value)}
+                            className="bg-transparent border-none text-sm focus:ring-0 p-0 pr-8 font-medium"
+                        >
+                            <option value="active">Active Bookings</option>
+                            <option value="cancelled">Cancelled</option>
+                            <option value="all">All</option>
+                        </select>
+                    </div>
+
                     <div className="flex items-center gap-2 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-200">
                         <Percent className="w-4 h-4 text-emerald-600" />
                         <span className="text-sm font-medium text-emerald-700">Margin</span>
@@ -294,6 +326,26 @@ const SalesReport = () => {
                             <div className="min-w-0 flex-1">
                                 <p className="text-sm font-medium text-gray-500 mb-1 truncate">Average Order Value</p>
                                 <h3 className="text-2xl font-bold text-gray-900 truncate">₹{aov.toLocaleString(undefined, { maximumFractionDigits: 2 })}</h3>
+                            </div>
+                        </div>
+                        
+                        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5 flex items-center gap-4 hover:shadow-md transition-shadow">
+                            <div className="bg-emerald-100 p-3.5 rounded-full flex-shrink-0">
+                                <IndianRupee className="w-7 h-7 text-emerald-600" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium text-gray-500 mb-1 truncate">Total Collected</p>
+                                <h3 className="text-2xl font-bold text-gray-900 truncate">₹{totalCollected.toLocaleString()}</h3>
+                            </div>
+                        </div>
+
+                        <div className="bg-white rounded-xl shadow-sm border border-rose-200 p-5 flex items-center gap-4 hover:shadow-md transition-shadow">
+                            <div className="bg-rose-100 p-3.5 rounded-full flex-shrink-0">
+                                <IndianRupee className="w-7 h-7 text-rose-600" />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                                <p className="text-sm font-medium text-gray-500 mb-1 truncate">Pending Payments</p>
+                                <h3 className="text-2xl font-bold text-rose-600 truncate">₹{(totalRevenue - totalCollected).toLocaleString(undefined, { maximumFractionDigits: 2 })}</h3>
                             </div>
                         </div>
                         
@@ -421,6 +473,10 @@ const SalesReport = () => {
                                                 <p className="text-xs text-gray-500">Revenue</p>
                                                 <p className="font-bold text-gray-900">₹{(service.totalRevenue || 0).toLocaleString()}</p>
                                             </div>
+                                            <div>
+                                                <p className="text-xs text-gray-500">Collected</p>
+                                                <p className="font-bold text-emerald-600">₹{(service.collectedRevenue || 0).toLocaleString()}</p>
+                                            </div>
                                             <div className="text-right">
                                                 <p className="text-xs text-gray-500">Bookings</p>
                                                 <p className="font-semibold text-gray-700">{service.totalBookings}</p>
@@ -448,6 +504,9 @@ const SalesReport = () => {
                                         </th>
                                         <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
                                             Revenue
+                                        </th>
+                                        <th className="px-6 py-4 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                            Collected
                                         </th>
                                         <th className="px-6 py-4 text-right text-xs font-semibold text-emerald-600 uppercase tracking-wider">
                                             Est. Profit ({marginPercent}%)
@@ -484,6 +543,9 @@ const SalesReport = () => {
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 text-right">
                                                         ₹{item.totalAmount.toLocaleString()}
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-emerald-600 text-right">
+                                                        ₹{(item.collectedAmount || 0).toLocaleString()}
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-emerald-600 text-right">
                                                         ₹{(item.totalAmount * (marginPercent / 100)).toLocaleString(undefined, { maximumFractionDigits: 2 })}

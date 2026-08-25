@@ -22,6 +22,7 @@ import TrackingTasks from "./pages/TrackingTasks"
 import Queries from "./pages/Queries"
 import Attendance from "./pages/Attendance"
 import AttendanceReport from "./pages/AttendanceReport"
+import IncentiveReport from "./pages/IncentiveReport"
 import AccessControl from "./pages/AccessControl"
 import Offices from "./pages/Offices"
 import Leads from "./pages/Leads"
@@ -209,6 +210,16 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <PerformanceLeaderboard />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/incentive-report"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <IncentiveReport />
                 </Layout>
               </ProtectedRoute>
             }

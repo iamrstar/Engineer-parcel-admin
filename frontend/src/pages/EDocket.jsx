@@ -870,7 +870,7 @@ export default function EDocket() {
                                         </div>
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Total Payable</label>
-                                            <input type="number" value={pricing.totalAmount} onChange={(e) => updatePricing('totalAmount', e.target.value)} className="w-full px-3 py-2.5 border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 font-mono text-xl font-black text-green-600" />
+                                            <input type="number" onKeyDown={(e) => { if (["e", "E", "+", "-"].includes(e.key)) e.preventDefault(); }} value={pricing.totalAmount} onChange={(e) => updatePricing('totalAmount', e.target.value)} className="w-full px-3 py-2.5 border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500 font-mono text-xl font-black text-green-600" />
                                         </div>
                                     </div>
                                 </div>

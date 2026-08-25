@@ -120,6 +120,7 @@ const Bookings = () => {
   const [limit, setLimit] = useState(parseInt(searchParams.get("limit")) || 10)
   const [vendorFilter, setVendorFilter] = useState(searchParams.get("vendor") || "all")
   const [officeFilter, setOfficeFilter] = useState(searchParams.get("office") || "main")
+  const [staffFilter, setStaffFilter] = useState(searchParams.get("createdBy") || "all")
   const [offices, setOffices] = useState([])
   
   // Date Filtering State
@@ -148,12 +149,13 @@ const Bookings = () => {
     if (limit !== 10) params.set("limit", limit.toString())
     if (vendorFilter !== "all") params.set("vendor", vendorFilter)
     if (officeFilter !== "all") params.set("office", officeFilter)
+    if (staffFilter !== "all") params.set("createdBy", staffFilter)
     if (dateFilter !== "all") params.set("date", dateFilter)
     if (customStartDate) params.set("start", customStartDate)
     if (customEndDate) params.set("end", customEndDate)
 
     setSearchParams(params, { replace: true })
-  }, [searchTerm, statusFilter, serviceFilter, currentPage, limit, vendorFilter, officeFilter, dateFilter, customStartDate, customEndDate])
+  }, [searchTerm, statusFilter, serviceFilter, currentPage, limit, vendorFilter, officeFilter, staffFilter, dateFilter, customStartDate, customEndDate])
 
   const handleResetFilters = () => {
     setSearchInput("")
@@ -163,6 +165,7 @@ const Bookings = () => {
     setCurrentPage(1)
     setVendorFilter("all")
     setOfficeFilter("main")
+    setStaffFilter("all")
     setDateFilter("all")
     setCustomStartDate("")
     setCustomEndDate("")
@@ -180,7 +183,8 @@ const Bookings = () => {
           startDate: customStartDate || getEffectiveStartDate(dateFilter),
           endDate: customEndDate || getEffectiveEndDate(dateFilter),
           vendorFilter: vendorFilter,
-          officeId: officeFilter === "all" ? "" : officeFilter
+          officeId: officeFilter === "all" ? "" : officeFilter,
+          createdBy: staffFilter === "all" ? "" : staffFilter
         },
         headers: { Authorization: `Bearer ${token}` }
       })
@@ -471,7 +475,7 @@ const Bookings = () => {
 
   useEffect(() => {
     fetchBookings()
-  }, [currentPage, statusFilter, serviceFilter, searchTerm, vendorFilter, officeFilter, dateFilter, customStartDate, customEndDate])
+  }, [currentPage, statusFilter, serviceFilter, searchTerm, vendorFilter, officeFilter, staffFilter, dateFilter, customStartDate, customEndDate])
 
   const fetchBookings = async () => {
     try {
@@ -488,6 +492,7 @@ const Bookings = () => {
           search: searchTerm,
           vendorFilter: vendorFilter,
           officeId: officeFilter === "all" ? "" : officeFilter,
+          createdBy: staffFilter === "all" ? "" : staffFilter,
           startDate: getEffectiveStartDate(),
           endDate: getEffectiveEndDate(),
         },
@@ -644,6 +649,19 @@ const Bookings = () => {
               <option value="i carry">I Carry</option>
               <option value="other">Other</option>
               <option value="none">No Vendor</option>
+            </select>
+
+            <select
+              value={staffFilter}
+              onChange={(e) => setStaffFilter(e.target.value)}
+              className="border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1A1A1A] dark:text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 transition-colors"
+            >
+              <option value="all">All Staff</option>
+              {riders.map((user) => (
+                <option key={user._id} value={user._id}>
+                  {user.name || user.username} ({user.role})
+                </option>
+              ))}
             </select>
 
             <select
@@ -2110,7 +2128,12 @@ const Bookings = () => {
                         }}
                         className="w-full px-2 py-2 bg-white dark:bg-[#1A1A1A] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-lg shadow-sm focus:ring-2 focus:ring-green-500 text-xs"
                       />
-                      <p className="text-[10px] text-gray-400 mt-1">Max size: 100KB</p>
+                      <div className="flex items-center justify-between mt-1">
+                        <p className="text-[10px] text-gray-400">Max size: 100KB</p>
+                        <a href="https://image.pi7.org/reduce-image-size-in-kb" target="_blank" rel="noopener noreferrer" className="text-[10px] text-blue-500 hover:underline">
+                          Compress here
+                        </a>
+                      </div>
                     </div>
                   )}
                 </div>

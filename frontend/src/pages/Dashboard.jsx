@@ -23,6 +23,11 @@ const Dashboard = () => {
     parcelsToProcess: 0
   })
   const [adminViewType, setAdminViewType] = useState('global') // 'global' or 'tasks'
+  const [paymentStatusFilter, setPaymentStatusFilter] = useState("all")
+  const [bookingStatusFilter, setBookingStatusFilter] = useState("active")
+  const [serviceTypeFilter, setServiceTypeFilter] = useState("all")
+  const [startDate, setStartDate] = useState("")
+  const [endDate, setEndDate] = useState("")
   const [loading, setLoading] = useState(true)
   const [showNotifications, setShowNotifications] = useState(false)
   const [pendingOrders, setPendingOrders] = useState([])
@@ -42,7 +47,7 @@ const Dashboard = () => {
 
   useEffect(() => {
     fetchStats()
-  }, [isAdmin])
+  }, [isAdmin, paymentStatusFilter, bookingStatusFilter, serviceTypeFilter, startDate, endDate])
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -57,7 +62,15 @@ const Dashboard = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/stats/dashboard`)
+      const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/stats/dashboard`, {
+        params: {
+          paymentStatus: paymentStatusFilter === 'all' ? undefined : paymentStatusFilter,
+          bookingStatus: bookingStatusFilter === 'all' ? undefined : bookingStatusFilter,
+          serviceType: serviceTypeFilter === 'all' ? undefined : serviceTypeFilter,
+          startDate: startDate || undefined,
+          endDate: endDate || undefined
+        }
+      })
       setStats(response.data)
 
       // Always fetch tasks to calculate task stats (for staff it's their tasks, for admin it's all tasks)
@@ -65,7 +78,7 @@ const Dashboard = () => {
       const tasksRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/tasks`, {
         headers: { Authorization: `Bearer ${token}` }
       })
-      const tasks = tasksRes.data;
+      const tasks = Array.isArray(tasksRes.data) ? tasksRes.data : [];
       
       const now = new Date()
       const todayStart = new Date(now.setHours(0,0,0,0))
@@ -256,27 +269,77 @@ const Dashboard = () => {
               }
             </p>
             {isAdmin && (
-              <div className="mt-4 flex flex-wrap bg-white/10 p-1 rounded-xl w-fit backdrop-blur-md border border-white/20">
-                <button
-                  onClick={() => setAdminViewType('global')}
-                  className={`px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base rounded-xl font-bold transition-all ${
-                    adminViewType === 'global' 
-                      ? 'bg-white text-primary-600 shadow-md transform scale-105' 
-                      : 'bg-white/10 text-white hover:bg-white/20'
-                  }`}
-                >
-                  Global Business
-                </button>
-                <button
-                  onClick={() => setAdminViewType('tasks')}
-                  className={`px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base rounded-xl font-bold transition-all flex items-center gap-1 ${
-                    adminViewType === 'tasks' 
-                      ? 'bg-white text-primary-600 shadow-md transform scale-105' 
-                      : 'bg-white/10 text-white hover:bg-white/20'
-                  }`}
-                >
-                  <Users className="h-4 w-4" /> Staff Performance
-                </button>
+              <div className="mt-4 flex flex-col md:flex-row gap-4 items-start md:items-center">
+                <div className="flex flex-wrap bg-white/10 p-1 rounded-xl w-fit backdrop-blur-md border border-white/20">
+                  <button
+                    onClick={() => setAdminViewType('global')}
+                    className={`px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base rounded-xl font-bold transition-all ${
+                      adminViewType === 'global' 
+                        ? 'bg-white text-primary-600 shadow-md transform scale-105' 
+                        : 'bg-white/10 text-white hover:bg-white/20'
+                    }`}
+                  >
+                    Global Business
+                  </button>
+                  <button
+                    onClick={() => setAdminViewType('tasks')}
+                    className={`px-3 py-1.5 md:px-4 md:py-2 text-sm md:text-base rounded-xl font-bold transition-all flex items-center gap-1 ${
+                      adminViewType === 'tasks' 
+                        ? 'bg-white text-primary-600 shadow-md transform scale-105' 
+                        : 'bg-white/10 text-white hover:bg-white/20'
+                    }`}
+                  >
+                    <Users className="h-4 w-4" /> Staff Performance
+                  </button>
+                </div>
+
+                {adminViewType === 'global' && (
+                  <div className="flex flex-wrap gap-2 items-center w-full mt-2 lg:mt-0">
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="bg-white/10 backdrop-blur-md text-white border border-white/20 rounded-xl px-3 py-2 outline-none font-medium focus:ring-2 focus:ring-white/50 text-sm [color-scheme:dark]"
+                    />
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="bg-white/10 backdrop-blur-md text-white border border-white/20 rounded-xl px-3 py-2 outline-none font-medium focus:ring-2 focus:ring-white/50 text-sm [color-scheme:dark]"
+                    />
+                    <select
+                      value={serviceTypeFilter}
+                      onChange={(e) => setServiceTypeFilter(e.target.value)}
+                      className="bg-white/10 backdrop-blur-md text-white border border-white/20 rounded-xl px-3 py-2 outline-none font-medium cursor-pointer focus:ring-2 focus:ring-white/50 text-sm"
+                    >
+                      <option value="all" className="text-gray-900">All Services</option>
+                      <option value="shifting" className="text-gray-900">Shifting</option>
+                      <option value="express" className="text-gray-900">Express</option>
+                      <option value="surface" className="text-gray-900">Surface</option>
+                      <option value="air" className="text-gray-900">Air</option>
+                      <option value="premium" className="text-gray-900">Premium</option>
+                      <option value="campus-parcel" className="text-gray-900">Campus Parcel</option>
+                    </select>
+                    <select
+                      value={bookingStatusFilter}
+                      onChange={(e) => setBookingStatusFilter(e.target.value)}
+                      className="bg-white/10 backdrop-blur-md text-white border border-white/20 rounded-xl px-3 py-2 outline-none font-medium cursor-pointer focus:ring-2 focus:ring-white/50 text-sm"
+                    >
+                      <option value="active" className="text-gray-900">Active Bookings</option>
+                      <option value="cancelled" className="text-gray-900">Cancelled Bookings</option>
+                      <option value="all" className="text-gray-900">All Bookings</option>
+                    </select>
+                    <select
+                      value={paymentStatusFilter}
+                      onChange={(e) => setPaymentStatusFilter(e.target.value)}
+                      className="bg-white/10 backdrop-blur-md text-white border border-white/20 rounded-xl px-3 py-2 outline-none font-medium cursor-pointer focus:ring-2 focus:ring-white/50 text-sm"
+                    >
+                      <option value="all" className="text-gray-900">All Payments</option>
+                      <option value="paid" className="text-gray-900">Paid Only</option>
+                      <option value="unpaid" className="text-gray-900">Unpaid/Pending</option>
+                    </select>
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -354,6 +354,7 @@ const Layout = ({ children }) => {
     { name: "Sales Report", href: "/sales-report", icon: BarChart },
     { name: "Web Analytics", href: "/analytics", icon: ActivityIcon },
     { name: "Performance", href: "/performance", icon: Trophy },
+    { name: "Incentive Report", href: "/incentive-report", icon: FileText },
     { name: "Pincodes", href: "/pincodes", icon: MapPin },
     { name: "Coupons", href: "/coupons", icon: Ticket },
     { name: "Create Order", href: "/manual-booking", icon: Ticket },
