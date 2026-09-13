@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import axios from "axios"
 import toast from "react-hot-toast"
-import { Package, Truck, MapPin, Calendar, Clock, User, Phone, Mail, ChevronRight, Edit2, Save, Trash2, ArrowLeft, CreditCard, XCircle, Tag, Printer, Bike, RefreshCw, CheckCircle2 } from "lucide-react"
+import { Package, Truck, MapPin, Calendar, Clock, User, Phone, Mail, ChevronRight, Edit2, Save, Trash2, ArrowLeft, CreditCard, XCircle, Tag, Printer, Bike, RefreshCw, CheckCircle2, Lock } from "lucide-react"
 import { useAuth } from "../contexts/AuthContext"
 
 
@@ -31,6 +31,119 @@ const BookingDetail = () => {
   const [unassigning, setUnassigning] = useState(false)
   const [initialTrackingId, setInitialTrackingId] = useState("")
   const [isTrackingIdEditable, setIsTrackingIdEditable] = useState(false)
+
+  // Dedicated Internal Roles Editing & Creator Access Control
+  const [rolesEditMode, setRolesEditMode] = useState(false)
+  const [savingRoles, setSavingRoles] = useState(false)
+  const [tempRoles, setTempRoles] = useState({
+    salesAgent: '',
+    handlingAgent: '',
+    packagingAgent: '',
+    trackingAgent: ''
+  })
+
+  const getUserId = (u) => u?._id?.toString() || u?.id?.toString() || ''
+
+  const isCreator = useMemo(() => {
+    if (!booking || !user) return false;
+    const currentUid = getUserId(user);
+    if (!currentUid) return false;
+
+    // Check createdBy
+    const createdById = typeof booking.createdBy === 'object'
+      ? getUserId(booking.createdBy)
+      : booking.createdBy?.toString();
+    if (createdById && createdById === currentUid) return true;
+
+    // Check agentId
+    const agentId = typeof booking.agentId === 'object'
+      ? getUserId(booking.agentId)
+      : booking.agentId?.toString();
+    if (agentId && agentId === currentUid) return true;
+
+    // Check seededBy
+    const seededById = typeof booking.seededBy === 'object'
+      ? getUserId(booking.seededBy)
+      : booking.seededBy?.toString();
+    if (seededById && seededById === currentUid) return true;
+
+    // Check bookedByAgent or agentUsername
+    if (booking.bookedByAgent && user.name && booking.bookedByAgent.trim().toLowerCase() === user.name.trim().toLowerCase()) {
+      return true;
+    }
+    if (booking.agentUsername && user.username && booking.agentUsername.trim().toLowerCase() === user.username.trim().toLowerCase()) {
+      return true;
+    }
+
+    return false;
+  }, [booking, user]);
+
+  const isStaffOrAgent = user && ['staff', 'agent', 'office_admin', 'admin', 'main_admin'].includes(user.role);
+  const canEditRoles = isAdmin || isCreator || isStaffOrAgent;
+
+  const startEditingRoles = () => {
+    setTempRoles({
+      salesAgent: typeof booking.salesAgent === 'object' ? booking.salesAgent?._id : (booking.salesAgent || ''),
+      handlingAgent: typeof booking.handlingAgent === 'object' ? booking.handlingAgent?._id : (booking.handlingAgent || ''),
+      packagingAgent: typeof booking.packagingAgent === 'object' ? booking.packagingAgent?._id : (booking.packagingAgent || ''),
+      trackingAgent: typeof booking.trackingAgent === 'object' ? booking.trackingAgent?._id : (booking.trackingAgent || '')
+    });
+    setRolesEditMode(true);
+  };
+
+  const handleSaveInternalRoles = async () => {
+    setSavingRoles(true);
+    try {
+      const t = localStorage.getItem("adminToken") || localStorage.getItem("token");
+      const targetId = booking?._id || booking?.bookingId || id;
+
+      const payload = {
+        salesAgent: tempRoles.salesAgent || null,
+        handlingAgent: tempRoles.handlingAgent || null,
+        packagingAgent: tempRoles.packagingAgent || null,
+        trackingAgent: tempRoles.trackingAgent || null
+      };
+
+      let res;
+      try {
+        res = await axios.put(
+          `${import.meta.env.VITE_API_URL}/api/bookings/${targetId}/internal-roles`,
+          payload,
+          { headers: { Authorization: `Bearer ${t}` } }
+        );
+      } catch (endpointErr) {
+        // Fallback to standard PUT /api/bookings/:id if dedicated /internal-roles returns 404
+        if (endpointErr.response?.status === 404) {
+          res = await axios.put(
+            `${import.meta.env.VITE_API_URL}/api/bookings/${targetId}`,
+            payload,
+            { headers: { Authorization: `Bearer ${t}` } }
+          );
+          res.data = {
+            success: true,
+            message: "Internal roles updated successfully",
+            booking: res.data
+          };
+        } else {
+          throw endpointErr;
+        }
+      }
+
+      if (res.data?.success || res.status === 200) {
+        toast.success(res.data?.message || "Internal roles updated successfully!");
+        if (res.data?.booking) {
+          setBooking(res.data.booking);
+        }
+        setRolesEditMode(false);
+        await fetchBooking();
+      }
+    } catch (err) {
+      console.error("Failed to save internal roles:", err);
+      toast.error(err.response?.data?.message || "Failed to update internal roles");
+    } finally {
+      setSavingRoles(false);
+    }
+  };
 
   useEffect(() => {
     if (editMode) {
@@ -74,7 +187,18 @@ const BookingDetail = () => {
       })
       setRiders(res.data.filter(r => r.isActive))
     } catch (e) {
-      console.error("Failed to fetch riders", e)
+      console.error("Failed to fetch riders from /api/users, trying /api/leads/staff-list fallback", e)
+      try {
+        const t = localStorage.getItem("adminToken") || localStorage.getItem("token")
+        const fallbackRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/leads/staff-list`, {
+          headers: { Authorization: `Bearer ${t}` }
+        })
+        if (fallbackRes.data.staff) {
+          setRiders(fallbackRes.data.staff)
+        }
+      } catch (err2) {
+        console.error("Fallback riders fetch failed", err2)
+      }
     }
   }
 
@@ -229,7 +353,7 @@ const BookingDetail = () => {
   const handleTrackingSave = async (track, notifyValue = null) => {
     try {
       if (notifyValue === null && track.status?.toLowerCase() === "delivered") {
-        const missingRoles = !booking.salesAgent || !booking.handlingAgent || !booking.packagingAgent || !booking.trackingAgent || !booking.internalRolesDescription;
+        const missingRoles = !booking.isVendorBooking && (!booking.salesAgent || !booking.handlingAgent || !booking.packagingAgent || !booking.trackingAgent || !booking.internalRolesDescription);
         if (missingRoles) {
           setRolesEnforcementModal({ open: true, trackData: track, isMainSave: false });
           return false;
@@ -261,7 +385,7 @@ const BookingDetail = () => {
   const handleSave = async (notify = null) => {
     try {
       if ((notify === null || notify === undefined) && booking.status?.toLowerCase() === "delivered") {
-        const missingRoles = !booking.salesAgent || !booking.handlingAgent || !booking.packagingAgent || !booking.trackingAgent || !booking.internalRolesDescription;
+        const missingRoles = !booking.isVendorBooking && (!booking.salesAgent || !booking.handlingAgent || !booking.packagingAgent || !booking.trackingAgent || !booking.internalRolesDescription);
         if (missingRoles) {
           setRolesEnforcementModal({ open: true, trackData: null, isMainSave: true });
           return;
@@ -271,10 +395,14 @@ const BookingDetail = () => {
       }
 
       setSaving(true)
-      await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/${id}`, { ...booking, notify: !!notify })
+      const res = await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/${id}`, { ...booking, notify: !!notify })
       toast.success("Booking updated successfully")
       setEditMode(false)
       setDeliveryNotifyModal({ open: false, type: "", data: null });
+      if (res.data) {
+        setBooking(res.data)
+      }
+      await fetchBooking()
     } catch (error) {
       toast.error(error.response?.data?.message || error.response?.data?.error || "Error updating booking")
       console.error("Error:", error)
@@ -488,7 +616,27 @@ const BookingDetail = () => {
           </button>
           <div className="flex-1 min-w-0">
             <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white truncate">Booking Details</h1>
-            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 truncate">Booking ID: {booking.bookingId || "N/A"}</p>
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">Booking ID: {booking.bookingId || "N/A"}</p>
+              {(booking.bookingSource === 'Agent' || booking.bookingSource === 'E-Docket' || booking.bookedByAgent || booking.agentUsername || booking.seededBy || (booking.notes && booking.notes.toLowerCase().includes('intake')) || (booking.notes && booking.notes.toLowerCase().includes('e-docket'))) ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center px-2 py-0.5 text-xs font-bold rounded-full bg-orange-100 dark:bg-orange-950/40 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800/40">
+                    Booked by E-Docket: {booking.bookedByAgent || booking.agentUsername || booking.agentId?.name || (booking.createdBy?.role === 'agent' ? booking.createdBy?.name : null) || "Agent"}
+                  </span>
+                  {(booking.seededByName || booking.verifiedByName || (booking.seededBy && (booking.seededBy.name || booking.seededBy.username))) && (
+                    <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400 border border-blue-200 dark:border-blue-800/40">
+                      Synced by: {booking.seededByName || booking.verifiedByName || booking.seededBy?.name || booking.seededBy?.username || "Admin"}
+                    </span>
+                  )}
+                </div>
+              ) : (
+                booking.createdBy && (
+                  <span className="text-xs text-gray-500 font-medium">
+                    Created by: {booking.createdBy?.name || booking.createdBy?.username || (booking.officeId ? "Office" : "Main Office")}
+                  </span>
+                )
+              )}
+            </div>
           </div>
         </div>
 
@@ -700,88 +848,209 @@ const BookingDetail = () => {
 
       {/* Internal Roles Assignment */}
       <div className="mb-4 sm:mb-6 bg-white dark:bg-[#1A1A1A] rounded-lg shadow p-4 sm:p-6 border border-gray-100 dark:border-white/10">
-        <div className="flex items-center mb-4">
-          <User className="h-5 w-5 text-blue-500 mr-2" />
-          <h3 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white">Internal Roles (Performance Tracking)</h3>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <User className="h-5 w-5 text-blue-500 mr-1" />
+            <h3 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white">Internal Roles (Performance Tracking)</h3>
+            {isCreator && (
+              <span className="px-2 py-0.5 bg-green-50 text-green-700 text-xs font-bold rounded-md border border-green-200">
+                Created by You
+              </span>
+            )}
+            {!canEditRoles && (
+              <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-medium rounded-md border border-gray-200 flex items-center gap-1">
+                <Lock className="w-3 h-3 text-gray-400" />
+                Only editable by creator ({booking?.createdBy?.name || booking?.bookedByAgent || 'Creator'})
+              </span>
+            )}
+          </div>
+
+          {/* Dedicated Roles Edit Controls */}
+          {canEditRoles && (
+            <div className="flex items-center gap-2">
+              {rolesEditMode ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setRolesEditMode(false)}
+                    disabled={savingRoles}
+                    className="px-3 py-1 text-xs font-semibold text-gray-600 hover:text-gray-800 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveInternalRoles}
+                    disabled={savingRoles}
+                    className="px-3 py-1 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-all disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    {savingRoles ? "Saving..." : "Save Roles"}
+                  </button>
+                </>
+              ) : !editMode ? (
+                <button
+                  type="button"
+                  onClick={startEditingRoles}
+                  className="px-3 py-1 text-xs font-bold text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors flex items-center gap-1.5 shadow-2xs"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                  Edit Roles
+                </button>
+              ) : null}
+            </div>
+          )}
         </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Sales Agent */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Lead by</label>
-            {editMode && (isAdmin || booking?.createdBy === user?.id || booking?.createdBy?._id === user?.id) ? (
+            {rolesEditMode ? (
               <select
-                value={typeof booking.salesAgent === 'object' ? booking.salesAgent?._id : (booking.salesAgent || '')}
+                value={tempRoles.salesAgent || ""}
+                onChange={(e) => setTempRoles({ ...tempRoles, salesAgent: e.target.value })}
+                className="w-full px-3 py-2 text-sm sm:text-base border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-blue-50/30 dark:bg-[#1A1A1A]"
+              >
+                <option value="">None</option>
+                {riders.map(r => (
+                  <option key={r._id} value={r._id}>{r.name} ({r.role})</option>
+                ))}
+              </select>
+            ) : editMode && canEditRoles ? (
+              <select
+                value={typeof booking.salesAgent === 'object' ? (booking.salesAgent?._id || '') : (booking.salesAgent || '')}
                 onChange={(e) => setBooking({ ...booking, salesAgent: e.target.value })}
                 className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#1A1A1A]"
               >
-                <option value="">Select Staff</option>
+                <option value="">None</option>
                 {riders.map(r => (
                   <option key={r._id} value={r._id}>{r.name} ({r.role})</option>
                 ))}
               </select>
             ) : (
-              <p className="text-sm sm:text-base text-gray-900 dark:text-white font-medium">
-                {booking.salesAgent ? (typeof booking.salesAgent === 'object' ? booking.salesAgent.name : 'Staff Assigned') : 'Unassigned'}
+              <p className="text-sm sm:text-base font-medium">
+                {booking.salesAgent ? (
+                  <span className="text-gray-900 dark:text-white">
+                    {typeof booking.salesAgent === 'object' ? booking.salesAgent.name : 'Staff Assigned'}
+                  </span>
+                ) : (
+                  <span className="text-gray-400 dark:text-gray-500 italic">None</span>
+                )}
               </p>
             )}
           </div>
+
           {/* Handling Agent */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Handled by</label>
-            {editMode && (isAdmin || booking?.createdBy === user?.id || booking?.createdBy?._id === user?.id) ? (
+            {rolesEditMode ? (
               <select
-                value={typeof booking.handlingAgent === 'object' ? booking.handlingAgent?._id : (booking.handlingAgent || '')}
+                value={tempRoles.handlingAgent || ""}
+                onChange={(e) => setTempRoles({ ...tempRoles, handlingAgent: e.target.value })}
+                className="w-full px-3 py-2 text-sm sm:text-base border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-blue-50/30 dark:bg-[#1A1A1A]"
+              >
+                <option value="">None</option>
+                {riders.map(r => (
+                  <option key={r._id} value={r._id}>{r.name} ({r.role})</option>
+                ))}
+              </select>
+            ) : editMode && canEditRoles ? (
+              <select
+                value={typeof booking.handlingAgent === 'object' ? (booking.handlingAgent?._id || '') : (booking.handlingAgent || '')}
                 onChange={(e) => setBooking({ ...booking, handlingAgent: e.target.value })}
                 className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#1A1A1A]"
               >
-                <option value="">Select Staff</option>
+                <option value="">None</option>
                 {riders.map(r => (
                   <option key={r._id} value={r._id}>{r.name} ({r.role})</option>
                 ))}
               </select>
             ) : (
-              <p className="text-sm sm:text-base text-gray-900 dark:text-white font-medium">
-                {booking.handlingAgent ? (typeof booking.handlingAgent === 'object' ? booking.handlingAgent.name : 'Staff Assigned') : 'Unassigned'}
+              <p className="text-sm sm:text-base font-medium">
+                {booking.handlingAgent ? (
+                  <span className="text-gray-900 dark:text-white">
+                    {typeof booking.handlingAgent === 'object' ? booking.handlingAgent.name : 'Staff Assigned'}
+                  </span>
+                ) : (
+                  <span className="text-gray-400 dark:text-gray-500 italic">None</span>
+                )}
               </p>
             )}
           </div>
+
           {/* Packaging Agent */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Dispatch by</label>
-            {editMode && (isAdmin || booking?.createdBy === user?.id || booking?.createdBy?._id === user?.id) ? (
+            {rolesEditMode ? (
               <select
-                value={typeof booking.packagingAgent === 'object' ? booking.packagingAgent?._id : (booking.packagingAgent || '')}
+                value={tempRoles.packagingAgent || ""}
+                onChange={(e) => setTempRoles({ ...tempRoles, packagingAgent: e.target.value })}
+                className="w-full px-3 py-2 text-sm sm:text-base border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-blue-50/30 dark:bg-[#1A1A1A]"
+              >
+                <option value="">None</option>
+                {riders.map(r => (
+                  <option key={r._id} value={r._id}>{r.name} ({r.role})</option>
+                ))}
+              </select>
+            ) : editMode && canEditRoles ? (
+              <select
+                value={typeof booking.packagingAgent === 'object' ? (booking.packagingAgent?._id || '') : (booking.packagingAgent || '')}
                 onChange={(e) => setBooking({ ...booking, packagingAgent: e.target.value })}
                 className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#1A1A1A]"
               >
-                <option value="">Select Staff</option>
+                <option value="">None</option>
                 {riders.map(r => (
                   <option key={r._id} value={r._id}>{r.name} ({r.role})</option>
                 ))}
               </select>
             ) : (
-              <p className="text-sm sm:text-base text-gray-900 dark:text-white font-medium">
-                {booking.packagingAgent ? (typeof booking.packagingAgent === 'object' ? booking.packagingAgent.name : 'Staff Assigned') : 'Unassigned'}
+              <p className="text-sm sm:text-base font-medium">
+                {booking.packagingAgent ? (
+                  <span className="text-gray-900 dark:text-white">
+                    {typeof booking.packagingAgent === 'object' ? booking.packagingAgent.name : 'Staff Assigned'}
+                  </span>
+                ) : (
+                  <span className="text-gray-400 dark:text-gray-500 italic">None</span>
+                )}
               </p>
             )}
           </div>
+
           {/* Tracking Agent */}
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tracking by</label>
-            {editMode && (isAdmin || booking?.createdBy === user?.id || booking?.createdBy?._id === user?.id) ? (
+            {rolesEditMode ? (
               <select
-                value={typeof booking.trackingAgent === 'object' ? booking.trackingAgent?._id : (booking.trackingAgent || '')}
+                value={tempRoles.trackingAgent || ""}
+                onChange={(e) => setTempRoles({ ...tempRoles, trackingAgent: e.target.value })}
+                className="w-full px-3 py-2 text-sm sm:text-base border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-blue-50/30 dark:bg-[#1A1A1A]"
+              >
+                <option value="">None</option>
+                {riders.map(r => (
+                  <option key={r._id} value={r._id}>{r.name} ({r.role})</option>
+                ))}
+              </select>
+            ) : editMode && canEditRoles ? (
+              <select
+                value={typeof booking.trackingAgent === 'object' ? (booking.trackingAgent?._id || '') : (booking.trackingAgent || '')}
                 onChange={(e) => setBooking({ ...booking, trackingAgent: e.target.value })}
                 className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500 bg-white dark:bg-[#1A1A1A]"
               >
-                <option value="">Select Staff</option>
+                <option value="">None</option>
                 {riders.map(r => (
                   <option key={r._id} value={r._id}>{r.name} ({r.role})</option>
                 ))}
               </select>
             ) : (
-              <p className="text-sm sm:text-base text-gray-900 dark:text-white font-medium">
-                {booking.trackingAgent ? (typeof booking.trackingAgent === 'object' ? booking.trackingAgent.name : 'Staff Assigned') : 'Unassigned'}
+              <p className="text-sm sm:text-base font-medium">
+                {booking.trackingAgent ? (
+                  <span className="text-gray-900 dark:text-white">
+                    {typeof booking.trackingAgent === 'object' ? booking.trackingAgent.name : 'Staff Assigned'}
+                  </span>
+                ) : (
+                  <span className="text-gray-400 dark:text-gray-500 italic">None</span>
+                )}
               </p>
             )}
           </div>
@@ -1993,9 +2262,9 @@ const BookingDetail = () => {
                   <select
                     value={typeof booking.salesAgent === 'object' ? booking.salesAgent?._id : (booking.salesAgent || '')}
                     onChange={(e) => setBooking({ ...booking, salesAgent: e.target.value })}
-                    className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-orange-500 bg-white dark:bg-[#111111] ${!booking.salesAgent ? 'border-red-300' : 'border-gray-300 dark:border-white/10'}`}
+                    className="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-orange-500 bg-white dark:bg-[#111111] border-gray-300 dark:border-white/10"
                   >
-                    <option value="">Select Staff</option>
+                    <option value="">None</option>
                     {riders.map(r => <option key={r._id} value={r._id}>{r.name}</option>)}
                   </select>
                 </div>
@@ -2004,9 +2273,9 @@ const BookingDetail = () => {
                   <select
                     value={typeof booking.handlingAgent === 'object' ? booking.handlingAgent?._id : (booking.handlingAgent || '')}
                     onChange={(e) => setBooking({ ...booking, handlingAgent: e.target.value })}
-                    className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-orange-500 bg-white dark:bg-[#111111] ${!booking.handlingAgent ? 'border-red-300' : 'border-gray-300 dark:border-white/10'}`}
+                    className="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-orange-500 bg-white dark:bg-[#111111] border-gray-300 dark:border-white/10"
                   >
-                    <option value="">Select Staff</option>
+                    <option value="">None</option>
                     {riders.map(r => <option key={r._id} value={r._id}>{r.name}</option>)}
                   </select>
                 </div>
@@ -2015,9 +2284,9 @@ const BookingDetail = () => {
                   <select
                     value={typeof booking.packagingAgent === 'object' ? booking.packagingAgent?._id : (booking.packagingAgent || '')}
                     onChange={(e) => setBooking({ ...booking, packagingAgent: e.target.value })}
-                    className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-orange-500 bg-white dark:bg-[#111111] ${!booking.packagingAgent ? 'border-red-300' : 'border-gray-300 dark:border-white/10'}`}
+                    className="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-orange-500 bg-white dark:bg-[#111111] border-gray-300 dark:border-white/10"
                   >
-                    <option value="">Select Staff</option>
+                    <option value="">None</option>
                     {riders.map(r => <option key={r._id} value={r._id}>{r.name}</option>)}
                   </select>
                 </div>
@@ -2026,9 +2295,9 @@ const BookingDetail = () => {
                   <select
                     value={typeof booking.trackingAgent === 'object' ? booking.trackingAgent?._id : (booking.trackingAgent || '')}
                     onChange={(e) => setBooking({ ...booking, trackingAgent: e.target.value })}
-                    className={`w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-orange-500 bg-white dark:bg-[#111111] ${!booking.trackingAgent ? 'border-red-300' : 'border-gray-300 dark:border-white/10'}`}
+                    className="w-full px-3 py-2 text-sm border rounded-lg focus:ring-2 focus:ring-orange-500 bg-white dark:bg-[#111111] border-gray-300 dark:border-white/10"
                   >
-                    <option value="">Select Staff</option>
+                    <option value="">None</option>
                     {riders.map(r => <option key={r._id} value={r._id}>{r.name}</option>)}
                   </select>
                 </div>
@@ -2048,7 +2317,7 @@ const BookingDetail = () => {
               <div className="flex gap-3 mt-6">
                 <button
                   onClick={() => {
-                    const missingRoles = !booking.salesAgent || !booking.handlingAgent || !booking.packagingAgent || !booking.trackingAgent || !booking.internalRolesDescription;
+                    const missingRoles = !booking.isVendorBooking && (!booking.salesAgent || !booking.handlingAgent || !booking.packagingAgent || !booking.trackingAgent || !booking.internalRolesDescription);
                     if (missingRoles) {
                       toast.error("Please fill all required fields before proceeding.");
                       return;

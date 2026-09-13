@@ -72,7 +72,8 @@ router.post("/verify", adminAuth, async (req, res) => {
             bookingId, pricing, senderDetails, receiverDetails, packageDetails, 
             serviceType, premiumItemType, trackingId, vendorName, 
             vendorTrackingId, estimatedDelivery, insuranceRequired, notes,
-            isVendorBooking, vendorId, sendPaymentLink
+            isVendorBooking, vendorId, sendPaymentLink,
+            salesAgent, handlingAgent, packagingAgent, trackingAgent
         } = req.body;
 
         if (!bookingId || !pricing) {
@@ -96,11 +97,18 @@ router.post("/verify", adminAuth, async (req, res) => {
         if (typeof notes !== 'undefined') booking.notes = notes;
         if (typeof isVendorBooking !== 'undefined') booking.isVendorBooking = isVendorBooking;
         if (vendorId) booking.vendorId = vendorId;
+        if (salesAgent !== undefined) booking.salesAgent = (salesAgent && salesAgent !== "none") ? salesAgent : null;
+        if (handlingAgent !== undefined) booking.handlingAgent = (handlingAgent && handlingAgent !== "none") ? handlingAgent : null;
+        if (packagingAgent !== undefined) booking.packagingAgent = (packagingAgent && packagingAgent !== "none") ? packagingAgent : null;
+        if (trackingAgent !== undefined) booking.trackingAgent = (trackingAgent && trackingAgent !== "none") ? trackingAgent : null;
 
         booking.pricing = pricing;
         booking.status = "Verified - Payment Pending";
         if (estimatedDelivery) booking.estimatedDelivery = estimatedDelivery;
         booking.adminVerified = true;
+        booking.verifiedBy = req.admin?._id;
+        booking.verifiedByName = req.admin?.name || req.admin?.username || "Admin";
+        booking.verifiedAt = new Date();
 
         // Check Office Mail Service Status
         let shouldSendEmail = true;
@@ -289,6 +297,9 @@ router.post("/seed", adminAuth, async (req, res) => {
             return res.json({ message: "No new or missing verified bookings to sync.", count: 0 });
         }
 
+        const seededByName = req.admin?.name || req.admin?.username || "Admin";
+        const seededById = req.admin?._id;
+
         let count = 0;
 
         for (const doc of toSeed) {
@@ -309,6 +320,29 @@ router.post("/seed", adminAuth, async (req, res) => {
             } catch (pinErr) {
                 console.error("Error fetching pincode data during seeding:", pinErr);
             }
+
+            // Resolve agent details
+            let agentUser = null;
+            try {
+                const User = require("../models/User");
+                if (doc.agentId) {
+                    agentUser = await User.findById(doc.agentId).populate('officeId');
+                } else if (doc.agentUsername) {
+                    agentUser = await User.findOne({
+                        $or: [
+                            { username: doc.agentUsername.trim() },
+                            { name: doc.agentUsername.trim() }
+                        ]
+                    }).populate('officeId');
+                }
+            } catch (uErr) {
+                console.error("Error resolving agent for intake booking:", uErr);
+            }
+
+            const agentName = agentUser?.name || doc.agentUsername || "E-Docket Agent";
+            const agentUsername = agentUser?.username || doc.agentUsername || "E-Docket Agent";
+            const effectiveAgentId = agentUser?._id || doc.agentId || null;
+            const effectiveOfficeId = doc.officeId || (agentUser?.officeId?._id || agentUser?.officeId) || null;
 
             const payload = {
                 bookingId: doc.trackingId,
@@ -363,7 +397,23 @@ router.post("/seed", adminAuth, async (req, res) => {
                 deliveryDate: doc.deliveryDate,
                 estimatedDelivery: doc.estimatedDelivery,
                 status: "confirmed",
-                adminCreated: true,
+                adminCreated: false,
+                bookingSource: "Agent",
+                bookedByAgent: agentName,
+                agentUsername: agentUsername,
+                agentId: effectiveAgentId,
+                salesAgent: (doc.salesAgent && doc.salesAgent !== "none" && doc.salesAgent !== "None") ? doc.salesAgent : null,
+                handlingAgent: doc.handlingAgent || null,
+                packagingAgent: doc.packagingAgent || null,
+                trackingAgent: doc.trackingAgent || null,
+                verifiedBy: doc.verifiedBy || null,
+                verifiedByName: doc.verifiedByName || null,
+                verifiedAt: doc.verifiedAt || null,
+                seededBy: seededById,
+                seededByName: seededByName,
+                seededAt: new Date(),
+                createdBy: effectiveAgentId || seededById,
+                officeId: effectiveOfficeId,
                 parcelImage: doc.parcelImage || "https://via.placeholder.com/150",
                 couponCode: doc.couponCode || "",
                 couponDiscount: doc.couponDiscount || 0,
@@ -379,7 +429,7 @@ router.post("/seed", adminAuth, async (req, res) => {
                     status: "confirmed",
                     location: `${doc.senderDetails.address1 || doc.senderDetails.address || "Hub"}${doc.senderDetails.landmark ? ', ' + doc.senderDetails.landmark : ''}`,
                     timestamp: new Date(),
-                    description: "Booking Verified and Shipment Booked Successfully"
+                    description: `Booking Verified by ${doc.verifiedByName || "Admin"} and Seeded by ${seededByName}`
                 }],
             };
 
@@ -407,6 +457,8 @@ router.post("/seed", adminAuth, async (req, res) => {
                 // Mark as seeded in Intake
                 doc.seededToMainDashboard = true;
                 doc.seededAt = new Date();
+                doc.seededBy = seededById;
+                doc.seededByName = seededByName;
                 await doc.save();
 
                 count++;

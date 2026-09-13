@@ -10,6 +10,7 @@ const sendEmail = require("../utils/sendEmail");
 const Partner = require("../models/Partner");
 const Attendance = require("../models/Attendance");
 const PerformanceMark = require("../models/PerformanceMark");
+const User = require("../models/User");
 
 // Initialize Razorpay
 let razorpay;
@@ -117,9 +118,14 @@ router.get("/stats/performance-leaderboard", adminAuth, async (req, res) => {
     let attendanceDateQuery = {};
 
     if (startDate && endDate) {
+      const start = new Date(startDate);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(endDate);
+      end.setHours(23, 59, 59, 999);
+
       dateFilterQuery = {
-        $gte: new Date(startDate),
-        $lte: new Date(endDate)
+        $gte: start,
+        $lte: end
       };
       
       const startStr = new Date(startDate).toISOString().split('T')[0];
@@ -133,18 +139,18 @@ router.get("/stats/performance-leaderboard", adminAuth, async (req, res) => {
     // 1. Fetch Bookings
     const bookingQuery = dateFilterQuery.$gte ? { createdAt: dateFilterQuery } : {};
     const bookings = await Booking.find(bookingQuery)
-      .populate('salesAgent', 'name role')
-      .populate('handlingAgent', 'name role')
-      .populate('packagingAgent', 'name role')
+      .populate('salesAgent', 'name username role phone')
+      .populate('handlingAgent', 'name username role phone')
+      .populate('packagingAgent', 'name username role phone')
       .lean();
 
     // 2. Fetch Attendance
     const attendanceQuery = attendanceDateQuery.$gte ? { date: attendanceDateQuery } : {};
-    const attendances = await Attendance.find(attendanceQuery).populate('user', 'name role').lean();
+    const attendances = await Attendance.find(attendanceQuery).populate('user', 'name username role phone').lean();
 
     // 3. Fetch Marks
     const markQuery = dateFilterQuery.$gte ? { createdAt: dateFilterQuery } : {};
-    const marks = await PerformanceMark.find(markQuery).populate('user', 'name role').lean();
+    const marks = await PerformanceMark.find(markQuery).populate('user', 'name username role phone').lean();
 
     const performanceMap = {};
 
@@ -154,7 +160,10 @@ router.get("/stats/performance-leaderboard", adminAuth, async (req, res) => {
       if (!performanceMap[id]) {
         performanceMap[id] = {
           _id: id,
+          userId: id,
           name: user.name || user.username || "Unknown User",
+          username: user.username || "",
+          phone: user.phone || "",
           role: user.role || "staff",
           attendancePoints: 0,
           orderPoints: 0,
@@ -163,9 +172,22 @@ router.get("/stats/performance-leaderboard", adminAuth, async (req, res) => {
           salesCount: 0,
           handlingCount: 0,
           packagingCount: 0,
+          salesOrders: [],
+          handlingOrders: [],
+          packagingOrders: [],
           presentCount: 0,
           lateCount: 0,
         };
+      } else {
+        if (!performanceMap[id].username && user.username) {
+          performanceMap[id].username = user.username;
+        }
+        if (!performanceMap[id].phone && user.phone) {
+          performanceMap[id].phone = user.phone;
+        }
+        if ((!performanceMap[id].name || performanceMap[id].name === "Unknown User") && user.name) {
+          performanceMap[id].name = user.name;
+        }
       }
     };
 
@@ -196,20 +218,55 @@ router.get("/stats/performance-leaderboard", adminAuth, async (req, res) => {
 
     // Calculate Order Points
     bookings.forEach(booking => {
+      // Only partner vendor bookings (PARTxxx) are vendor orders.
+      // Courier partners (DTDC, BlueDart, etc.) assigned to normal bookings are NOT vendor bookings.
+      const isVendorOrder = Boolean(
+        booking.isVendorBooking ||
+        (booking.vendorId && booking.vendorId.trim() !== "")
+      );
+
+      const orderItem = {
+        _id: booking._id,
+        bookingId: booking.bookingId || `EP-${booking._id.toString().slice(-6).toUpperCase()}`,
+        customerName: booking.senderDetails?.name || "N/A",
+        serviceType: booking.serviceType || "Standard",
+        status: booking.status || "Booked",
+        createdAt: booking.createdAt,
+      };
+
       if (booking.salesAgent) {
         initUser(booking.salesAgent);
-        performanceMap[booking.salesAgent._id.toString()].orderPoints += 2;
-        performanceMap[booking.salesAgent._id.toString()].salesCount += 1;
+        const sId = booking.salesAgent._id.toString();
+        performanceMap[sId].orderPoints += 2;
+        performanceMap[sId].salesCount += 1;
+        performanceMap[sId].salesOrders.push({
+          ...orderItem,
+          roleType: 'sales',
+          points: 2
+        });
       }
       if (booking.handlingAgent) {
         initUser(booking.handlingAgent);
-        performanceMap[booking.handlingAgent._id.toString()].orderPoints += 1;
-        performanceMap[booking.handlingAgent._id.toString()].handlingCount += 1;
+        const hId = booking.handlingAgent._id.toString();
+        performanceMap[hId].orderPoints += 1;
+        performanceMap[hId].handlingCount += 1;
+        performanceMap[hId].handlingOrders.push({
+          ...orderItem,
+          roleType: 'handling',
+          points: 1
+        });
       }
+
       if (booking.packagingAgent) {
         initUser(booking.packagingAgent);
-        performanceMap[booking.packagingAgent._id.toString()].orderPoints += 1;
-        performanceMap[booking.packagingAgent._id.toString()].packagingCount += 1;
+        const pId = booking.packagingAgent._id.toString();
+        performanceMap[pId].orderPoints += 1;
+        performanceMap[pId].packagingCount += 1;
+        performanceMap[pId].packagingOrders.push({
+          ...orderItem,
+          roleType: 'packaging',
+          points: 1
+        });
       }
     });
 
@@ -221,7 +278,16 @@ router.get("/stats/performance-leaderboard", adminAuth, async (req, res) => {
       }
     });
 
-    // Calculate Total and sort
+    const requesterRole = (req.admin?.role || "admin").toLowerCase();
+    const isRequesterAdmin = ['admin', 'main_admin', 'office_admin'].includes(requesterRole);
+
+    // Initialize all active staff in performanceMap so all staff members appear on the leaderboard
+    const allActiveStaff = await User.find({ isActive: true }).select('name username role phone');
+    allActiveStaff.forEach(u => {
+      initUser(u);
+    });
+
+    // Calculate Total, rank and sort
     const leaderboard = Object.values(performanceMap)
       .filter(user => {
         const role = (user.role || "staff").toLowerCase();
@@ -231,7 +297,11 @@ router.get("/stats/performance-leaderboard", adminAuth, async (req, res) => {
         user.totalPoints = user.attendancePoints + user.orderPoints + user.adminPoints;
         return user;
       })
-      .sort((a, b) => b.totalPoints - a.totalPoints);
+      .sort((a, b) => b.totalPoints - a.totalPoints)
+      .map((user, index) => {
+        user.rank = index + 1;
+        return user;
+      });
 
     res.json(leaderboard);
   } catch (error) {
@@ -267,20 +337,25 @@ router.get("/stats/incentive-report", adminAuth, async (req, res) => {
     const bookings = await Booking.find(bookingQuery)
       .populate('handlingAgent', 'name role')
       .populate('packagingAgent', 'name role')
-      .select('bookingId createdAt pricing handlingAgent packagingAgent')
+      .select('bookingId createdAt pricing handlingAgent packagingAgent isVendorBooking vendorId vendorName')
       .lean();
 
     const incentiveEvents = [];
 
     bookings.forEach(booking => {
+      const isVendorOrder = Boolean(
+        booking.isVendorBooking ||
+        (booking.vendorId && booking.vendorId.trim() !== "")
+      );
+
       const totalAmount = booking.pricing?.totalAmount || 0;
       const maxIncentive = Math.min(500, totalAmount * 0.05); // 5% max 500
       const splitIncentive = maxIncentive / 2; // 2.5% max 250
 
       if (splitIncentive <= 0) return;
 
-      // Check Handling Agent
-      if (booking.handlingAgent) {
+      // Check Handling Agent (Blocked for vendor-assigned orders)
+      if (booking.handlingAgent && !isVendorOrder) {
         if (!userId || userId === 'all' || booking.handlingAgent._id.toString() === userId) {
           incentiveEvents.push({
             bookingId: booking.bookingId,
@@ -294,7 +369,7 @@ router.get("/stats/incentive-report", adminAuth, async (req, res) => {
         }
       }
 
-      // Check Packaging Agent (Dispatch by)
+      // Check Packaging Agent (Dispatch by - Allowed for vendor orders)
       if (booking.packagingAgent) {
         if (!userId || userId === 'all' || booking.packagingAgent._id.toString() === userId) {
           incentiveEvents.push({
@@ -797,7 +872,7 @@ router.get("/", authMiddleware, async (req, res) => {
     }
 
     if (search) {
-      query.$or = [
+      const searchOr = [
         { bookingId: { $regex: search, $options: "i" } },
         { trackingId: { $regex: search, $options: "i" } },
         { vendorTrackingId: { $regex: search, $options: "i" } },
@@ -806,27 +881,138 @@ router.get("/", authMiddleware, async (req, res) => {
         { "senderDetails.phone": { $regex: search, $options: "i" } },
         { "receiverDetails.phone": { $regex: search, $options: "i" } },
       ];
+      if (query.$and) {
+        query.$and.push({ $or: searchOr });
+      } else {
+        query.$or = searchOr;
+      }
     }
 
-    const bookingsRaw = await Booking.find(query)
-      .sort({ createdAt: -1 })
-      .limit(limit * 1)
-      .skip((page - 1) * limit)
-      .lean();
+    // Calculate aggregate payment summary for current filter criteria (prior to applying paymentStatus filter)
+    const statsMatch = { ...query };
+    if (query.$and) statsMatch.$and = [...query.$and];
+    if (query.$or) statsMatch.$or = [...query.$or];
 
-    // Manual population for createdBy to handle both Admin and User models
+    const paymentStatsPromise = Booking.aggregate([
+      { $match: statsMatch },
+      {
+        $group: {
+          _id: null,
+          totalPaidAmount: {
+            $sum: {
+              $cond: [
+                { $eq: ["$paymentStatus", "paid"] },
+                { $convert: { input: "$pricing.totalAmount", to: "double", onError: 0, onNull: 0 } },
+                {
+                  $cond: [
+                    { $eq: ["$paymentStatus", "partial"] },
+                    { $convert: { input: "$amountReceived", to: "double", onError: 0, onNull: 0 } },
+                    0
+                  ]
+                }
+              ]
+            }
+          },
+          totalPendingAmount: {
+            $sum: {
+              $cond: [
+                { $eq: ["$paymentStatus", "paid"] },
+                0,
+                {
+                  $cond: [
+                    { $eq: ["$paymentStatus", "partial"] },
+                    {
+                      $max: [
+                        0,
+                        {
+                          $subtract: [
+                            { $convert: { input: "$pricing.totalAmount", to: "double", onError: 0, onNull: 0 } },
+                            { $convert: { input: "$amountReceived", to: "double", onError: 0, onNull: 0 } }
+                          ]
+                        }
+                      ]
+                    },
+                    { $convert: { input: "$pricing.totalAmount", to: "double", onError: 0, onNull: 0 } }
+                  ]
+                }
+              ]
+            }
+          },
+          totalAmount: {
+            $sum: { $convert: { input: "$pricing.totalAmount", to: "double", onError: 0, onNull: 0 } }
+          },
+          paidCount: {
+            $sum: { $cond: [{ $eq: ["$paymentStatus", "paid"] }, 1, 0] }
+          },
+          pendingCount: {
+            $sum: {
+              $cond: [
+                { $ne: ["$paymentStatus", "paid"] },
+                1, 0
+              ]
+            }
+          },
+          partialCount: {
+            $sum: { $cond: [{ $eq: ["$paymentStatus", "partial"] }, 1, 0] }
+          },
+          totalCount: { $sum: 1 }
+        }
+      }
+    ]);
+
+    // Apply paymentStatus filter if specified
+    const { paymentStatus } = req.query;
+    if (paymentStatus && paymentStatus !== "all") {
+      const lowerPayment = paymentStatus.toLowerCase();
+      if (lowerPayment === "pending") {
+        const pendingCondition = {
+          $or: [
+            { paymentStatus: "pending" },
+            { paymentStatus: "partial" },
+            { paymentStatus: { $exists: false } },
+            { paymentStatus: null },
+            { paymentStatus: "" }
+          ]
+        };
+        if (query.$and) {
+          query.$and.push(pendingCondition);
+        } else {
+          query.$and = [pendingCondition];
+        }
+      } else if (lowerPayment === "paid") {
+        query.paymentStatus = "paid";
+      } else if (lowerPayment === "partial") {
+        query.paymentStatus = "partial";
+      } else {
+        query.paymentStatus = lowerPayment;
+      }
+    }
+
+    const [bookingsRaw, total, paymentStats] = await Promise.all([
+      Booking.find(query)
+        .sort({ createdAt: -1 })
+        .limit(limit * 1)
+        .skip((page - 1) * limit)
+        .lean(),
+      Booking.countDocuments(query),
+      paymentStatsPromise
+    ]);
+
+    // Manual population for createdBy and agentId to handle both Admin and User models
     const Admin = require("../models/Admin");
     const User = require("../models/User");
     const createdByIds = [...new Set(bookingsRaw.map(b => b.createdBy).filter(Boolean))];
+    const agentIds = [...new Set(bookingsRaw.map(b => b.agentId).filter(Boolean))];
+    const allUserIds = [...new Set([...createdByIds, ...agentIds])];
     
     const [users, admins] = await Promise.all([
-      User.find({ _id: { $in: createdByIds } }, "name username").lean(),
+      User.find({ _id: { $in: allUserIds } }, "name username role").lean(),
       Admin.find({ _id: { $in: createdByIds } }, "username").lean()
     ]);
     
     const creatorMap = {};
-    users.forEach(u => creatorMap[u._id.toString()] = { name: u.name, username: u.username });
-    admins.forEach(a => creatorMap[a._id.toString()] = { name: a.username, username: a.username });
+    users.forEach(u => creatorMap[u._id.toString()] = { name: u.name, username: u.username, role: u.role });
+    admins.forEach(a => creatorMap[a._id.toString()] = { name: a.username, username: a.username, role: 'admin' });
 
     // Look up EDL/KM for items that don't have it (older bookings) - Optimized Bulk Lookup
     const Pincode = require("../models/Pincode");
@@ -838,9 +1024,39 @@ router.get("/", authMiddleware, async (req, res) => {
       let createdBy = null;
       if (b.createdBy && creatorMap[b.createdBy.toString()]) {
         createdBy = creatorMap[b.createdBy.toString()];
+      } else if (b.agentId && creatorMap[b.agentId.toString()]) {
+        createdBy = creatorMap[b.agentId.toString()];
       }
 
-      let updatedBooking = { ...b, createdBy };
+      // Check if this booking came from E-Docket / Agent Intake
+      const isFromIntake = b.bookingSource === 'Agent' || 
+                           b.bookingSource === 'E-Docket' || 
+                           Boolean(b.bookedByAgent) || 
+                           Boolean(b.agentUsername) || 
+                           Boolean(b.seededBy) || 
+                           Boolean(b.notes && b.notes.toLowerCase().includes('intake')) ||
+                           Boolean(b.notes && b.notes.toLowerCase().includes('e-docket'));
+
+      let bookedByAgent = b.bookedByAgent || b.agentUsername || null;
+      let agentUsername = b.agentUsername || b.bookedByAgent || null;
+
+      if (isFromIntake) {
+        if (!bookedByAgent && b.agentId && creatorMap[b.agentId.toString()]) {
+          bookedByAgent = creatorMap[b.agentId.toString()].name;
+          agentUsername = creatorMap[b.agentId.toString()].username;
+        } else if (!bookedByAgent && createdBy && createdBy.role === 'agent') {
+          bookedByAgent = createdBy.name;
+          agentUsername = createdBy.username;
+        }
+      }
+
+      let updatedBooking = { 
+        ...b, 
+        createdBy,
+        bookingSource: isFromIntake ? (b.bookingSource || "Agent") : (b.bookingSource || "admin"),
+        bookedByAgent: bookedByAgent || b.bookedByAgent,
+        agentUsername: agentUsername || b.agentUsername
+      };
 
       if ((!b.edl || !b.km) && b.receiverDetails?.pincode) {
         const pin = pinMap[b.receiverDetails.pincode];
@@ -851,13 +1067,23 @@ router.get("/", authMiddleware, async (req, res) => {
       return updatedBooking;
     });
 
-    const total = await Booking.countDocuments(query);
+    const summaryData = (paymentStats && paymentStats.length > 0) ? paymentStats[0] : {};
+    const paymentSummary = {
+      totalPaidAmount: Math.round(summaryData.totalPaidAmount || 0),
+      totalPendingAmount: Math.round(summaryData.totalPendingAmount || 0),
+      totalAmount: Math.round(summaryData.totalAmount || 0),
+      paidCount: summaryData.paidCount || 0,
+      pendingCount: summaryData.pendingCount || 0,
+      partialCount: summaryData.partialCount || 0,
+      totalCount: summaryData.totalCount || 0
+    };
 
     res.json({
       bookings,
       totalPages: Math.ceil(total / limit),
       currentPage: Number(page),
       total,
+      paymentSummary,
     });
   } catch (error) {
     console.error(error);
@@ -870,8 +1096,12 @@ router.get("/", authMiddleware, async (req, res) => {
  * ------------------------ */
 router.get("/export", adminAuth, async (req, res) => {
   try {
-    const { status, serviceType, search, startDate, endDate, vendorNotAssigned, vendorFilter, officeId } = req.query;
+    const { status, serviceType, search, startDate, endDate, vendorNotAssigned, vendorFilter, officeId, createdBy, paymentStatus } = req.query;
     const query = {};
+
+    if (createdBy && createdBy !== "all") {
+      query.createdBy = createdBy;
+    }
 
     if (status && status !== "all") query.status = status;
     if (serviceType && serviceType !== "all") query.serviceType = serviceType;
@@ -926,7 +1156,7 @@ router.get("/export", adminAuth, async (req, res) => {
       });
     }
     if (search) {
-      query.$or = [
+      const searchOr = [
         { bookingId: { $regex: search, $options: "i" } },
         { trackingId: { $regex: search, $options: "i" } },
         { vendorTrackingId: { $regex: search, $options: "i" } },
@@ -935,6 +1165,37 @@ router.get("/export", adminAuth, async (req, res) => {
         { "senderDetails.phone": { $regex: search, $options: "i" } },
         { "receiverDetails.phone": { $regex: search, $options: "i" } },
       ];
+      if (query.$and) {
+        query.$and.push({ $or: searchOr });
+      } else {
+        query.$or = searchOr;
+      }
+    }
+
+    if (paymentStatus && paymentStatus !== "all") {
+      const lowerPayment = paymentStatus.toLowerCase();
+      if (lowerPayment === "pending") {
+        const pendingCondition = {
+          $or: [
+            { paymentStatus: "pending" },
+            { paymentStatus: "partial" },
+            { paymentStatus: { $exists: false } },
+            { paymentStatus: null },
+            { paymentStatus: "" }
+          ]
+        };
+        if (query.$and) {
+          query.$and.push(pendingCondition);
+        } else {
+          query.$and = [pendingCondition];
+        }
+      } else if (lowerPayment === "paid") {
+        query.paymentStatus = "paid";
+      } else if (lowerPayment === "partial") {
+        query.paymentStatus = "partial";
+      } else {
+        query.paymentStatus = lowerPayment;
+      }
     }
 
     const bookings = await Booking.find(query)
@@ -1146,7 +1407,7 @@ router.put("/bulk/assign-docket", adminAuth, async (req, res) => {
     await Booking.updateMany(
       { _id: { $in: bookingIds } },
       { 
-        $set: { vendorTrackingId, vendorName, isVendorBooking: true },
+        $set: { vendorTrackingId, vendorName },
         $push: {
           trackingHistory: {
             location: "Hub",
@@ -1288,7 +1549,12 @@ router.get("/:id", authMiddleware, async (req, res) => {
       .populate('deliveryRider', 'name phone')
       .populate('salesAgent', 'name')
       .populate('handlingAgent', 'name')
-      .populate('packagingAgent', 'name');
+      .populate('packagingAgent', 'name')
+      .populate('trackingAgent', 'name')
+      .populate('createdBy', 'name username')
+      .populate('agentId', 'name username role')
+      .populate('seededBy', 'name username')
+      .populate('verifiedBy', 'name username');
       
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
@@ -1367,9 +1633,27 @@ router.get("/:id/receipt", authMiddleware, async (req, res) => {
  * ------------------------ */
 router.put("/:id", authMiddleware, async (req, res) => {
   try {
-    const query = mongoose.Types.ObjectId.isValid(req.params.id) 
-      ? { _id: req.params.id } 
-      : { bookingId: req.params.id };
+    const idParam = req.params.id ? req.params.id.toString().trim() : "";
+    const isObjectId = mongoose.Types.ObjectId.isValid(idParam) && idParam.length === 24;
+
+    const query = isObjectId 
+      ? { 
+          $or: [
+            { _id: idParam }, 
+            { bookingId: idParam },
+            { bookingId: new RegExp(`^${idParam}$`, 'i') },
+            { trackingId: idParam },
+            { vendorTrackingId: idParam }
+          ] 
+        }
+      : { 
+          $or: [
+            { bookingId: idParam },
+            { bookingId: new RegExp(`^${idParam}$`, 'i') },
+            { trackingId: idParam },
+            { vendorTrackingId: idParam }
+          ] 
+        };
 
     // Helper to flatten nested objects (like packageDetails) to prevent 
     // Mongoose validation errors on missing required sub-document fields
@@ -1390,22 +1674,38 @@ router.put("/:id", authMiddleware, async (req, res) => {
       return toReturn;
     };
 
-    // Prevent populated objects from causing CastErrors during flatten/update
+    // Prevent populated objects and immutable metadata from causing CastErrors during flatten/update
     const cleanBody = { ...req.body };
-    const idFields = ['assignedRider', 'pickupRider', 'deliveryRider', 'userId', 'vendorId', 'salesAgent', 'handlingAgent', 'packagingAgent'];
+    delete cleanBody._id;
+    delete cleanBody.__v;
+    delete cleanBody.createdAt;
+    delete cleanBody.updatedAt;
+    delete cleanBody.createdBy;
+    delete cleanBody.agentId;
+    delete cleanBody.seededBy;
+    delete cleanBody.verifiedBy;
+    delete cleanBody.roleChangesHistory;
+    delete cleanBody.trackingHistory;
+    delete cleanBody.vendorPaymentHistory;
+
+    const idFields = ['assignedRider', 'pickupRider', 'deliveryRider', 'userId', 'vendorId', 'salesAgent', 'handlingAgent', 'packagingAgent', 'trackingAgent'];
     
     idFields.forEach(field => {
-      if (cleanBody[field]) {
-        if (typeof cleanBody[field] === 'object') {
-          if (cleanBody[field]._id) {
-            cleanBody[field] = cleanBody[field]._id;
+      if (cleanBody.hasOwnProperty(field)) {
+        const val = cleanBody[field];
+        if (val === "" || val === null || val === undefined || val === "none" || val === "None") {
+          cleanBody[field] = null;
+        } else if (typeof val === 'object') {
+          if (val._id && mongoose.Types.ObjectId.isValid(val._id)) {
+            cleanBody[field] = val._id;
           } else {
-            delete cleanBody[field];
+            cleanBody[field] = null;
           }
-        } else if (typeof cleanBody[field] === 'string') {
-          // If it's a string but not a valid ObjectId (like "Vivek "), remove it
-          if (!mongoose.Types.ObjectId.isValid(cleanBody[field])) {
-            delete cleanBody[field];
+        } else if (typeof val === 'string') {
+          if (mongoose.Types.ObjectId.isValid(val)) {
+            cleanBody[field] = val;
+          } else {
+            cleanBody[field] = null;
           }
         }
       }
@@ -1417,6 +1717,9 @@ router.put("/:id", authMiddleware, async (req, res) => {
     if (!currentBooking) {
       return res.status(404).json({ message: "Booking not found" });
     }
+
+    // Vendor tracking validation
+    const isVendor = (updateData.isVendorBooking !== undefined) ? Boolean(updateData.isVendorBooking) : Boolean(currentBooking.isVendorBooking);
 
     // ✅ Validate if vendorTrackingId (Docket ID) is already in use
     if (updateData.vendorTrackingId) {
@@ -1453,10 +1756,32 @@ router.put("/:id", authMiddleware, async (req, res) => {
     
     if (isRoleUpdate) {
       const isAdmin = req.admin || (req.user && (req.user.role === 'admin' || req.user.role === 'main_admin' || req.user.role === 'office_admin'));
-      const isCreator = currentBooking.createdBy && activeUser && currentBooking.createdBy.toString() === activeUser._id.toString();
+      const isStaffOrAgent = req.user && ['staff', 'agent'].includes(req.user.role);
+      const activeUserId = activeUser?._id?.toString();
+      const isCreator = activeUser && (
+        (currentBooking.createdBy && currentBooking.createdBy.toString() === activeUserId) ||
+        (currentBooking.agentId && currentBooking.agentId.toString() === activeUserId) ||
+        (currentBooking.seededBy && currentBooking.seededBy.toString() === activeUserId) ||
+        (currentBooking.bookedByAgent && activeUser.name && currentBooking.bookedByAgent.trim().toLowerCase() === activeUser.name.trim().toLowerCase()) ||
+        (currentBooking.agentUsername && activeUser.username && currentBooking.agentUsername.trim().toLowerCase() === activeUser.username.trim().toLowerCase())
+      );
       
-      if (!isAdmin && !isCreator) {
+      if (!isAdmin && !isCreator && !isStaffOrAgent) {
         return res.status(403).json({ message: "You are not authorized to edit internal roles for this booking." });
+      }
+
+      // Collect IDs to resolve names for friendly history
+      const relevantUserIds = [];
+      roleFields.forEach(field => {
+        if (updateData[field] !== undefined) {
+          if (currentBooking[field]) relevantUserIds.push(currentBooking[field]);
+          if (updateData[field]) relevantUserIds.push(updateData[field]);
+        }
+      });
+      const usersMap = {};
+      if (relevantUserIds.length > 0) {
+        const users = await User.find({ _id: { $in: relevantUserIds } }).select('name role');
+        users.forEach(u => { usersMap[u._id.toString()] = `${u.name} (${u.role})`; });
       }
 
       let roleChanges = [];
@@ -1465,10 +1790,12 @@ router.put("/:id", authMiddleware, async (req, res) => {
           const oldVal = currentBooking[field] ? currentBooking[field].toString() : null;
           const newVal = updateData[field] ? updateData[field].toString() : null;
           if (oldVal !== newVal) {
+            const oldLabel = oldVal ? (usersMap[oldVal] || oldVal) : 'None';
+            const newLabel = newVal ? (usersMap[newVal] || newVal) : 'None';
             roleChanges.push({
               action: `Updated ${field}`,
               updatedBy: activeUser?._id,
-              details: `Changed from ${oldVal || 'Unassigned'} to ${newVal || 'Unassigned'}`,
+              details: `Changed from ${oldLabel} to ${newLabel}`,
               timestamp: new Date()
             });
           }
@@ -1488,7 +1815,7 @@ router.put("/:id", authMiddleware, async (req, res) => {
     const booking = await Booking.findOneAndUpdate(
       query, 
       updateQuery, 
-      { new: true, runValidators: true }
+      { new: true }
     );
 
     if (!booking) {
@@ -1522,6 +1849,131 @@ router.put("/:id", authMiddleware, async (req, res) => {
       return res.status(400).json({ message: "Validation failed", errors: error.errors });
     }
     res.status(500).json({ message: "Server error" });
+  }
+});
+
+/** ------------------------
+ * 👥 Update Internal Roles (Performance Tracking)
+ * Only allowed for the creator of the booking or administrators
+ * ------------------------ */
+router.put("/:id/internal-roles", authMiddleware, async (req, res) => {
+  try {
+    const idParam = req.params.id ? req.params.id.toString().trim() : "";
+    const isObjectId = mongoose.Types.ObjectId.isValid(idParam) && idParam.length === 24;
+
+    const query = isObjectId 
+      ? { 
+          $or: [
+            { _id: idParam }, 
+            { bookingId: idParam },
+            { bookingId: new RegExp(`^${idParam}$`, 'i') },
+            { trackingId: idParam },
+            { vendorTrackingId: idParam }
+          ] 
+        }
+      : { 
+          $or: [
+            { bookingId: idParam },
+            { bookingId: new RegExp(`^${idParam}$`, 'i') },
+            { trackingId: idParam },
+            { vendorTrackingId: idParam }
+          ] 
+        };
+
+    const booking = await Booking.findOne(query);
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    const activeUser = req.admin || req.user;
+    const isAdmin = req.admin || (req.user && ['admin', 'main_admin', 'office_admin'].includes(req.user.role));
+    const isStaffOrAgent = req.user && ['staff', 'agent'].includes(req.user.role);
+    const activeUserId = activeUser?._id?.toString();
+
+    const isCreator = activeUser && (
+      (booking.createdBy && booking.createdBy.toString() === activeUserId) ||
+      (booking.agentId && booking.agentId.toString() === activeUserId) ||
+      (booking.seededBy && booking.seededBy.toString() === activeUserId) ||
+      (booking.bookedByAgent && activeUser.name && booking.bookedByAgent.trim().toLowerCase() === activeUser.name.trim().toLowerCase()) ||
+      (booking.agentUsername && activeUser.username && booking.agentUsername.trim().toLowerCase() === activeUser.username.trim().toLowerCase())
+    );
+
+    if (!isAdmin && !isCreator && !isStaffOrAgent) {
+      return res.status(403).json({ 
+        message: "You are not authorized to edit internal roles." 
+      });
+    }
+
+    const { salesAgent, handlingAgent, packagingAgent, trackingAgent } = req.body;
+    const roleFields = { salesAgent, handlingAgent, packagingAgent, trackingAgent };
+    let roleChanges = [];
+
+    const relevantIds = [];
+    for (const [field, val] of Object.entries(roleFields)) {
+      if (val !== undefined) {
+        if (booking[field]) relevantIds.push(booking[field]);
+        if (val && typeof val === 'object' && val._id) relevantIds.push(val._id);
+        else if (val && typeof val === 'string' && val !== "none" && val !== "None" && mongoose.Types.ObjectId.isValid(val)) relevantIds.push(val);
+      }
+    }
+    const usersMap = {};
+    if (relevantIds.length > 0) {
+      const users = await User.find({ _id: { $in: relevantIds } }).select('name role');
+      users.forEach(u => { usersMap[u._id.toString()] = `${u.name} (${u.role})`; });
+    }
+
+    const updateFields = {};
+    for (const [field, val] of Object.entries(roleFields)) {
+      if (val !== undefined) {
+        const oldVal = booking[field] ? booking[field].toString() : null;
+        let newVal = null;
+        if (val && typeof val === 'object' && val._id) {
+          newVal = val._id.toString();
+        } else if (val && typeof val === 'string' && val !== "none" && val !== "None" && val !== "" && mongoose.Types.ObjectId.isValid(val)) {
+          newVal = val;
+        }
+
+        updateFields[field] = newVal;
+
+        if (oldVal !== newVal) {
+          const oldLabel = oldVal ? (usersMap[oldVal] || oldVal) : 'None';
+          const newLabel = newVal ? (usersMap[newVal] || newVal) : 'None';
+          roleChanges.push({
+            action: `Updated ${field}`,
+            updatedBy: activeUser._id,
+            details: `Changed from ${oldLabel} to ${newLabel}`,
+            timestamp: new Date()
+          });
+        }
+      }
+    }
+
+    const updateQuery = { $set: updateFields };
+    if (roleChanges.length > 0) {
+      updateQuery.$push = { roleChangesHistory: { $each: roleChanges } };
+    }
+
+    const updatedBooking = await Booking.findByIdAndUpdate(booking._id, updateQuery, { new: true })
+      .populate('assignedRider', 'name phone')
+      .populate('pickupRider', 'name phone')
+      .populate('deliveryRider', 'name phone')
+      .populate('salesAgent', 'name')
+      .populate('handlingAgent', 'name')
+      .populate('packagingAgent', 'name')
+      .populate('trackingAgent', 'name')
+      .populate('createdBy', 'name username')
+      .populate('agentId', 'name username role')
+      .populate('seededBy', 'name username')
+      .populate('verifiedBy', 'name username');
+
+    res.json({ 
+      success: true, 
+      message: "Internal roles updated successfully", 
+      booking: updatedBooking 
+    });
+  } catch (error) {
+    console.error("Error updating internal roles:", error);
+    res.status(500).json({ message: "Server error updating internal roles" });
   }
 });
 

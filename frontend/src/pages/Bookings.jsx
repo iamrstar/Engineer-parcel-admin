@@ -4,8 +4,9 @@ import { useState, useEffect } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import axios from "axios"
 import toast from "react-hot-toast"
-import { Search, Filter, Eye, FileText, Calendar, XCircle, Tag, RotateCcw, FileDown, CheckCircle2, UserPlus, Trash2, Plus, ArrowRight } from "lucide-react"
+import { Search, Filter, Eye, FileText, Calendar, XCircle, Tag, RotateCcw, FileDown, CheckCircle2, UserPlus, Trash2, Plus, ArrowRight, IndianRupee, Clock, Wallet } from "lucide-react"
 import * as XLSX from "xlsx"
+import { useAuth } from "../contexts/AuthContext"
 
 // Helper functions for status visibility
 const PRESET_NOTES = [
@@ -101,6 +102,16 @@ const TrackingHistoryTooltip = ({ booking }) => {
 
 const Bookings = () => {
   const [searchParams, setSearchParams] = useSearchParams()
+  const { user } = useAuth()
+  const currentUser = user || (() => {
+    try {
+      return JSON.parse(localStorage.getItem("userData"))
+    } catch (e) {
+      return null
+    }
+  })()
+  const isStaff = currentUser?.role?.toLowerCase() === 'staff' || currentUser?.role?.toLowerCase() === 'rider' || currentUser?.role?.toLowerCase() === 'agent'
+  const isAdmin = Boolean(currentUser && !isStaff && (!currentUser.role || currentUser.role.toLowerCase() === 'admin' || currentUser.role.toLowerCase() === 'main_admin' || currentUser.role.toLowerCase() === 'office_admin'))
 
   const [bookings, setBookings] = useState([])
   const [loading, setLoading] = useState(true)
@@ -121,6 +132,16 @@ const Bookings = () => {
   const [vendorFilter, setVendorFilter] = useState(searchParams.get("vendor") || "all")
   const [officeFilter, setOfficeFilter] = useState(searchParams.get("office") || "main")
   const [staffFilter, setStaffFilter] = useState(searchParams.get("createdBy") || "all")
+  const [paymentFilter, setPaymentFilter] = useState(searchParams.get("paymentStatus") || "all")
+  const [paymentSummary, setPaymentSummary] = useState({
+    totalPaidAmount: 0,
+    totalPendingAmount: 0,
+    totalAmount: 0,
+    paidCount: 0,
+    pendingCount: 0,
+    partialCount: 0,
+    totalCount: 0
+  })
   const [offices, setOffices] = useState([])
   
   // Date Filtering State
@@ -145,6 +166,7 @@ const Bookings = () => {
     if (searchTerm) params.set("search", searchTerm)
     if (statusFilter !== "all") params.set("status", statusFilter)
     if (serviceFilter !== "all") params.set("service", serviceFilter)
+    if (paymentFilter !== "all") params.set("paymentStatus", paymentFilter)
     if (currentPage !== 1) params.set("page", currentPage.toString())
     if (limit !== 10) params.set("limit", limit.toString())
     if (vendorFilter !== "all") params.set("vendor", vendorFilter)
@@ -155,13 +177,14 @@ const Bookings = () => {
     if (customEndDate) params.set("end", customEndDate)
 
     setSearchParams(params, { replace: true })
-  }, [searchTerm, statusFilter, serviceFilter, currentPage, limit, vendorFilter, officeFilter, staffFilter, dateFilter, customStartDate, customEndDate])
+  }, [searchTerm, statusFilter, serviceFilter, paymentFilter, currentPage, limit, vendorFilter, officeFilter, staffFilter, dateFilter, customStartDate, customEndDate])
 
   const handleResetFilters = () => {
     setSearchInput("")
     setSearchTerm("")
     setStatusFilter("all")
     setServiceFilter("all")
+    setPaymentFilter("all")
     setCurrentPage(1)
     setVendorFilter("all")
     setOfficeFilter("main")
@@ -179,6 +202,7 @@ const Bookings = () => {
         params: {
           status: statusFilter,
           serviceType: serviceFilter,
+          paymentStatus: paymentFilter === "all" ? "" : paymentFilter,
           search: searchTerm,
           startDate: customStartDate || getEffectiveStartDate(dateFilter),
           endDate: customEndDate || getEffectiveEndDate(dateFilter),
@@ -475,7 +499,7 @@ const Bookings = () => {
 
   useEffect(() => {
     fetchBookings()
-  }, [currentPage, statusFilter, serviceFilter, searchTerm, vendorFilter, officeFilter, staffFilter, dateFilter, customStartDate, customEndDate])
+  }, [currentPage, statusFilter, serviceFilter, paymentFilter, searchTerm, vendorFilter, officeFilter, staffFilter, dateFilter, customStartDate, customEndDate])
 
   const fetchBookings = async () => {
     try {
@@ -489,6 +513,7 @@ const Bookings = () => {
           limit: limit,
           status: statusFilter,
           serviceType: serviceFilter,
+          paymentStatus: paymentFilter,
           search: searchTerm,
           vendorFilter: vendorFilter,
           officeId: officeFilter === "all" ? "" : officeFilter,
@@ -500,6 +525,9 @@ const Bookings = () => {
 
       setBookings(response.data.bookings)
       setTotalPages(response.data.totalPages)
+      if (response.data.paymentSummary) {
+        setPaymentSummary(response.data.paymentSummary)
+      }
     } catch (error) {
       toast.error("Error fetching bookings")
       console.error("Error fetching bookings:", error)
@@ -635,6 +663,20 @@ const Bookings = () => {
             </select>
 
             <select
+              value={paymentFilter}
+              onChange={(e) => {
+                setPaymentFilter(e.target.value)
+                setCurrentPage(1)
+              }}
+              className="border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1A1A1A] dark:text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 transition-colors"
+            >
+              <option value="all">All Payments</option>
+              <option value="paid">Paid</option>
+              <option value="pending">Pending</option>
+              <option value="partial">Partial</option>
+            </select>
+
+            <select
               value={vendorFilter}
               onChange={(e) => setVendorFilter(e.target.value)}
               className="border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1A1A1A] dark:text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 transition-colors"
@@ -735,6 +777,119 @@ const Bookings = () => {
           )}
         </div>
       </div>
+
+      {/* Payment & Revenue Summary Cards (Visible only to Admin, hidden from Staff) */}
+      {isAdmin && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+          {/* Paid Amount Card */}
+          <div
+            onClick={() => {
+              setPaymentFilter(paymentFilter === "paid" ? "all" : "paid")
+              setCurrentPage(1)
+            }}
+            className={`cursor-pointer rounded-xl p-4 transition-all duration-200 border ${
+              paymentFilter === "paid"
+                ? "bg-green-50/80 dark:bg-green-950/30 border-green-500 ring-2 ring-green-500/20 shadow-sm"
+                : "bg-white dark:bg-[#111111] border-gray-200 dark:border-white/10 hover:border-green-300 dark:hover:border-green-500/30"
+            }`}
+            title="Click to toggle Paid filter"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Paid Amount
+              </span>
+              <div className={`p-2 rounded-lg ${
+                paymentFilter === "paid" ? "bg-green-600 text-white" : "bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400"
+              }`}>
+                <CheckCircle2 className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="mt-2 flex items-baseline justify-between">
+              <span className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">
+                ₹{Number(paymentSummary.totalPaidAmount || 0).toLocaleString("en-IN")}
+              </span>
+              <span className="text-xs font-bold text-green-700 dark:text-green-400 bg-green-100 dark:bg-green-500/20 px-2 py-0.5 rounded-full">
+                {paymentSummary.paidCount || 0} Paid
+              </span>
+            </div>
+            <p className="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+              {paymentFilter === "paid" ? "● Active Filter (Click to clear)" : "Click to view paid bookings"}
+            </p>
+          </div>
+
+          {/* Pending Amount Card */}
+          <div
+            onClick={() => {
+              setPaymentFilter(paymentFilter === "pending" ? "all" : "pending")
+              setCurrentPage(1)
+            }}
+            className={`cursor-pointer rounded-xl p-4 transition-all duration-200 border ${
+              paymentFilter === "pending"
+                ? "bg-amber-50/80 dark:bg-amber-950/30 border-amber-500 ring-2 ring-amber-500/20 shadow-sm"
+                : "bg-white dark:bg-[#111111] border-gray-200 dark:border-white/10 hover:border-amber-300 dark:hover:border-amber-500/30"
+            }`}
+            title="Click to toggle Pending filter"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Pending Amount
+              </span>
+              <div className={`p-2 rounded-lg ${
+                paymentFilter === "pending" ? "bg-amber-600 text-white" : "bg-amber-100 dark:bg-amber-500/20 text-amber-700 dark:text-amber-400"
+              }`}>
+                <Clock className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="mt-2 flex items-baseline justify-between">
+              <span className="text-2xl font-black text-amber-600 dark:text-amber-400 tracking-tight">
+                ₹{Number(paymentSummary.totalPendingAmount || 0).toLocaleString("en-IN")}
+              </span>
+              <div className="flex items-center gap-1">
+                <span className="text-xs font-bold text-amber-700 dark:text-amber-400 bg-amber-100 dark:bg-amber-500/20 px-2 py-0.5 rounded-full">
+                  {paymentSummary.pendingCount || 0} Pending
+                </span>
+              </div>
+            </div>
+            <p className="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+              {paymentFilter === "pending" ? "● Active Filter (Click to clear)" : "Click to view pending bookings"}
+            </p>
+          </div>
+
+          {/* Total Filtered Value Card */}
+          <div
+            onClick={() => {
+              setPaymentFilter("all")
+              setCurrentPage(1)
+            }}
+            className={`cursor-pointer rounded-xl p-4 transition-all duration-200 border ${
+              paymentFilter === "all"
+                ? "bg-blue-50/40 dark:bg-blue-950/20 border-blue-400/60 ring-1 ring-blue-400/20 shadow-sm"
+                : "bg-white dark:bg-[#111111] border-gray-200 dark:border-white/10 hover:border-blue-300 dark:hover:border-blue-500/30"
+            }`}
+            title="Click to reset payment filter to All"
+          >
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                Total Filtered Value
+              </span>
+              <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-400">
+                <Wallet className="h-4 w-4" />
+              </div>
+            </div>
+            <div className="mt-2 flex items-baseline justify-between">
+              <span className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">
+                ₹{Number(paymentSummary.totalAmount || 0).toLocaleString("en-IN")}
+              </span>
+              <span className="text-xs font-bold text-blue-700 dark:text-blue-400 bg-blue-100 dark:bg-blue-500/20 px-2 py-0.5 rounded-full">
+                {paymentSummary.totalCount || 0} Total
+              </span>
+            </div>
+            <p className="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+              {paymentFilter === "all" ? "Showing all bookings" : "Click to show all bookings"}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Bookings Table Table */}
       <div className="bg-white dark:bg-[#111111] rounded-lg shadow overflow-hidden transition-colors border border-transparent dark:border-white/10">
@@ -928,9 +1083,27 @@ const Bookings = () => {
                         {booking.vendorTrackingId || "-"}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-bold text-gray-900 dark:text-white capitalize">
-                          {booking.createdBy?.name || booking.createdBy?.username || (booking.officeId ? "Office" : "Main Office")}
-                        </div>
+                        {booking.bookingSource === 'Agent' || booking.bookingSource === 'E-Docket' || booking.bookedByAgent || booking.agentUsername || booking.seededBy || (booking.notes && booking.notes.toLowerCase().includes('intake')) || (booking.notes && booking.notes.toLowerCase().includes('e-docket')) ? (
+                          <div className="flex flex-col">
+                            <div className="flex items-center gap-1.5">
+                              <span className="inline-flex px-1.5 py-0.5 text-[10px] font-bold rounded bg-orange-100 dark:bg-orange-950/40 text-orange-700 dark:text-orange-400 border border-orange-200 dark:border-orange-800/40">
+                                E-Docket
+                              </span>
+                              <span className="text-sm font-bold text-gray-900 dark:text-white capitalize truncate max-w-[150px]" title={booking.bookedByAgent || booking.agentUsername || (booking.createdBy?.role === 'agent' ? booking.createdBy?.name : null) || "Agent"}>
+                                {booking.bookedByAgent || booking.agentUsername || (booking.createdBy?.role === 'agent' ? booking.createdBy?.name : null) || "Agent"}
+                              </span>
+                            </div>
+                            {(booking.seededByName || booking.verifiedByName || (booking.seededBy && (booking.createdBy?.name || booking.createdBy?.username))) && (
+                              <span className="text-[11px] text-gray-500 dark:text-gray-400 font-medium mt-0.5">
+                                Synced by: <span className="font-semibold text-gray-700 dark:text-gray-300">{booking.seededByName || booking.verifiedByName || "Admin"}</span>
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="text-sm font-bold text-gray-900 dark:text-white capitalize">
+                            {booking.createdBy?.name || booking.createdBy?.username || (booking.officeId ? "Office" : "Main Office")}
+                          </div>
+                        )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                         <div className="flex items-center justify-center space-x-2">

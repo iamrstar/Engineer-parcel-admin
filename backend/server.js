@@ -1,7 +1,15 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
+const dns = require("dns");
 require("dotenv").config();
+
+// Ensure reliable DNS resolution for MongoDB Atlas SRV records
+try {
+  dns.setServers(["8.8.8.8", "1.1.1.1"]);
+} catch (e) {
+  // Ignore in restricted environments
+}
 
 const app = express();
 
@@ -52,9 +60,17 @@ app.get("/api/health", (req, res) => {
 });
 
 // MongoDB
+const mongoURI =
+  process.env.MONGODB_URI ||
+  "mongodb+srv://rajchatterji20:jaR5QNAU3n587zDb@cluster0.uzthk7v.mongodb.net/engineersparcel?retryWrites=true&w=majority&appName=Cluster0";
+
+if (!process.env.MONGODB_URI) {
+  console.warn("⚠️ Warning: MONGODB_URI is not set in backend/.env. Using default cluster connection string.");
+}
+
 mongoose
-  .connect(process.env.MONGODB_URI)
-  .then(() => console.log("MongoDB connected"))
+  .connect(mongoURI)
+  .then(() => console.log("MongoDB connected successfully ✅"))
   .catch((err) => console.error("MongoDB connection error:", err));
 
 const authRoutes = require("./routes/auth");

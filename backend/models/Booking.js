@@ -241,6 +241,40 @@ const bookingSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "User"
     },
+    bookingSource: {
+      type: String,
+      default: "admin"
+    },
+    bookedByAgent: {
+      type: String
+    },
+    agentUsername: {
+      type: String
+    },
+    agentId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User"
+    },
+    verifiedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User"
+    },
+    verifiedByName: {
+      type: String
+    },
+    verifiedAt: {
+      type: Date
+    },
+    seededBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User"
+    },
+    seededByName: {
+      type: String
+    },
+    seededAt: {
+      type: Date
+    },
   },
   { timestamps: true },
 )

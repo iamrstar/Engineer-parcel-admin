@@ -465,17 +465,27 @@ export default function EDocket() {
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                                             {booking.adminVerified ? (
-                                                <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">Yes</span>
+                                                <div className="flex flex-col">
+                                                    <span className="inline-flex px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-800 w-max">Yes</span>
+                                                    {booking.verifiedByName && (
+                                                        <span className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">by {booking.verifiedByName}</span>
+                                                    )}
+                                                </div>
                                             ) : (
                                                 <span className="inline-flex px-2 py-1 text-xs font-medium rounded-full bg-gray-100 dark:bg-[#111111] text-gray-500 dark:text-gray-400">No</span>
                                             )}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm">
                                             {booking.presentInMainDashboard ? (
-                                                <span className="inline-flex items-center px-2.5 py-1 text-xs font-bold rounded-full bg-green-100 text-green-700 border border-green-200 shadow-sm" title="Already in Main Dashboard">
-                                                    <CheckCircle className="w-3 h-3 mr-1" />
-                                                    Synced
-                                                </span>
+                                                <div className="flex flex-col">
+                                                    <span className="inline-flex items-center px-2.5 py-1 text-xs font-bold rounded-full bg-green-100 text-green-700 border border-green-200 shadow-sm w-max" title="Already in Main Dashboard">
+                                                        <CheckCircle className="w-3 h-3 mr-1" />
+                                                        Synced
+                                                    </span>
+                                                    {booking.seededByName && (
+                                                        <span className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">by {booking.seededByName}</span>
+                                                    )}
+                                                </div>
                                             ) : booking.adminVerified ? (
                                                 <span className="inline-flex items-center px-2.5 py-1 text-xs font-bold rounded-full bg-blue-50 text-blue-600 border border-blue-100" title="Ready to Sync">
                                                     Ready
@@ -559,11 +569,26 @@ export default function EDocket() {
                                     Verify Booking
                                     <span className="font-mono text-primary-600 bg-primary-50 px-2 rounded-md border border-primary-100 text-base py-0.5">{selectedBooking.trackingId}</span>
                                 </h2>
-                                {editForm.isVendorBooking && (
-                                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                                        Vendor Booking: {editForm.vendorId}
+                                <div className="flex flex-wrap items-center gap-2 mt-1">
+                                    <span className="inline-flex items-center px-2 py-0.5 text-xs font-bold rounded-full bg-orange-100 text-orange-800 border border-orange-200">
+                                        Booked by Agent: {selectedBooking.agentUsername || "Agent"}
                                     </span>
-                                )}
+                                    {selectedBooking.verifiedByName && (
+                                        <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-green-50 text-green-700 border border-green-200">
+                                            Verified by: {selectedBooking.verifiedByName}
+                                        </span>
+                                    )}
+                                    {selectedBooking.seededByName && (
+                                        <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+                                            Seeded by: {selectedBooking.seededByName}
+                                        </span>
+                                    )}
+                                    {editForm.isVendorBooking && (
+                                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                            Vendor Booking: {editForm.vendorId}
+                                        </span>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>

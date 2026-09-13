@@ -106,8 +106,19 @@ const IntakeBookingSchema = new mongoose.Schema({
     agentId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     agentUsername: String,
     adminVerified: { type: Boolean, default: false },
+    verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    verifiedByName: String,
+    verifiedAt: Date,
     seededToMainDashboard: { type: Boolean, default: false },
+    seededBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    seededByName: String,
     seededAt: Date,
+
+    // Internal Roles (Performance Tracking)
+    salesAgent: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    handlingAgent: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    packagingAgent: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    trackingAgent: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
 
     // Office Context
     officeId: {

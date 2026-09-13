@@ -67,10 +67,10 @@ export default function ManualBooking() {
     amountReceived: "",
     vendorBranch: "",
     vendorSeries: "",
-    salesAgent: user?.id || "",
-    handlingAgent: user?.id || "",
-    packagingAgent: user?.id || "",
-    trackingAgent: user?.id || "",
+    salesAgent: user?._id || user?.id || "",
+    handlingAgent: user?._id || user?.id || "",
+    packagingAgent: user?._id || user?.id || "",
+    trackingAgent: user?._id || user?.id || "",
   });
   const [paymentProof, setPaymentProof] = useState(null);
   const [generatedId, setGeneratedId] = useState("");
@@ -326,9 +326,10 @@ export default function ManualBooking() {
       laborRequired: false,
       paymentStatus: "pending",
       amountReceived: "",
-      salesAgent: user?.id || "",
-      handlingAgent: user?.id || "",
-      packagingAgent: user?.id || "",
+      salesAgent: user?._id || user?.id || "",
+      handlingAgent: user?._id || user?.id || "",
+      packagingAgent: user?._id || user?.id || "",
+      trackingAgent: user?._id || user?.id || "",
     });
     setPaymentProof(null);
     setVendorSearch("");
@@ -513,9 +514,10 @@ export default function ManualBooking() {
       }),
       sendPaymentLink,
       createdBy: user?._id,
-      salesAgent: formData.salesAgent,
-      handlingAgent: formData.handlingAgent,
-      packagingAgent: formData.packagingAgent,
+      salesAgent: formData.isVendorBooking ? null : (formData.salesAgent || null),
+      handlingAgent: formData.isVendorBooking ? null : (formData.handlingAgent || null),
+      packagingAgent: formData.isVendorBooking ? null : (formData.packagingAgent || null),
+      trackingAgent: formData.isVendorBooking ? null : (formData.trackingAgent || null),
       officeId: user?.officeId || formData.officeId || null,
     };
 
@@ -580,25 +582,43 @@ export default function ManualBooking() {
             <div className="flex gap-4 p-1 bg-gray-100 dark:bg-[#1A1A1A] border border-transparent dark:border-white/10 rounded-2xl mb-6">
               <button
                 type="button"
-                onClick={() => setFormData(p => ({ ...p, isVendorBooking: false, vendorId: "" }))}
+                onClick={() => setFormData(p => ({ 
+                  ...p, 
+                  isVendorBooking: false, 
+                  vendorId: "",
+                  salesAgent: p.salesAgent !== undefined ? p.salesAgent : (user?._id || user?.id || ""),
+                  handlingAgent: p.handlingAgent !== undefined ? p.handlingAgent : (user?._id || user?.id || ""),
+                  packagingAgent: p.packagingAgent !== undefined ? p.packagingAgent : (user?._id || user?.id || ""),
+                  trackingAgent: p.trackingAgent !== undefined ? p.trackingAgent : (user?._id || user?.id || "")
+                }))}
                 className={`flex-1 py-3 px-4 rounded-xl font-bold transition-all ${!formData.isVendorBooking ? 'bg-white dark:bg-[#2A2A2A] shadow-md text-orange-600 dark:text-orange-500' : 'text-gray-500 dark:text-gray-400'}`}
               >
                 Normal Booking
               </button>
               <button
                 type="button"
-                onClick={() => setFormData(p => ({ ...p, isVendorBooking: true }))}
+                onClick={() => setFormData(p => ({ 
+                  ...p, 
+                  isVendorBooking: true, 
+                  salesAgent: "", 
+                  handlingAgent: "", 
+                  packagingAgent: "", 
+                  trackingAgent: "" 
+                }))}
                 className={`flex-1 py-3 px-4 rounded-xl font-bold transition-all ${formData.isVendorBooking ? 'bg-white dark:bg-[#2A2A2A] shadow-md text-orange-600 dark:text-orange-500' : 'text-gray-500 dark:text-gray-400'}`}
               >
                 Vendor Booking
               </button>
             </div>
             
-            <div className="bg-white dark:bg-[#111111] p-6 rounded-2xl border border-gray-100 dark:border-white/5 shadow-sm space-y-6">
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-                  <User className="w-5 h-5 text-orange-500" />
-                  Internal Role Assignment
-                </h3>
+            {!formData.isVendorBooking && (
+              <div className="bg-white dark:bg-[#111111] p-6 rounded-2xl border border-gray-100 dark:border-white/5 shadow-sm space-y-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                    <User className="w-5 h-5 text-orange-500" />
+                    Internal Role Assignment
+                  </h3>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   <div>
                     <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Lead by</label>
@@ -608,7 +628,7 @@ export default function ManualBooking() {
                       onChange={handleChange}
                       className="w-full border border-gray-300 dark:border-white/10 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-white dark:bg-[#111111] dark:text-white font-medium"
                     >
-                      <option value="">Select Staff</option>
+                      <option value="">None</option>
                       {staff.map(s => (
                         <option key={s._id} value={s._id}>{s.name} ({s.role})</option>
                       ))}
@@ -622,7 +642,7 @@ export default function ManualBooking() {
                       onChange={handleChange}
                       className="w-full border border-gray-300 dark:border-white/10 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-white dark:bg-[#111111] dark:text-white font-medium"
                     >
-                      <option value="">Select Staff</option>
+                      <option value="">None</option>
                       {staff.map(s => (
                         <option key={s._id} value={s._id}>{s.name} ({s.role})</option>
                       ))}
@@ -636,7 +656,7 @@ export default function ManualBooking() {
                       onChange={handleChange}
                       className="w-full border border-gray-300 dark:border-white/10 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-white dark:bg-[#111111] dark:text-white font-medium"
                     >
-                      <option value="">Select Staff</option>
+                      <option value="">None</option>
                       {staff.map(s => (
                         <option key={s._id} value={s._id}>{s.name} ({s.role})</option>
                       ))}
@@ -650,7 +670,7 @@ export default function ManualBooking() {
                       onChange={handleChange}
                       className="w-full border border-gray-300 dark:border-white/10 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-white dark:bg-[#111111] dark:text-white font-medium"
                     >
-                      <option value="">Select Staff</option>
+                      <option value="">None</option>
                       {staff.map(s => (
                         <option key={s._id} value={s._id}>{s.name} ({s.role})</option>
                       ))}
@@ -658,6 +678,7 @@ export default function ManualBooking() {
                   </div>
                 </div>
               </div>
+            )}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 animate-in slide-in-from-top-4 duration-300">
               {isAdmin && offices.length > 0 && (

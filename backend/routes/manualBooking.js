@@ -81,6 +81,7 @@ router.post("/", authMiddleware, uploadPaymentProof.single("paymentProof"), asyn
       salesAgent = null,
       handlingAgent = null,
       packagingAgent = null,
+      trackingAgent = null,
     } = bodyData;
 
     // Required fields check
@@ -157,16 +158,17 @@ router.post("/", authMiddleware, uploadPaymentProof.single("paymentProof"), asyn
       amountReceived: Number(amountReceived) || 0,
       paymentProof: req.file ? `/uploads/payments/${req.file.filename}` : undefined,
       notes,
-      isVendorBooking,
+      isVendorBooking: Boolean(isVendorBooking),
       vendorId,
       vendorName,
       vendorTrackingId,
       bookingSource,
       officeId: req.user ? req.user.officeId : (req.admin ? req.admin.officeId : req.body.officeId),
       createdBy: req.user ? req.user.id : (req.admin ? req.admin.id : null),
-      salesAgent,
-      handlingAgent,
-      packagingAgent,
+      salesAgent: isVendorBooking || salesAgent === "none" || !salesAgent ? null : salesAgent,
+      handlingAgent: isVendorBooking || handlingAgent === "none" || !handlingAgent ? null : handlingAgent,
+      packagingAgent: isVendorBooking || packagingAgent === "none" || !packagingAgent ? null : packagingAgent,
+      trackingAgent: isVendorBooking || trackingAgent === "none" || !trackingAgent ? null : trackingAgent,
     });
 
     await newBooking.save();
