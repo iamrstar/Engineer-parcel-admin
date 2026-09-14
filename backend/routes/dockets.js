@@ -1,6 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const DocketInventory = require("../models/DocketInventory");
+const adminAuth = require("../middleware/adminAuth");
 
 // @route   POST /api/dockets/upload
 // @desc    Bulk upload docket IDs for a vendor
@@ -174,4 +175,89 @@ router.get("/used", async (req, res) => {
   }
 });
 
+// @route   PUT /api/dockets/:id/mark-used-offline
+// @desc    Mark a docket ID as used offline with booking ID and proof details
+router.put("/:id/mark-used-offline", adminAuth, async (req, res) => {
+  try {
+    const { bookingId, customerName, reason, proof, notes } = req.body;
+
+    if (!bookingId || !bookingId.trim()) {
+      return res.status(400).json({ message: "Booking ID or Reference is required." });
+    }
+
+    const docket = await DocketInventory.findById(req.params.id);
+    if (!docket) {
+      return res.status(404).json({ message: "Docket not found." });
+    }
+
+    const trimmedId = bookingId.trim();
+    const assignedUser = req.admin || req.user;
+
+    docket.status = "used";
+    docket.usedAt = new Date();
+    docket.epId = [trimmedId];
+    if (assignedUser?._id) {
+      docket.assignedBy = assignedUser._id;
+    }
+    if (assignedUser?.officeId) {
+      docket.assignedByOffice = assignedUser.officeId;
+    }
+    docket.metadata = {
+      isOffline: true,
+      bookingId: trimmedId,
+      customerName: customerName ? customerName.trim() : "",
+      reason: reason ? reason.trim() : "Offline Booking",
+      proof: proof ? proof.trim() : "",
+      notes: notes ? notes.trim() : "",
+      markedAt: new Date(),
+      markedBy: assignedUser?.name || "Admin",
+      markedByRole: assignedUser?.role || "admin",
+    };
+
+    await docket.save();
+
+    const populatedDocket = await DocketInventory.findById(docket._id)
+      .populate("assignedBy", "name role")
+      .populate("assignedByOffice", "name code");
+
+    res.json({
+      success: true,
+      message: `Docket ${docket.docketId} marked as used offline.`,
+      docket: populatedDocket,
+    });
+  } catch (error) {
+    console.error("Mark docket offline error:", error);
+    res.status(500).json({ message: "Failed to mark docket as used offline." });
+  }
+});
+
+// @route   PUT /api/dockets/:id/mark-available
+// @desc    Revert an offline-marked docket back to available inventory
+router.put("/:id/mark-available", adminAuth, async (req, res) => {
+  try {
+    const docket = await DocketInventory.findById(req.params.id);
+    if (!docket) {
+      return res.status(404).json({ message: "Docket not found." });
+    }
+
+    docket.status = "available";
+    docket.usedAt = null;
+    docket.epId = [];
+    docket.usedBy = [];
+    docket.metadata = null;
+
+    await docket.save();
+
+    res.json({
+      success: true,
+      message: `Docket ${docket.docketId} marked back as available.`,
+      docket,
+    });
+  } catch (error) {
+    console.error("Revert docket error:", error);
+    res.status(500).json({ message: "Failed to revert docket status." });
+  }
+});
+
 module.exports = router;
+

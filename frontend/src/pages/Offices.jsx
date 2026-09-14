@@ -29,7 +29,7 @@ const Offices = () => {
 
   const availableFeatures = [
     "Dashboard", "Booking", "E-Docket", "Pincodes", "Coupons", "Create Order",
-    "Partner Management", "Docket Management", "User Management",
+    "Corporate Partners", "Partner Management", "Courier Dockets", "Docket Management", "User Management",
     "Manage Queries", "Tasks", "Staff Tasks", "Attendance", "Attendance Report",
     "Sales Report", "Web Analytics"
   ];

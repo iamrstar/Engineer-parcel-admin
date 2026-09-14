@@ -4,8 +4,9 @@ import { useState, useEffect, useMemo } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import axios from "axios"
 import toast from "react-hot-toast"
-import { Package, Truck, MapPin, Calendar, Clock, User, Phone, Mail, ChevronRight, Edit2, Save, Trash2, ArrowLeft, CreditCard, XCircle, Tag, Printer, Bike, RefreshCw, CheckCircle2, Lock } from "lucide-react"
+import { Package, Truck, MapPin, Calendar, Clock, User, Phone, Mail, ChevronRight, Edit2, Save, Trash2, ArrowLeft, CreditCard, XCircle, Tag, Printer, Bike, RefreshCw, CheckCircle2, Lock, AlertTriangle, AlertCircle } from "lucide-react"
 import { useAuth } from "../contexts/AuthContext"
+import { getVerificationAttention, getTimeAgo } from "./Bookings"
 
 
 
@@ -31,6 +32,7 @@ const BookingDetail = () => {
   const [unassigning, setUnassigning] = useState(false)
   const [initialTrackingId, setInitialTrackingId] = useState("")
   const [isTrackingIdEditable, setIsTrackingIdEditable] = useState(false)
+  const [markingChecked, setMarkingChecked] = useState(false)
 
   // Dedicated Internal Roles Editing & Creator Access Control
   const [rolesEditMode, setRolesEditMode] = useState(false)
@@ -214,6 +216,31 @@ const BookingDetail = () => {
     } catch (error) {
       toast.error("Failed to assign rider")
       console.error(error)
+    }
+  }
+
+  const handleMarkChecked = async () => {
+    try {
+      setMarkingChecked(true)
+      const token = localStorage.getItem("adminToken") || localStorage.getItem("token")
+      const res = await axios.put(
+        `${import.meta.env.VITE_API_URL}/api/bookings/${id}/mark-checked`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      if (res.data?.success) {
+        setBooking((prev) => ({
+          ...prev,
+          lastCheckedAt: res.data.lastCheckedAt,
+          lastCheckedByName: res.data.lastCheckedByName
+        }))
+        toast.success("Shipment verification recorded!")
+      }
+    } catch (err) {
+      console.error("Failed to record check:", err)
+      toast.error(err.response?.data?.message || "Failed to record verification check")
+    } finally {
+      setMarkingChecked(false)
     }
   }
 
@@ -1078,6 +1105,44 @@ const BookingDetail = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+        {/* Corporate Partner Account Banner */}
+        <div className="lg:col-span-2">
+          {booking.isVendorBooking && (booking.partnerName || booking.partnerId || booking.vendorId) ? (
+            <div className="bg-gradient-to-r from-pink-50 via-purple-50 to-pink-50 dark:from-pink-950/20 dark:via-[#1A1A1A] dark:to-pink-950/20 border-2 border-pink-200 dark:border-pink-500/30 rounded-2xl p-5 shadow-sm">
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-pink-600 to-rose-500 text-white flex items-center justify-center font-black text-base shadow-sm shrink-0">
+                    {(booking.partnerName || booking.vendorId || "P").charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold uppercase tracking-wider text-pink-700 dark:text-pink-300">Corporate Partner Account</span>
+                      {(booking.partnerId || (booking.vendorId?.startsWith('PAT') ? booking.vendorId : '')) && (
+                        <span className="px-2 py-0.5 bg-pink-100 dark:bg-pink-900/50 text-pink-700 dark:text-pink-300 text-xs font-mono font-bold rounded-md border border-pink-200 dark:border-pink-500/30">
+                          {booking.partnerId || booking.vendorId}
+                        </span>
+                      )}
+                    </div>
+                    <h4 className="text-lg font-black text-gray-900 dark:text-white mt-0.5">
+                      {booking.partnerName || booking.vendorId}
+                    </h4>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="px-3 py-1 bg-pink-500/10 text-pink-600 dark:text-pink-400 font-bold text-xs rounded-full border border-pink-500/20">
+                    B2B Client Order
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl p-3 flex items-center justify-between text-xs font-medium text-gray-600 dark:text-gray-400">
+              <span className="font-semibold text-gray-700 dark:text-gray-300">Customer Account: Direct Retail Customer</span>
+              <span className="text-[10px] uppercase font-bold text-gray-500 bg-gray-200 dark:bg-white/10 px-2 py-0.5 rounded">Individual</span>
+            </div>
+          )}
+        </div>
+
         {/* Sender Details */}
         <div className="bg-white dark:bg-[#1A1A1A] rounded-lg shadow p-4 sm:p-6">
           <div className="flex items-center mb-4">
@@ -1354,32 +1419,34 @@ const BookingDetail = () => {
           </div>
         </div>
 
-        {/* Vendor & Tracking Details */}
+        {/* Shipping Courier & Docket Details */}
         <div className="bg-white dark:bg-[#1A1A1A] rounded-lg shadow p-4 sm:p-6 lg:col-span-2">
           <div className="flex items-center mb-4">
             <Truck className="h-5 w-5 text-primary-500 mr-2" />
-            <h3 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white">Vendor & Tracking Details</h3>
+            <h3 className="text-base sm:text-lg font-medium text-gray-900 dark:text-white">Shipping Courier & Docket</h3>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Vendor Name</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Courier Partner</label>
               {editMode ? (
                 <>
                   <select
-                    value={otherVendor ? "Other" : (booking.vendorName || "")}
+                    value={otherVendor ? "Other" : (booking.courierName || booking.vendorName || "")}
                     onChange={(e) => {
                       if (e.target.value === "Other") {
                         setOtherVendor(true)
+                        handleInputChange("courierName", "")
                         handleInputChange("vendorName", "")
                       } else {
                         setOtherVendor(false)
+                        handleInputChange("courierName", e.target.value)
                         handleInputChange("vendorName", e.target.value)
                         fetchNextDocket(e.target.value)
                       }
                     }}
                     className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                   >
-                    <option value="">Select Vendor</option>
+                    <option value="">Select Courier Partner</option>
                     <option value="BlueDart">BlueDart</option>
                     <option value="DTDC (Hirak)">DTDC (Hirak)</option>
                     <option value="DTDC (Sanjay)">DTDC (Sanjay)</option>
@@ -1392,20 +1459,23 @@ const BookingDetail = () => {
                   {otherVendor && (
                     <input
                       type="text"
-                      value={booking.vendorName || ""}
-                      onChange={(e) => handleInputChange("vendorName", e.target.value)}
-                      placeholder="Type Vendor Name"
+                      value={booking.courierName || booking.vendorName || ""}
+                      onChange={(e) => {
+                        handleInputChange("courierName", e.target.value)
+                        handleInputChange("vendorName", e.target.value)
+                      }}
+                      placeholder="Type Courier Name"
                       className="w-full mt-2 px-3 py-2 text-sm border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500"
                     />
                   )}
                 </>
               ) : (
-                <p className="text-sm sm:text-base text-gray-900 dark:text-white capitalize">{booking.vendorName || "Not Assigned"}</p>
+                <p className="text-sm sm:text-base text-gray-900 dark:text-white capitalize">{booking.courierName || booking.vendorName || "Not Assigned"}</p>
               )}
             </div>
             <div>
               <div className="flex justify-between items-center mb-1">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Vendor Tracking ID</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Courier Tracking ID / Docket</label>
                 {editMode && !isTrackingIdEditable && (
                   <button
                     onClick={() => {
@@ -1430,7 +1500,7 @@ const BookingDetail = () => {
                     onChange={(e) => handleInputChange("vendorTrackingId", e.target.value)}
                     readOnly={!isTrackingIdEditable}
                     className={`w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500 pr-10 ${!isTrackingIdEditable ? 'opacity-60 cursor-not-allowed' : ''}`}
-                    placeholder={isTrackingIdEditable ? "Enter Tracking ID manually..." : "Select Vendor to auto-fetch..."}
+                    placeholder={isTrackingIdEditable ? "Enter Tracking ID manually..." : "Select Courier to auto-fetch..."}
                   />
                   {isTrackingIdEditable && booking.vendorTrackingId && (
                     <button
@@ -1443,7 +1513,16 @@ const BookingDetail = () => {
                   )}
                 </div>
               ) : (
-                <p className="text-sm sm:text-base text-gray-900 dark:text-white">{booking.vendorTrackingId || "Not Assigned"}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm sm:text-base font-mono font-bold text-gray-900 dark:text-white">{booking.vendorTrackingId || "Not Assigned"}</p>
+                  {booking.vendorTrackingId && (
+                    (booking.courierName || booking.vendorName || "").toLowerCase().includes("delhivery") ? (
+                      <a href="https://www.delhivery.com/tracking" target="_blank" rel="noopener noreferrer" className="text-xs text-orange-600 hover:underline font-medium">Track on Delhivery &rarr;</a>
+                    ) : (booking.courierName || booking.vendorName || "").toLowerCase().includes("dtdc") ? (
+                      <a href="https://www.dtdc.com/track-your-shipment/" target="_blank" rel="noopener noreferrer" className="text-xs text-red-600 hover:underline font-medium">Track on DTDC &rarr;</a>
+                    ) : null
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -2402,168 +2481,265 @@ const BookingDetail = () => {
       )}
 
       <div className="mt-6 bg-white dark:bg-[#1A1A1A] rounded-lg shadow p-6">
-        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4">Tracking History</h3>
+        {(() => {
+          const attention = getVerificationAttention(booking);
+          return (
+            <>
+              {/* Header with Title, Attention Badge, and Mark as Checked Button */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 pb-3 border-b border-gray-100 dark:border-white/10">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">Tracking History</h3>
+                    <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${attention.badgeClass}`}>
+                      {attention.tier === 'checked' && <CheckCircle2 className="w-3 h-3 text-emerald-500" />}
+                      {attention.tier === 'day1' && <Clock className="w-3 h-3 text-yellow-500" />}
+                      {attention.tier === 'day2' && <AlertTriangle className="w-3 h-3 text-orange-500" />}
+                      {attention.tier === 'day3_plus' && <AlertCircle className="w-3 h-3 text-red-500" />}
+                      {attention.tier === 'new' && <Clock className="w-3 h-3 text-blue-500" />}
+                      {attention.tier === 'closed' && <CheckCircle2 className="w-3 h-3 text-gray-400" />}
+                      <span>{attention.label}</span>
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Chronological shipment events and operational verification logs</p>
+                </div>
 
-        {Array.isArray(booking?.trackingHistory) && booking.trackingHistory.length > 0 ? (
-          <div className="space-y-4">
-            {booking.trackingHistory.map((track, index) => (
-              <div key={index} className="border-b pb-2">
-                {track.editing ? (
-                  <>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
-                      <input
-                        type="text"
-                        value={track.status}
-                        onChange={(e) =>
-                          setBooking((prev) => {
-                            const newHistory = [...prev.trackingHistory]
-                            newHistory[index].status = e.target.value
-                            return { ...prev, trackingHistory: newHistory }
-                          })
-                        }
-                        className="w-full px-2 py-1 border rounded"
-                      />
-                      <input
-                        type="text"
-                        value={track.location}
-                        onChange={(e) =>
-                          setBooking((prev) => {
-                            const newHistory = [...prev.trackingHistory]
-                            newHistory[index].location = e.target.value
-                            return { ...prev, trackingHistory: newHistory }
-                          })
-                        }
-                        className="w-full px-2 py-1 border rounded"
-                      />
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleMarkChecked}
+                    disabled={markingChecked}
+                    className="px-4 py-2 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all flex items-center gap-2 disabled:opacity-50 active:scale-95 cursor-pointer"
+                  >
+                    {markingChecked ? (
+                      <>
+                        <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        <span>Recording Verification...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>{booking?.lastCheckedAt ? "Mark Checked Again" : "Mark as Checked"}</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Prominent Attention Alert Card */}
+              {attention.needsAttention ? (
+                <div className={`mb-5 p-3.5 rounded-2xl border flex items-start gap-3 ${
+                  attention.tier === 'day3_plus' ? 'bg-red-500/10 border-red-500/30 text-red-700 dark:text-red-300' :
+                  attention.tier === 'day2' ? 'bg-orange-500/10 border-orange-500/30 text-orange-700 dark:text-orange-300' :
+                  'bg-yellow-500/10 border-yellow-500/30 text-yellow-700 dark:text-yellow-300'
+                }`}>
+                  {attention.tier === 'day3_plus' ? <AlertCircle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" /> :
+                   attention.tier === 'day2' ? <AlertTriangle className="w-5 h-5 text-orange-500 shrink-0 mt-0.5" /> :
+                   <Clock className="w-5 h-5 text-yellow-500 shrink-0 mt-0.5" />}
+                  <div className="flex-1">
+                    <div className="font-bold text-xs uppercase tracking-wider">
+                      {attention.tier === 'day3_plus' ? '🚨 Critical Attention Needed - 3+ Days Overdue' :
+                       attention.tier === 'day2' ? '⚠️ High Attention Needed - 2 Days Unchecked' :
+                       '⚠️ Attention Needed - 1 Day Unchecked'}
                     </div>
-                    <textarea
-                      value={track.description}
-                      onChange={(e) =>
-                        setBooking((prev) => {
-                          const newHistory = [...prev.trackingHistory]
-                          newHistory[index].description = e.target.value
-                          return { ...prev, trackingHistory: newHistory }
-                        })
-                      }
-                      rows={2}
-                      className="w-full px-2 py-1 border rounded mb-2"
-                    />
-                    <div className="mb-2">
-                      <input
-                        type="datetime-local"
-                        value={(() => {
-                          if (!track.timestamp) return "";
-                          try {
-                            const date = new Date(track.timestamp);
-                            if (isNaN(date.getTime())) return "";
-                            date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
-                            return date.toISOString().slice(0, 16);
-                          } catch (e) {
-                            return "";
-                          }
-                        })()}
-                        onChange={(e) =>
-                          setBooking((prev) => {
-                            const newHistory = [...prev.trackingHistory]
-                            // Convert the datetime-local back to a JS Date object
-                            newHistory[index].timestamp = e.target.value ? new Date(e.target.value).toISOString() : new Date().toISOString();
-                            return { ...prev, trackingHistory: newHistory }
-                          })
-                        }
-                        className="w-full px-2 py-1 border rounded text-sm"
-                      />
+                    <div className="text-xs mt-1 leading-relaxed">
+                      {attention.message} Please review the courier tracking movement logs below, inspect carrier tracking if needed, and click <strong>"Mark as Checked"</strong> to confirm you have verified this shipment.
                     </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleTrackingSave(track)}
-                        className="px-3 py-1 bg-primary-500 text-white rounded hover:bg-primary-600"
-                      >
-                        Save
-                      </button>
-                      <button
-                        onClick={() => {
-                          setBooking((prev) => {
-                            const newHistory = [...prev.trackingHistory]
-                            newHistory[index].editing = false
-                            return { ...prev, trackingHistory: newHistory }
-                          })
-                        }}
-                        className="px-3 py-1 border rounded hover:bg-gray-50 dark:bg-[#111111]"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <p className="text-sm text-gray-700 dark:text-gray-300">
-                      <span className="font-semibold">Status:</span> {
-                        track?.status === 'empty_box_delivered' ? 'Empty Box Delivered' :
-                        track?.status === 'filled_box_picked' ? 'Filled Box Picked' :
-                        track?.status || "—"
-                      }
-                    </p>
-                    <p className="text-sm text-gray-700 dark:text-gray-300">
-                      <span className="font-semibold">Location:</span> {track?.location || "—"}
-                    </p>
-                    <p className="text-sm text-gray-700 dark:text-gray-300">
-                      <span className="font-semibold">Description:</span> {track?.description || "—"}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {track?.timestamp ? new Date(track.timestamp).toLocaleString() : "—"}
-                    </p>
-                    {editMode && (
-                      <div className="flex items-center gap-3 mt-1">
-                        <button
-                          onClick={() =>
+                  </div>
+                </div>
+              ) : booking?.lastCheckedAt ? (
+                <div className="mb-5 p-3 rounded-2xl border bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-300 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <span><strong>Verified & Up to Date:</strong> Checked by <span className="font-bold">{booking.lastCheckedByName || "Staff"}</span> on {new Date(booking.lastCheckedAt).toLocaleString()} ({getTimeAgo(booking.lastCheckedAt)})</span>
+                  </div>
+                </div>
+              ) : null}
+            </>
+          );
+        })()}
+
+        {(() => {
+          const validTracking = (Array.isArray(booking?.trackingHistory) ? booking.trackingHistory : []).filter(track => {
+            const desc = (track?.description || '').toLowerCase();
+            return !desc.includes('seed') && !desc.includes('sync to main') && !desc.includes('verified and seeded') && !desc.includes('booking verified by');
+          });
+
+          if (validTracking.length === 0) {
+            return (
+              <div className="py-6 text-center bg-gray-50 dark:bg-white/5 rounded-xl border border-dashed border-gray-200 dark:border-white/10">
+                <Truck className="w-8 h-8 text-gray-400 mx-auto mb-2 opacity-60" />
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-300">No courier movement updates recorded yet</p>
+                <p className="text-xs text-gray-400 mt-0.5">Physical parcel tracking events will appear here once movement is logged.</p>
+              </div>
+            );
+          }
+
+          return (
+            <div className="space-y-4">
+              {validTracking.map((track, index) => (
+                <div key={track._id || index} className="border-b pb-2">
+                  {track.editing ? (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">
+                        <input
+                          type="text"
+                          value={track.status}
+                          onChange={(e) =>
                             setBooking((prev) => {
                               const newHistory = [...prev.trackingHistory]
-                              newHistory[index].editing = true
+                              const realIdx = newHistory.findIndex(t => (t._id && track._id && t._id === track._id) || t === track);
+                              if (realIdx !== -1) newHistory[realIdx].status = e.target.value;
                               return { ...prev, trackingHistory: newHistory }
                             })
                           }
-                          className="px-2 py-1 text-sm text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                          className="w-full px-2 py-1 border rounded"
+                        />
+                        <input
+                          type="text"
+                          value={track.location}
+                          onChange={(e) =>
+                            setBooking((prev) => {
+                              const newHistory = [...prev.trackingHistory]
+                              const realIdx = newHistory.findIndex(t => (t._id && track._id && t._id === track._id) || t === track);
+                              if (realIdx !== -1) newHistory[realIdx].location = e.target.value;
+                              return { ...prev, trackingHistory: newHistory }
+                            })
+                          }
+                          className="w-full px-2 py-1 border rounded"
+                        />
+                      </div>
+                      <textarea
+                        value={track.description}
+                        onChange={(e) =>
+                          setBooking((prev) => {
+                            const newHistory = [...prev.trackingHistory]
+                            const realIdx = newHistory.findIndex(t => (t._id && track._id && t._id === track._id) || t === track);
+                            if (realIdx !== -1) newHistory[realIdx].description = e.target.value;
+                            return { ...prev, trackingHistory: newHistory }
+                          })
+                        }
+                        rows={2}
+                        className="w-full px-2 py-1 border rounded mb-2"
+                      />
+                      <div className="mb-2">
+                        <input
+                          type="datetime-local"
+                          value={(() => {
+                            if (!track.timestamp) return "";
+                            try {
+                              const date = new Date(track.timestamp);
+                              if (isNaN(date.getTime())) return "";
+                              date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+                              return date.toISOString().slice(0, 16);
+                            } catch (e) {
+                              return "";
+                            }
+                          })()}
+                          onChange={(e) =>
+                            setBooking((prev) => {
+                              const newHistory = [...prev.trackingHistory]
+                              const realIdx = newHistory.findIndex(t => (t._id && track._id && t._id === track._id) || t === track);
+                              if (realIdx !== -1) {
+                                newHistory[realIdx].timestamp = e.target.value ? new Date(e.target.value).toISOString() : new Date().toISOString();
+                              }
+                              return { ...prev, trackingHistory: newHistory }
+                            })
+                          }
+                          className="w-full px-2 py-1 border rounded text-sm"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleTrackingSave(track)}
+                          className="px-3 py-1 bg-primary-500 text-white rounded hover:bg-primary-600"
                         >
-                          Edit
+                          Save
                         </button>
                         <button
-                          onClick={async () => {
-                            if (!window.confirm("Are you sure you want to completely delete this tracking update? This cannot be undone.")) return;
-                            try {
-                              setSaving(true);
-                              const targetUrl = track._id
-                                ? `${import.meta.env.VITE_API_URL}/api/bookings/${id}/tracking/${track._id}`
-                                : `${import.meta.env.VITE_API_URL}/api/bookings/${id}/tracking`; // fallback though rare
-
-                              if (!track._id) {
-                                toast.error("Cannot delete a tracking item without ID");
-                                return;
-                              }
-
-                              const response = await axios.delete(targetUrl);
-                              toast.success("Tracking update deleted");
-                              setBooking(response.data);
-                            } catch (err) {
-                              console.error(err);
-                              toast.error("Failed to delete tracking update");
-                            } finally {
-                              setSaving(false);
-                            }
+                          onClick={() => {
+                            setBooking((prev) => {
+                              const newHistory = [...prev.trackingHistory]
+                              const realIdx = newHistory.findIndex(t => (t._id && track._id && t._id === track._id) || t === track);
+                              if (realIdx !== -1) newHistory[realIdx].editing = false;
+                              return { ...prev, trackingHistory: newHistory }
+                            })
                           }}
-                          className="px-2 py-1 text-sm text-red-600 hover:text-red-800 hover:underline font-medium"
+                          className="px-3 py-1 border rounded hover:bg-gray-50 dark:bg-[#111111]"
                         >
-                          Delete
+                          Cancel
                         </button>
                       </div>
-                    )}
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="text-gray-500 dark:text-gray-400">No tracking updates yet.</p>
-        )}
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm text-gray-700 dark:text-gray-300">
+                        <span className="font-semibold">Status:</span> {
+                          track?.status === 'empty_box_delivered' ? 'Empty Box Delivered' :
+                          track?.status === 'filled_box_picked' ? 'Filled Box Picked' :
+                          track?.status || "—"
+                        }
+                      </p>
+                      <p className="text-sm text-gray-700 dark:text-gray-300">
+                        <span className="font-semibold">Location:</span> {track?.location || "—"}
+                      </p>
+                      <p className="text-sm text-gray-700 dark:text-gray-300">
+                        <span className="font-semibold">Description:</span> {track?.description || "—"}
+                      </p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {track?.timestamp ? new Date(track.timestamp).toLocaleString() : "—"}
+                      </p>
+                      {editMode && (
+                        <div className="flex items-center gap-3 mt-1">
+                          <button
+                            onClick={() =>
+                              setBooking((prev) => {
+                                const newHistory = [...prev.trackingHistory]
+                                const realIdx = newHistory.findIndex(t => (t._id && track._id && t._id === track._id) || t === track);
+                                if (realIdx !== -1) newHistory[realIdx].editing = true;
+                                return { ...prev, trackingHistory: newHistory }
+                              })
+                            }
+                            className="px-2 py-1 text-sm text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (!window.confirm("Are you sure you want to completely delete this tracking update? This cannot be undone.")) return;
+                              try {
+                                setSaving(true);
+                                const targetUrl = track._id
+                                  ? `${import.meta.env.VITE_API_URL}/api/bookings/${id}/tracking/${track._id}`
+                                  : `${import.meta.env.VITE_API_URL}/api/bookings/${id}/tracking`; // fallback though rare
+
+                                if (!track._id) {
+                                  toast.error("Cannot delete a tracking item without ID");
+                                  return;
+                                }
+
+                                const response = await axios.delete(targetUrl);
+                                toast.success("Tracking update deleted");
+                                setBooking(response.data);
+                              } catch (err) {
+                                console.error(err);
+                                toast.error("Failed to delete tracking update");
+                              } finally {
+                                setSaving(false);
+                              }
+                            }}
+                            className="px-2 py-1 text-sm text-red-600 hover:text-red-800 hover:underline font-medium"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              ))}
+            </div>
+          );
+        })()}
 
         {/* Quick Tracking Entry Form (Always Visible) */}
       </div>

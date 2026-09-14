@@ -425,12 +425,7 @@ router.post("/seed", adminAuth, async (req, res) => {
                 vendorId: doc.vendorId || null,
                 notes: doc.notes || "Imported from Agent Intake",
                 currentLocation: `${doc.senderDetails.address1 || doc.senderDetails.address || "Hub"}${doc.senderDetails.landmark ? ', ' + doc.senderDetails.landmark : ''}`,
-                trackingHistory: [{
-                    status: "confirmed",
-                    location: `${doc.senderDetails.address1 || doc.senderDetails.address || "Hub"}${doc.senderDetails.landmark ? ', ' + doc.senderDetails.landmark : ''}`,
-                    timestamp: new Date(),
-                    description: `Booking Verified by ${doc.verifiedByName || "Admin"} and Seeded by ${seededByName}`
-                }],
+                trackingHistory: [],
             };
 
             try {

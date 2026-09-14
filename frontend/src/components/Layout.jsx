@@ -363,22 +363,29 @@ const Layout = ({ children }) => {
     { name: "Attendance", href: "/attendance", icon: UserCheck },
     { name: "Attendance Report", href: "/attendance-report", icon: FileText },
     { name: "User Management", href: "/user-management", icon: Users },
-    { name: "Partner Management", href: "/partners", icon: Building },
-    { name: "Docket Management", href: "/docket-management", icon: ClipboardList },
+    { name: "Corporate Partners", href: "/partners", icon: Building },
+    { name: "Courier Dockets", href: "/docket-management", icon: ClipboardList },
     { name: "Manage Queries", href: "/queries", icon: MessageCircle },
     { name: "Leads", href: "/leads", icon: Users },
     { name: "Offices", href: "/offices", icon: Building },
     { name: "Access Control", href: "/access-control", icon: UserCheck },
   ]
 
-  const defaultStaffAllowed = ["Dashboard", "Booking", "E-Docket", "Pincodes", "Create Order", "Partner Management", "Staff Tasks", "Manage Queries", "Docket Management", "Leads", "Performance"];
+  const defaultStaffAllowed = [
+    "Dashboard", "Booking", "E-Docket", "Pincodes", "Create Order", 
+    "Corporate Partners", "Partner Management", "Staff Tasks", "Manage Queries", 
+    "Courier Dockets", "Docket Management", "Leads", "Performance"
+  ];
   
   const navigation = isAdmin 
     ? allNavigation 
     : allNavigation.filter(item => {
         if (user?.permissions && Array.isArray(user.permissions) && user.permissions.length > 0) {
           if (user.permissions.includes("ALL")) return true;
-          return user.permissions.includes(item.name) || user.permissions.includes(item.name.replace("My ", "Staff "));
+          return user.permissions.includes(item.name) || 
+                 user.permissions.includes(item.name.replace("My ", "Staff ")) ||
+                 (item.name === "Corporate Partners" && user.permissions.includes("Partner Management")) ||
+                 (item.name === "Courier Dockets" && user.permissions.includes("Docket Management"));
         }
         return defaultStaffAllowed.includes(item.name);
       }).map(item => {

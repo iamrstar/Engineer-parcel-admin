@@ -6,8 +6,8 @@ import { Shield, Save, Users, UserCheck } from "lucide-react";
 const ALL_FEATURES = [
   "Dashboard", "Booking", "E-Docket", "Sales Report", "Web Analytics", 
   "Pincodes", "Coupons", "Create Order", "Tasks", "Staff Tasks", 
-  "Attendance", "Attendance Report", "User Management", "Partner Management", 
-  "Docket Management", "Manage Queries", "Leads", "Offices", "Performance", "Incentive Report"
+  "Attendance", "Attendance Report", "User Management", "Corporate Partners", "Partner Management", 
+  "Courier Dockets", "Docket Management", "Manage Queries", "Leads", "Offices", "Performance", "Incentive Report"
 ];
 
 const AccessControl = () => {

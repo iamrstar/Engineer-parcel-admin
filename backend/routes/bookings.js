@@ -821,23 +821,55 @@ router.get("/", authMiddleware, async (req, res) => {
       }
     }
 
-    if (req.query.vendorFilter) {
-      if (req.query.vendorFilter === "none") {
+    // Courier (Shipping Carrier) Filtering: DTDC, Delhivery, BlueDart, etc.
+    const courierFilterValue = req.query.courierFilter || req.query.vendorFilter;
+    if (courierFilterValue) {
+      if (courierFilterValue === "none") {
         query.$or = [
+          { courierName: { $exists: false } },
+          { courierName: "" },
+          { courierName: null },
           { vendorName: { $exists: false } },
           { vendorName: "" },
           { vendorName: null }
         ];
-      } else if (req.query.vendorFilter !== "all") {
-        query.vendorName = new RegExp(req.query.vendorFilter, "i");
+      } else if (courierFilterValue !== "all") {
+        query.$or = [
+          { courierName: new RegExp(courierFilterValue, "i") },
+          { vendorName: new RegExp(courierFilterValue, "i") }
+        ];
       }
     } else if (req.query.vendorNotAssigned === "true") {
       query.$or = [
+        { courierName: { $exists: false } },
+        { courierName: "" },
+        { courierName: null },
         { vendorName: { $exists: false } },
         { vendorName: "" },
         { vendorName: null }
       ];
     }
+
+    // Corporate Partner (B2B Client) Filtering: Anand Cure, Hancore, Direct Customers, etc.
+    if (req.query.partnerFilter) {
+      if (req.query.partnerFilter === "none") {
+        // Direct Customers (not a partner booking)
+        query.$or = [
+          { isVendorBooking: { $ne: true } },
+          { partnerId: { $exists: false } },
+          { partnerId: "" },
+          { partnerId: null }
+        ];
+      } else if (req.query.partnerFilter !== "all") {
+        query.$or = [
+          { partnerId: req.query.partnerFilter },
+          { partnerName: new RegExp(req.query.partnerFilter, "i") },
+          { vendorId: req.query.partnerFilter }
+        ];
+      }
+    }
+
+
 
     // Date Filtering
     if (startDate || endDate) {
@@ -885,6 +917,147 @@ router.get("/", authMiddleware, async (req, res) => {
         query.$and.push({ $or: searchOr });
       } else {
         query.$or = searchOr;
+      }
+    }
+
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const twoDaysAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+    const threeDaysAgo = new Date(Date.now() - 72 * 60 * 60 * 1000);
+
+    // Snapshot of filter criteria before attention status or payment status is applied
+    const verificationStatsMatch = { ...query };
+    if (query.$and) verificationStatsMatch.$and = [...query.$and];
+    if (query.$or) verificationStatsMatch.$or = [...query.$or];
+
+    // Status Verification and Tracking Update expressions (strictly real courier/tracking updates, ignoring any sync/seed logs)
+    const cleanHistoryExpr = {
+      $filter: {
+        input: { $cond: [{ $isArray: "$trackingHistory" }, "$trackingHistory", []] },
+        as: "t",
+        cond: {
+          $and: [
+            { $ne: ["$$t", null] },
+            { $not: { $regexMatch: { input: { $ifNull: ["$$t.description", ""] }, regex: /seed|sync to main|verified and seeded|booking verified by/i } } }
+          ]
+        }
+      }
+    };
+
+    const effectiveDateExpr = {
+      $let: {
+        vars: {
+          cleanHistory: cleanHistoryExpr
+        },
+        in: {
+          $let: {
+            vars: {
+              lastTrackElem: {
+                $cond: [
+                  { $gt: [{ $size: "$$cleanHistory" }, 0] },
+                  { $arrayElemAt: ["$$cleanHistory.timestamp", -1] },
+                  null
+                ]
+              }
+            },
+            in: {
+              $cond: [
+                {
+                  $and: [
+                    { $ne: ["$lastCheckedAt", null] },
+                    {
+                      $or: [
+                        { $eq: ["$$lastTrackElem", null] },
+                        { $gte: ["$lastCheckedAt", "$$lastTrackElem"] }
+                      ]
+                    }
+                  ]
+                },
+                "$lastCheckedAt",
+                { $ifNull: ["$$lastTrackElem", { $ifNull: ["$createdAt", "$$NOW"] }] }
+              ]
+            }
+          }
+        }
+      }
+    };
+
+    const isCheckedValidExpr = {
+      $let: {
+        vars: {
+          cleanHistory: cleanHistoryExpr
+        },
+        in: {
+          $let: {
+            vars: {
+              lastTrackElem: {
+                $cond: [
+                  { $gt: [{ $size: "$$cleanHistory" }, 0] },
+                  { $arrayElemAt: ["$$cleanHistory.timestamp", -1] },
+                  null
+                ]
+              }
+            },
+            in: {
+              $and: [
+                { $ne: ["$lastCheckedAt", null] },
+                {
+                  $or: [
+                    { $eq: ["$$lastTrackElem", null] },
+                    { $gte: ["$lastCheckedAt", "$$lastTrackElem"] }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      }
+    };
+
+    // Verification / Attention Status Filtering (Unchecked for 1 day, 2 days, 3+ days)
+    const attentionFilter = req.query.attentionFilter;
+    if (attentionFilter && attentionFilter !== "all") {
+      const activeStatusCondition = { status: { $not: /^\s*(delivered|cancelled)\s*$/i } };
+      query.$and = query.$and || [];
+
+      if (attentionFilter === "day3_plus") {
+        query.$and.push(activeStatusCondition);
+        query.$and.push({
+          $expr: { $lt: [effectiveDateExpr, threeDaysAgo] }
+        });
+      } else if (attentionFilter === "day2") {
+        query.$and.push(activeStatusCondition);
+        query.$and.push({
+          $expr: {
+            $and: [
+              { $lt: [effectiveDateExpr, twoDaysAgo] },
+              { $gte: [effectiveDateExpr, threeDaysAgo] }
+            ]
+          }
+        });
+      } else if (attentionFilter === "day1") {
+        query.$and.push(activeStatusCondition);
+        query.$and.push({
+          $expr: {
+            $and: [
+              { $lt: [effectiveDateExpr, oneDayAgo] },
+              { $gte: [effectiveDateExpr, twoDaysAgo] }
+            ]
+          }
+        });
+      } else if (attentionFilter === "attention_needed") {
+        query.$and.push(activeStatusCondition);
+        query.$and.push({
+          $expr: { $lt: [effectiveDateExpr, oneDayAgo] }
+        });
+      } else if (attentionFilter === "checked") {
+        query.$and.push({
+          $expr: {
+            $and: [
+              isCheckedValidExpr,
+              { $gte: [effectiveDateExpr, oneDayAgo] }
+            ]
+          }
+        });
       }
     }
 
@@ -960,6 +1133,86 @@ router.get("/", authMiddleware, async (req, res) => {
       }
     ]);
 
+    const verificationStatsPromise = Booking.aggregate([
+      { $match: verificationStatsMatch },
+      {
+        $project: {
+          status: 1,
+          isFinished: {
+            $in: [
+              { $trim: { input: { $toLower: { $ifNull: ["$status", ""] } } } },
+              ["delivered", "cancelled"]
+            ]
+          },
+          effectiveDate: effectiveDateExpr,
+          isCheckedValid: isCheckedValidExpr
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          checkedCount: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$isCheckedValid", true] },
+                    { $gte: ["$effectiveDate", oneDayAgo] }
+                  ]
+                },
+                1,
+                0
+              ]
+            }
+          },
+          day1Count: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$isFinished", false] },
+                    { $lt: ["$effectiveDate", oneDayAgo] },
+                    { $gte: ["$effectiveDate", twoDaysAgo] }
+                  ]
+                },
+                1,
+                0
+              ]
+            }
+          },
+          day2Count: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$isFinished", false] },
+                    { $lt: ["$effectiveDate", twoDaysAgo] },
+                    { $gte: ["$effectiveDate", threeDaysAgo] }
+                  ]
+                },
+                1,
+                0
+              ]
+            }
+          },
+          day3Count: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$isFinished", false] },
+                    { $lt: ["$effectiveDate", threeDaysAgo] }
+                  ]
+                },
+                1,
+                0
+              ]
+            }
+          }
+        }
+      }
+    ]);
+
     // Apply paymentStatus filter if specified
     const { paymentStatus } = req.query;
     if (paymentStatus && paymentStatus !== "all") {
@@ -988,14 +1241,15 @@ router.get("/", authMiddleware, async (req, res) => {
       }
     }
 
-    const [bookingsRaw, total, paymentStats] = await Promise.all([
+    const [bookingsRaw, total, paymentStats, verificationStats] = await Promise.all([
       Booking.find(query)
         .sort({ createdAt: -1 })
         .limit(limit * 1)
         .skip((page - 1) * limit)
         .lean(),
       Booking.countDocuments(query),
-      paymentStatsPromise
+      paymentStatsPromise,
+      verificationStatsPromise
     ]);
 
     // Manual population for createdBy and agentId to handle both Admin and User models
@@ -1050,8 +1304,15 @@ router.get("/", authMiddleware, async (req, res) => {
         }
       }
 
+      // Filter out any non-tracking sync/seed logs from trackingHistory so only real courier updates are exposed
+      const cleanTrackingHistory = (b.trackingHistory || []).filter(t => {
+        const desc = (t?.description || "").toLowerCase();
+        return !desc.includes("seed") && !desc.includes("sync to main") && !desc.includes("verified and seeded") && !desc.includes("booking verified by");
+      });
+
       let updatedBooking = { 
         ...b, 
+        trackingHistory: cleanTrackingHistory,
         createdBy,
         bookingSource: isFromIntake ? (b.bookingSource || "Agent") : (b.bookingSource || "admin"),
         bookedByAgent: bookedByAgent || b.bookedByAgent,
@@ -1078,12 +1339,22 @@ router.get("/", authMiddleware, async (req, res) => {
       totalCount: summaryData.totalCount || 0
     };
 
+    const vData = (verificationStats && verificationStats.length > 0) ? verificationStats[0] : {};
+    const verificationSummary = {
+      checkedCount: vData.checkedCount || 0,
+      day1Count: vData.day1Count || 0,
+      day2Count: vData.day2Count || 0,
+      day3Count: vData.day3Count || 0,
+      totalAttentionCount: (vData.day1Count || 0) + (vData.day2Count || 0) + (vData.day3Count || 0)
+    };
+
     res.json({
       bookings,
       totalPages: Math.ceil(total / limit),
       currentPage: Number(page),
       total,
       paymentSummary,
+      verificationSummary,
     });
   } catch (error) {
     console.error(error);
@@ -1341,15 +1612,19 @@ router.put("/bulk/assign", adminAuth, async (req, res) => {
   }
 });
 
-router.put("/bulk/assign-vendor", adminAuth, async (req, res) => {
+// Bulk Assign Corporate Partner (B2B Client)
+router.put(["/bulk/assign-vendor", "/bulk/assign-partner"], adminAuth, async (req, res) => {
   try {
-    const { bookingIds, vendorId, vendorName } = req.body;
-    if (!bookingIds || !Array.isArray(bookingIds) || !vendorId || !vendorName) {
-      return res.status(400).json({ message: "Invalid request data" });
+    const { bookingIds, vendorId, vendorName, partnerId, partnerName } = req.body;
+    const targetPartnerId = partnerId || vendorId;
+    const targetPartnerName = partnerName || vendorName;
+
+    if (!bookingIds || !Array.isArray(bookingIds) || !targetPartnerId || !targetPartnerName) {
+      return res.status(400).json({ message: "Invalid request data: Partner ID and Name are required." });
     }
 
-    const vendor = await Partner.findOne({ partnerId: vendorId });
-    const pricePerKg = vendor?.pricePerKg || 0;
+    const partner = await Partner.findOne({ partnerId: targetPartnerId });
+    const pricePerKg = partner?.pricePerKg || 0;
 
     const bookings = await Booking.find({ _id: { $in: bookingIds } });
 
@@ -1367,8 +1642,10 @@ router.put("/bulk/assign-vendor", adminAuth, async (req, res) => {
         { _id: booking._id },
         { 
           $set: { 
-            vendorId, 
-            vendorName, 
+            partnerId: targetPartnerId,
+            partnerName: targetPartnerName,
+            vendorId: targetPartnerId, 
+            vendorName: targetPartnerName, 
             isVendorBooking: true,
             "pricing.totalAmount": totalAmount,
             "packageDetails.chargeableWeight": chargeable,
@@ -1384,18 +1661,19 @@ router.put("/bulk/assign-vendor", adminAuth, async (req, res) => {
       io.emit("status_update", {
         bookingIds,
         status: "VENDOR_ASSIGNED",
-        description: `Bulk assigned to Vendor ${vendorName}`,
+        description: `Bulk assigned to Partner ${targetPartnerName}`,
         bookingSource: "Bulk"
       });
     }
 
-    res.json({ success: true, message: `Assigned ${bookingIds.length} bookings to ${vendorName}.` });
+    res.json({ success: true, message: `Assigned ${bookingIds.length} bookings to Partner ${targetPartnerName}.` });
   } catch (error) {
-    console.error("Bulk Assign Vendor Error:", error);
-    res.status(500).json({ message: "Server error during bulk vendor assignment" });
+    console.error("Bulk Assign Partner Error:", error);
+    res.status(500).json({ message: "Server error during bulk partner assignment" });
   }
 });
 
+// Bulk Assign Courier Partner & Docket (DTDC, Delhivery, BlueDart, etc.)
 router.put("/bulk/assign-docket", adminAuth, async (req, res) => {
   try {
     const { bookingIds, vendorTrackingId, vendorName } = req.body;
@@ -1407,7 +1685,11 @@ router.put("/bulk/assign-docket", adminAuth, async (req, res) => {
     await Booking.updateMany(
       { _id: { $in: bookingIds } },
       { 
-        $set: { vendorTrackingId, vendorName },
+        $set: { 
+          vendorTrackingId, 
+          vendorName, 
+          courierName: vendorName 
+        },
         $push: {
           trackingHistory: {
             location: "Hub",
@@ -1450,6 +1732,63 @@ router.put("/bulk/assign-docket", adminAuth, async (req, res) => {
   } catch (error) {
     console.error("Bulk Assign Docket Error:", error);
     res.status(500).json({ message: "Server error during bulk docket assignment" });
+  }
+});
+
+// @route   PUT /api/bookings/bulk/payment-status
+// @desc    Bulk mark bookings as paid / update payment status
+router.put("/bulk/payment-status", adminAuth, async (req, res) => {
+  try {
+    const { bookingIds, paymentStatus = "paid", paymentMode, paymentNotes } = req.body;
+    if (!bookingIds || !Array.isArray(bookingIds) || bookingIds.length === 0) {
+      return res.status(400).json({ message: "No booking IDs provided." });
+    }
+
+    const bookingsToUpdate = await Booking.find({ _id: { $in: bookingIds } });
+    if (!bookingsToUpdate || bookingsToUpdate.length === 0) {
+      return res.status(404).json({ message: "No matching bookings found." });
+    }
+
+    let updatedCount = 0;
+    const updatedIds = [];
+
+    for (const booking of bookingsToUpdate) {
+      const fullAmount = Number(booking.pricing?.totalAmount || booking.totalAmount || 0);
+      booking.paymentStatus = paymentStatus;
+      if (paymentStatus === "paid") {
+        booking.amountReceived = fullAmount;
+      }
+      if (paymentMode) {
+        booking.paymentMode = paymentMode;
+      }
+      if (paymentNotes) {
+        booking.paymentNotes = paymentNotes;
+      }
+      booking.paymentUpdatedAt = new Date();
+      booking.paymentUpdatedBy = req.admin?._id || req.user?._id;
+      await booking.save();
+      updatedCount++;
+      updatedIds.push(booking._id);
+    }
+
+    // Notify connected clients via socket.io
+    const io = req.app.get("socketio");
+    if (io) {
+      io.emit("payment_update", {
+        bookingIds: updatedIds,
+        paymentStatus,
+        updatedCount,
+      });
+    }
+
+    res.json({
+      success: true,
+      message: `Successfully marked ${updatedCount} bookings as ${paymentStatus.toUpperCase()}.`,
+      updatedCount,
+    });
+  } catch (error) {
+    console.error("Bulk payment status error:", error);
+    res.status(500).json({ message: "Failed to update payment status in bulk." });
   }
 });
 
@@ -1559,7 +1898,12 @@ router.get("/:id", authMiddleware, async (req, res) => {
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
     }
-    res.json(booking);
+    const bObj = booking.toObject();
+    bObj.trackingHistory = (bObj.trackingHistory || []).filter(t => {
+      const desc = (t?.description || "").toLowerCase();
+      return !desc.includes("seed") && !desc.includes("sync to main") && !desc.includes("verified and seeded") && !desc.includes("booking verified by");
+    });
+    res.json(bObj);
   } catch (error) {
     console.error("Booking fetch error:", error);
     res.status(500).json({ message: "Server error" });
@@ -1688,7 +2032,7 @@ router.put("/:id", authMiddleware, async (req, res) => {
     delete cleanBody.trackingHistory;
     delete cleanBody.vendorPaymentHistory;
 
-    const idFields = ['assignedRider', 'pickupRider', 'deliveryRider', 'userId', 'vendorId', 'salesAgent', 'handlingAgent', 'packagingAgent', 'trackingAgent'];
+    const idFields = ['assignedRider', 'pickupRider', 'deliveryRider', 'userId', 'salesAgent', 'handlingAgent', 'packagingAgent', 'trackingAgent'];
     
     idFields.forEach(field => {
       if (cleanBody.hasOwnProperty(field)) {
@@ -1710,6 +2054,13 @@ router.put("/:id", authMiddleware, async (req, res) => {
         }
       }
     });
+
+    if (cleanBody.courierName && !cleanBody.vendorName) {
+      cleanBody.vendorName = cleanBody.courierName;
+    }
+    if (cleanBody.partnerId && !cleanBody.vendorId) {
+      cleanBody.vendorId = cleanBody.partnerId;
+    }
 
     const updateData = flattenObject(cleanBody);
 
@@ -2727,6 +3078,45 @@ router.put("/:id/payment-status", authMiddleware, uploadPaymentProof.single("pay
   } catch (error) {
     console.error("Error updating payment status:", error);
     res.status(500).json({ message: "Server error" });
+  }
+});
+
+/** ------------------------
+ * 🔍 Mark Booking Checked for Updates (Staff/Admin Verification)
+ * ------------------------ */
+router.put("/:id/mark-checked", authMiddleware, async (req, res) => {
+  try {
+    const bookingId = req.params.id;
+    const userName = req.user ? (req.user.name || req.user.email) : (req.admin ? req.admin.name : "Staff");
+    const userId = req.user ? req.user.id : (req.admin ? req.admin.id : null);
+    const now = new Date();
+
+    const updated = await Booking.findByIdAndUpdate(
+      bookingId,
+      {
+        $set: {
+          lastCheckedAt: now,
+          lastCheckedBy: userId,
+          lastCheckedByName: userName,
+          lastCheckedNotes: req.body.notes || ""
+        }
+      },
+      { new: true, runValidators: false }
+    );
+
+    if (!updated) {
+      return res.status(404).json({ success: false, message: "Booking not found" });
+    }
+
+    res.json({
+      success: true,
+      message: "Booking marked as checked",
+      lastCheckedAt: updated.lastCheckedAt,
+      lastCheckedByName: updated.lastCheckedByName
+    });
+  } catch (error) {
+    console.error("Error marking booking as checked:", error);
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 

@@ -73,6 +73,9 @@ router.post("/", authMiddleware, uploadPaymentProof.single("paymentProof"), asyn
       vendorId = null,
       vendorName = null,
       vendorTrackingId = null,
+      partnerId = null,
+      partnerName = null,
+      courierName = null,
       bookingSource = "Manual",
       shiftingDetails,
       sendPaymentLink = true,
@@ -87,6 +90,22 @@ router.post("/", authMiddleware, uploadPaymentProof.single("paymentProof"), asyn
     // Required fields check
     if (!serviceType || !senderDetails || !receiverDetails) {
       return res.status(400).json({ error: "Missing required booking fields." });
+    }
+
+    // Resolve Corporate Partner & Courier distinctions
+    const courierKeywords = ["bluedart", "dtdc", "delhivery", "safe express", "india post", "i carry"];
+    const isCourier = (str) => courierKeywords.some(c => (str || "").toLowerCase().includes(c));
+
+    let finalCourierName = courierName || (isCourier(vendorName) ? vendorName : null);
+    let finalPartnerId = partnerId || (isVendorBooking && vendorId && !isCourier(vendorId) ? vendorId : null);
+    let finalPartnerName = partnerName || (!isCourier(vendorName) && isVendorBooking ? vendorName : null);
+
+    if (finalPartnerId && !finalPartnerName) {
+      try {
+        const Partner = require("../models/Partner");
+        const pDoc = await Partner.findOne({ partnerId: finalPartnerId }).lean();
+        if (pDoc) finalPartnerName = pDoc.name;
+      } catch (e) {}
     }
 
     // ✅ Validate if vendorTrackingId (Docket ID) is already in use
@@ -158,9 +177,12 @@ router.post("/", authMiddleware, uploadPaymentProof.single("paymentProof"), asyn
       amountReceived: Number(amountReceived) || 0,
       paymentProof: req.file ? `/uploads/payments/${req.file.filename}` : undefined,
       notes,
-      isVendorBooking: Boolean(isVendorBooking),
-      vendorId,
-      vendorName,
+      isVendorBooking: Boolean(isVendorBooking || finalPartnerId || finalPartnerName),
+      partnerId: finalPartnerId,
+      partnerName: finalPartnerName,
+      courierName: finalCourierName,
+      vendorId: finalPartnerId || vendorId,
+      vendorName: finalCourierName || finalPartnerName || vendorName,
       vendorTrackingId,
       bookingSource,
       officeId: req.user ? req.user.officeId : (req.admin ? req.admin.officeId : req.body.officeId),

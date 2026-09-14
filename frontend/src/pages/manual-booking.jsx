@@ -1,7 +1,8 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../contexts/AuthContext";
-import { User } from "lucide-react";
+import toast from "react-hot-toast";
+import { User, CheckCircle2, X, Search, Building, Phone, Mail, MapPin, RefreshCw } from "lucide-react";
 
 export default function ManualBooking() {
   const { user } = useAuth();
@@ -86,8 +87,22 @@ export default function ManualBooking() {
   const [vendorSearch, setVendorSearch] = useState("");
   const [vendorResults, setVendorResults] = useState([]);
   const [showVendorDropdown, setShowVendorDropdown] = useState(false);
+  const [isSearchingVendors, setIsSearchingVendors] = useState(false);
+  const [selectedVendorDetails, setSelectedVendorDetails] = useState(null);
+  const vendorDropdownRef = useRef(null);
   const [offices, setOffices] = useState([]);
   const [staff, setStaff] = useState([]);
+
+  // Close vendor dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (vendorDropdownRef.current && !vendorDropdownRef.current.contains(event.target)) {
+        setShowVendorDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   useEffect(() => {
     if (isAdmin) {
@@ -125,21 +140,25 @@ export default function ManualBooking() {
     }
   };
 
-  const searchVendors = async (query) => {
-    if (!query) {
-      setVendorResults([]);
-      return;
-    }
+  const searchVendors = async (query = "") => {
+    setIsSearchingVendors(true);
     try {
       const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/api/partners/search/${query}`, {
+      const url = query && query.trim()
+        ? `${import.meta.env.VITE_API_URL}/api/partners/search/${encodeURIComponent(query.trim())}`
+        : `${import.meta.env.VITE_API_URL}/api/partners/search`;
+      const res = await fetch(url, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      const data = await res.json();
-      setVendorResults(data);
-      setShowVendorDropdown(true);
+      if (res.ok) {
+        const data = await res.json();
+        setVendorResults(Array.isArray(data) ? data : []);
+        setShowVendorDropdown(true);
+      }
     } catch (err) {
-      console.error(err);
+      console.error("Error searching vendors:", err);
+    } finally {
+      setIsSearchingVendors(false);
     }
   };
 
@@ -166,16 +185,65 @@ export default function ManualBooking() {
   };
 
   const selectVendor = (vendor) => {
+    if (!vendor) return;
+    const vendorPartnerId = vendor.partnerId || vendor.vendorId || vendor._id || "";
+    const vendorPincode = vendor.pincode ? String(vendor.pincode).trim() : "";
+
+    setSelectedVendorDetails(vendor);
+    setShowVendorDropdown(false);
+    setVendorSearch(vendor.name || "");
+
+    // Automatically fetch and fill ALL sender details from the selected vendor
+    setFormData(prev => {
+      const newPincode = vendorPincode || prev.pickupPincode;
+      return {
+        ...prev,
+        isVendorBooking: true,
+        vendorId: vendorPartnerId,
+        // Auto-fetch Sender Details from Vendor
+        senderName: vendor.name || "",
+        senderPhone: vendor.phone || "",
+        senderEmail: vendor.email || "",
+        senderAddress: vendor.address || "",
+        senderAddress2: vendor.address2 || "",
+        senderCity: vendor.city || "",
+        senderState: vendor.state || "",
+        senderLandmark: vendor.landmark || "",
+        pickupPincode: newPincode,
+        // If billing is to Sender, update billing details as well
+        billingName: prev.billTo === "Sender" ? (vendor.name || "") : prev.billingName,
+        billingPhone: prev.billTo === "Sender" ? (vendor.phone || "") : prev.billingPhone,
+        billingAddress: prev.billTo === "Sender" ? (vendor.address || "") : prev.billingAddress,
+      };
+    });
+
+    toast.success(`Sender details auto-fetched for ${vendor.name}!`);
+
+    // Immediately trigger pincode verification if vendor has 6-digit pincode
+    if (vendorPincode.length === 6) {
+      checkPincode(vendorPincode, 'pickup');
+    }
+  };
+
+  const clearSelectedVendor = () => {
+    setSelectedVendorDetails(null);
+    setVendorSearch("");
+    setShowVendorDropdown(false);
     setFormData(prev => ({
       ...prev,
-      isVendorBooking: true,
-      vendorId: vendor.vendorId,
-      senderName: vendor.name,
-      senderPhone: vendor.phone,
-      senderEmail: vendor.email || ""
+      vendorId: "",
+      senderName: "",
+      senderPhone: "",
+      senderEmail: "",
+      senderAddress: "",
+      senderAddress2: "",
+      senderCity: "",
+      senderState: "",
+      senderLandmark: "",
+      pickupPincode: "",
     }));
-    setShowVendorDropdown(false);
-    setVendorSearch(vendor.name);
+    setPincodeStatus(prev => ({ ...prev, pickup: { available: null, isEDL: false, edl: 0 } }));
+    toast.success("Cleared selected vendor and sender details");
   };
 
   useEffect(() => {
@@ -332,6 +400,7 @@ export default function ManualBooking() {
       trackingAgent: user?._id || user?.id || "",
     });
     setPaymentProof(null);
+    setSelectedVendorDetails(null);
     setVendorSearch("");
     setPincodeStatus({ 
       pickup: { available: null, isEDL: false, edl: 0 }, 
@@ -410,6 +479,10 @@ export default function ManualBooking() {
       status: formData.deliveryStatus.toLowerCase(),
       bookingSource: "admin",
       isVendorBooking: formData.isVendorBooking,
+      partnerId: formData.isVendorBooking ? (selectedVendorDetails?.partnerId || formData.vendorId) : undefined,
+      partnerName: formData.isVendorBooking ? (selectedVendorDetails?.name || "") : undefined,
+      courierName: formData.vendorName === "Other" ? formData.otherVendorName : 
+                 (formData.vendorName === "DTDC" && formData.vendorBranch) ? `${formData.vendorName} (${formData.vendorBranch})` : formData.vendorName,
       vendorId: formData.vendorId,
       vendorName: formData.vendorName === "Other" ? formData.otherVendorName : 
                  (formData.vendorName === "DTDC" && formData.vendorBranch) ? `${formData.vendorName} (${formData.vendorBranch})` : formData.vendorName,
@@ -582,32 +655,39 @@ export default function ManualBooking() {
             <div className="flex gap-4 p-1 bg-gray-100 dark:bg-[#1A1A1A] border border-transparent dark:border-white/10 rounded-2xl mb-6">
               <button
                 type="button"
-                onClick={() => setFormData(p => ({ 
-                  ...p, 
-                  isVendorBooking: false, 
-                  vendorId: "",
-                  salesAgent: p.salesAgent !== undefined ? p.salesAgent : (user?._id || user?.id || ""),
-                  handlingAgent: p.handlingAgent !== undefined ? p.handlingAgent : (user?._id || user?.id || ""),
-                  packagingAgent: p.packagingAgent !== undefined ? p.packagingAgent : (user?._id || user?.id || ""),
-                  trackingAgent: p.trackingAgent !== undefined ? p.trackingAgent : (user?._id || user?.id || "")
-                }))}
+                onClick={() => {
+                  setSelectedVendorDetails(null);
+                  setVendorSearch("");
+                  setFormData(p => ({ 
+                    ...p, 
+                    isVendorBooking: false, 
+                    vendorId: "",
+                    salesAgent: p.salesAgent !== undefined ? p.salesAgent : (user?._id || user?.id || ""),
+                    handlingAgent: p.handlingAgent !== undefined ? p.handlingAgent : (user?._id || user?.id || ""),
+                    packagingAgent: p.packagingAgent !== undefined ? p.packagingAgent : (user?._id || user?.id || ""),
+                    trackingAgent: p.trackingAgent !== undefined ? p.trackingAgent : (user?._id || user?.id || "")
+                  }));
+                }}
                 className={`flex-1 py-3 px-4 rounded-xl font-bold transition-all ${!formData.isVendorBooking ? 'bg-white dark:bg-[#2A2A2A] shadow-md text-orange-600 dark:text-orange-500' : 'text-gray-500 dark:text-gray-400'}`}
               >
                 Normal Booking
               </button>
               <button
                 type="button"
-                onClick={() => setFormData(p => ({ 
-                  ...p, 
-                  isVendorBooking: true, 
-                  salesAgent: "", 
-                  handlingAgent: "", 
-                  packagingAgent: "", 
-                  trackingAgent: "" 
-                }))}
+                onClick={() => {
+                  setFormData(p => ({ 
+                    ...p, 
+                    isVendorBooking: true, 
+                    salesAgent: "", 
+                    handlingAgent: "", 
+                    packagingAgent: "", 
+                    trackingAgent: "" 
+                  }));
+                  searchVendors("");
+                }}
                 className={`flex-1 py-3 px-4 rounded-xl font-bold transition-all ${formData.isVendorBooking ? 'bg-white dark:bg-[#2A2A2A] shadow-md text-orange-600 dark:text-orange-500' : 'text-gray-500 dark:text-gray-400'}`}
               >
-                Vendor Booking
+                Corporate Partner Booking
               </button>
             </div>
             
@@ -697,9 +777,9 @@ export default function ManualBooking() {
                   </select>
                 </div>
               )}
-              {/* Shipping Vendor Selection */}
+              {/* Shipping Courier Selection */}
               <div>
-                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Shipping Vendor {isOffice2 ? "(e.g. DTDC)" : "(e.g. BlueDart)"}</label>
+                <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Shipping Courier {isOffice2 ? "(e.g. DTDC)" : "(e.g. BlueDart)"}</label>
                 <select
                   name="vendorName"
                   value={formData.vendorName}
@@ -715,7 +795,7 @@ export default function ManualBooking() {
                   }}
                   className="w-full border border-gray-300 dark:border-white/10 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-white dark:bg-[#111111] dark:text-white font-medium dark:text-white"
                 >
-                  <option value="">Select Shipping Partner</option>
+                  <option value="">Select Shipping Courier</option>
                   {!isOffice2 && <option value="BlueDart">BlueDart</option>}
                   <option value="DTDC">DTDC</option>
                   {!isOffice2 && (
@@ -780,7 +860,7 @@ export default function ManualBooking() {
 
               {formData.vendorName === "Other" && (
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Other Vendor Name</label>
+                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-1">Other Courier Name</label>
                   <input
                     type="text"
                     name="otherVendorName"
@@ -817,44 +897,156 @@ export default function ManualBooking() {
             </div>
 
             {formData.isVendorBooking && (
-              <div className="relative mb-6 animate-in slide-in-from-top-4 duration-300">
-                <div className="flex justify-between items-end mb-1">
-                  <label className="block text-sm font-bold text-gray-700 dark:text-gray-300">Search Vendor (Name or ID)</label>
-                  <button
-                    type="button"
-                    onClick={handleReset}
-                    className="text-[10px] font-bold text-orange-600 hover:text-orange-700 border border-orange-200 dark:border-orange-500/20 px-2 py-1 rounded-md bg-orange-50 dark:bg-orange-500/10 transition-all flex items-center gap-1"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></svg>
-                    Start New / Reset
-                  </button>
-                </div>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={vendorSearch}
-                    onChange={(e) => {
-                      setVendorSearch(e.target.value);
-                      searchVendors(e.target.value);
-                    }}
-                    placeholder="Enter vendor name or ID..."
-                    className="w-full border border-orange-200 dark:border-orange-500/20 p-3 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-orange-50 dark:bg-orange-500/10 dark:text-white font-medium"
-                  />
-                  {showVendorDropdown && vendorResults.length > 0 && (
-                    <div className="absolute z-50 left-0 right-0 mt-2 bg-white dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-xl shadow-2xl max-h-60 overflow-y-auto overflow-hidden">
-                      {vendorResults.map(vendor => (
-                        <div
-                          key={vendor._id}
-                          onClick={() => selectVendor(vendor)}
-                          className="p-3 hover:bg-orange-50 dark:bg-orange-500/10 cursor-pointer border-b border-gray-50 last:border-0"
-                        >
-                          <div className="font-bold text-gray-900 dark:text-white">{vendor.name}</div>
-                          <div className="text-xs text-orange-600 font-mono">{vendor.vendorId}</div>
+              <div className="relative mb-6 animate-in slide-in-from-top-4 duration-300" ref={vendorDropdownRef}>
+                {formData.vendorId && (formData.senderName || selectedVendorDetails?.name) ? (
+                  /* SELECTED VENDOR BANNER WITH SENDER DETAILS AUTO-FETCHED */
+                  <div className="bg-gradient-to-r from-orange-50 via-amber-50 to-orange-50 dark:from-orange-950/30 dark:via-[#1E1610] dark:to-orange-950/30 border-2 border-orange-300 dark:border-orange-500/40 rounded-2xl p-4 shadow-sm">
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                      <div className="flex items-start gap-3">
+                        <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-orange-600 to-amber-500 text-white flex items-center justify-center font-black text-base shadow-sm shrink-0">
+                          {(formData.senderName || selectedVendorDetails?.name || "V").charAt(0).toUpperCase()}
                         </div>
-                      ))}
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="text-base font-extrabold text-gray-900 dark:text-white">
+                              {formData.senderName || selectedVendorDetails?.name}
+                            </h4>
+                            <span className="px-2 py-0.5 bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300 text-xs font-mono font-bold rounded-md border border-orange-200 dark:border-orange-500/30">
+                              {formData.vendorId}
+                            </span>
+                            <span className="px-2.5 py-0.5 bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-[11px] font-extrabold rounded-full border border-emerald-300 flex items-center gap-1 shadow-2xs">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              Sender Details Auto-Fetched
+                            </span>
+                          </div>
+
+                          <div className="mt-2 text-xs text-gray-600 dark:text-gray-300 space-y-1">
+                            <div className="flex items-center gap-4 flex-wrap">
+                              <span className="flex items-center gap-1 font-medium">
+                                <Phone className="w-3.5 h-3.5 text-orange-500" />
+                                {formData.senderPhone || selectedVendorDetails?.phone || "N/A"}
+                              </span>
+                              {(formData.senderEmail || selectedVendorDetails?.email) && (
+                                <span className="flex items-center gap-1 font-medium">
+                                  <Mail className="w-3.5 h-3.5 text-orange-500" />
+                                  {formData.senderEmail || selectedVendorDetails?.email}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-start gap-1 font-medium text-gray-700 dark:text-gray-200 mt-1">
+                              <MapPin className="w-3.5 h-3.5 text-orange-500 shrink-0 mt-0.5" />
+                              <span>
+                                {[formData.senderAddress, formData.senderAddress2, formData.senderCity, formData.senderState, formData.pickupPincode].filter(Boolean).join(", ")}
+                                {formData.senderLandmark ? ` (Landmark: ${formData.senderLandmark})` : ""}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2 self-end sm:self-start shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedVendorDetails(null);
+                            setVendorSearch("");
+                            setShowVendorDropdown(true);
+                            searchVendors("");
+                          }}
+                          className="px-3 py-1.5 bg-white dark:bg-[#1A1A1A] hover:bg-orange-50 text-orange-600 dark:text-orange-400 font-bold text-xs rounded-xl border border-orange-200 dark:border-orange-500/30 transition-all shadow-xs flex items-center gap-1"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5" />
+                          Change Partner
+                        </button>
+                        <button
+                          type="button"
+                          onClick={clearSelectedVendor}
+                          className="p-1.5 text-gray-400 hover:text-red-500 rounded-xl hover:bg-red-50 dark:hover:bg-red-950/30 transition-all"
+                          title="Clear Partner"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  /* SEARCH VENDOR INPUT WITH DROPDOWN */
+                  <div>
+                    <div className="flex justify-between items-end mb-1">
+                      <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-1.5">
+                        <Building className="w-4 h-4 text-orange-500" />
+                        Choose Corporate Partner (Auto-fetches Sender Details)
+                      </label>
+                      <span className="text-[11px] text-gray-400 font-medium">
+                        Search by name, ID, phone, or city
+                      </span>
+                    </div>
+                    <div className="relative">
+                      <div className="relative flex items-center">
+                        <input
+                          type="text"
+                          value={vendorSearch}
+                          onFocus={() => {
+                            setShowVendorDropdown(true);
+                            searchVendors(vendorSearch);
+                          }}
+                          onChange={(e) => {
+                            setVendorSearch(e.target.value);
+                            searchVendors(e.target.value);
+                          }}
+                          placeholder="Search corporate partner name, ID (PAT...), phone, or city..."
+                          className="w-full border border-orange-200 dark:border-orange-500/20 p-3 pr-10 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none bg-orange-50 dark:bg-orange-500/10 dark:text-white font-medium"
+                        />
+                        <div className="absolute right-3 text-orange-500 pointer-events-none">
+                          <Search className="w-4 h-4" />
+                        </div>
+                      </div>
+
+                      {showVendorDropdown && (
+                        <div className="absolute z-50 left-0 right-0 mt-2 bg-white dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-xl shadow-2xl max-h-72 overflow-y-auto overflow-hidden">
+                          {isSearchingVendors ? (
+                            <div className="p-4 text-center text-gray-400 text-xs font-medium">
+                              Searching vendors...
+                            </div>
+                          ) : vendorResults.length === 0 ? (
+                            <div className="p-4 text-center text-gray-400 text-xs font-medium">
+                              No vendors found. Try another name or ID.
+                            </div>
+                          ) : (
+                            vendorResults.map(vendor => {
+                              const vId = vendor.partnerId || vendor.vendorId || "Partner";
+                              return (
+                                <div
+                                  key={vendor._id}
+                                  onClick={() => selectVendor(vendor)}
+                                  className="p-3 hover:bg-orange-50 dark:hover:bg-orange-950/20 cursor-pointer border-b border-gray-100 dark:border-white/5 last:border-0 transition-colors flex items-center justify-between gap-3"
+                                >
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-bold text-gray-900 dark:text-white text-sm">{vendor.name}</span>
+                                      <span className="text-[11px] px-1.5 py-0.5 bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 font-mono font-bold rounded">
+                                        {vId}
+                                      </span>
+                                    </div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-3 mt-1 flex-wrap">
+                                      <span>{vendor.phone}</span>
+                                      {vendor.city && (
+                                        <span>• {vendor.city}{vendor.state ? `, ${vendor.state}` : ""}{vendor.pincode ? ` (${vendor.pincode})` : ""}</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  <span className="text-xs font-bold text-orange-600 dark:text-orange-400 shrink-0">
+                                    Select →
+                                  </span>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -1268,10 +1460,18 @@ export default function ManualBooking() {
           <div className="space-y-6">
             {['sender', 'receiver'].map((type) => (
               <div key={type} className="bg-gray-50 dark:bg-[#111111] p-5 rounded-2xl border border-gray-200 dark:border-white/10 shadow-sm transition-all hover:bg-white dark:hover:bg-[#2A2A2A] hover:shadow-md">
-                <h2 className="text-lg font-bold mb-4 capitalize flex items-center gap-2 text-orange-700">
-                  <div className="w-2 h-6 bg-orange-50 dark:bg-orange-500/100 rounded-full"></div>
-                  {type} details
-                </h2>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                  <h2 className="text-lg font-bold capitalize flex items-center gap-2 text-orange-700">
+                    <div className="w-2 h-6 bg-orange-50 dark:bg-orange-500/100 rounded-full"></div>
+                    {type} details
+                  </h2>
+                  {type === 'sender' && formData.isVendorBooking && formData.vendorId && (
+                    <span className="px-2.5 py-1 bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 text-xs font-extrabold rounded-full border border-emerald-300 flex items-center gap-1.5 shadow-2xs self-start sm:self-auto">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      Auto-filled from Vendor ({formData.vendorId})
+                    </span>
+                  )}
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {["Name", "Phone", "Email", "Address", "Address2", "City", "State", "Landmark"].map((field) => (
                     <div key={field} className={field === "Address" || field === "Address2" ? "sm:col-span-2" : ""}>
@@ -1285,6 +1485,15 @@ export default function ManualBooking() {
                       />
                     </div>
                   ))}
+                  <div>
+                    <input
+                      type="text"
+                      value={type === 'sender' ? (formData.pickupPincode ? `Pincode: ${formData.pickupPincode}` : "") : (formData.deliveryPincode ? `Pincode: ${formData.deliveryPincode}` : "")}
+                      disabled
+                      placeholder="Pincode (Set in Step 1)"
+                      className="w-full border border-gray-200 dark:border-white/10 p-2.5 rounded-lg bg-gray-100 dark:bg-[#1A1A1A] text-gray-600 dark:text-gray-300 font-bold cursor-not-allowed text-xs"
+                    />
+                  </div>
                 </div>
               </div>
             ))}

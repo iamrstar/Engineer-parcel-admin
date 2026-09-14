@@ -28,7 +28,17 @@ router.get("/:id", adminAuth, async (req, res) => {
     }
 });
 
-// SEARCH vendors by ID or Name
+// SEARCH vendors - Empty query returns recent vendors
+router.get("/search", adminAuth, async (req, res) => {
+    try {
+        const vendors = await Vendor.find().sort({ createdAt: -1 }).limit(20);
+        res.json(vendors);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+    }
+});
+
+// SEARCH vendors by ID, Name, Phone, City, or Email
 router.get("/search/:query", adminAuth, async (req, res) => {
     try {
         const query = req.params.query;
@@ -36,13 +46,17 @@ router.get("/search/:query", adminAuth, async (req, res) => {
             $or: [
                 { name: { $regex: query, $options: "i" } },
                 { partnerId: { $regex: query, $options: "i" } },
+                { phone: { $regex: query, $options: "i" } },
+                { city: { $regex: query, $options: "i" } },
+                { email: { $regex: query, $options: "i" } },
             ],
-        }).limit(10);
+        }).limit(20);
         res.json(vendors);
     } catch (err) {
         res.status(500).json({ message: err.message });
     }
 });
+
 
 // CREATE vendor
 router.post("/", adminAuth, async (req, res) => {

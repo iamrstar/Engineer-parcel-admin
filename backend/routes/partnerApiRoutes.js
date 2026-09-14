@@ -34,6 +34,8 @@ router.post("/orders", requireApiKey, async (req, res) => {
             },
             pricing: { totalAmount },
             isVendorBooking: true, // Reusing existing system
+            partnerId: partner.partnerId,
+            partnerName: partner.name,
             vendorId: partner.partnerId,
             vendorName: partner.name,
             paymentMethod: "online", // Or COD based on payload

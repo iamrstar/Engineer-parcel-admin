@@ -207,12 +207,23 @@ const bookingSchema = new mongoose.Schema(
     },
     rejectionReason: String,
 
-    // Vendor Details
-    vendorName: String,
-    vendorTrackingId: String,
+    // Corporate Partner Details (B2B Business Clients: Anand Cure, Hancore, etc.)
+    partnerId: { type: String }, // e.g., "PAT0001"
+    partnerName: { type: String }, // e.g., "ANAND CURE & CARE"
     isVendorBooking: { type: Boolean, default: false },
-    vendorId: { type: String },
+    vendorId: { type: String }, // Backward compatibility alias for partnerId
+
+    // Shipping Courier Details (Logistics Services: DTDC, Delhivery, BlueDart, etc.)
+    courierName: { type: String }, // e.g., "DTDC (Hirak)", "Delhivery", "BlueDart"
+    vendorName: { type: String }, // Backward compatibility alias
+    vendorTrackingId: { type: String }, // Courier Docket / AWB tracking ID
     paymentLink: String,
+
+    // Status Verification / Last Checked Tracking
+    lastCheckedAt: { type: Date },
+    lastCheckedBy: { type: String },
+    lastCheckedByName: { type: String },
+    lastCheckedNotes: { type: String },
 
     // Vendor Financial Tracking (Phase 3)
     vendorPaidAmount: { type: Number, default: 0 },

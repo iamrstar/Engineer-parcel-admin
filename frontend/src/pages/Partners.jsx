@@ -69,8 +69,13 @@ const getStatusColor = (status) => {
 };
 
 const TrackingHistoryTooltip = ({ booking }) => {
-  const lastTrack = booking.trackingHistory && booking.trackingHistory.length > 0
-    ? booking.trackingHistory[booking.trackingHistory.length - 1]
+  const realTrackingHistory = (booking?.trackingHistory || []).filter(t => {
+    const desc = (t?.description || '').toLowerCase();
+    return !desc.includes('seed') && !desc.includes('sync to main') && !desc.includes('verified and seeded') && !desc.includes('booking verified by');
+  });
+
+  const lastTrack = realTrackingHistory.length > 0
+    ? realTrackingHistory[realTrackingHistory.length - 1]
     : null;
 
   return (

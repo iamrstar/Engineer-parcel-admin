@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import axios from "axios"
 import toast from "react-hot-toast"
-import { Search, Filter, Eye, FileText, Calendar, XCircle, Tag, RotateCcw, FileDown, CheckCircle2, UserPlus, Trash2, Plus, ArrowRight, IndianRupee, Clock, Wallet } from "lucide-react"
+import { Search, Filter, Eye, FileText, Calendar, XCircle, Tag, RotateCcw, FileDown, CheckCircle2, UserPlus, Trash2, Plus, ArrowRight, IndianRupee, Clock, Wallet, Truck, AlertTriangle, AlertCircle } from "lucide-react"
 import * as XLSX from "xlsx"
 import { useAuth } from "../contexts/AuthContext"
 
@@ -20,7 +20,7 @@ const PRESET_NOTES = [
   "Address not found / Mobile switched off"
 ]
 
-const getTimeAgo = (date) => {
+export const getTimeAgo = (date) => {
   const seconds = Math.floor((new Date() - new Date(date)) / 1000);
   if (isNaN(seconds)) return "N/A";
   if (seconds < 0) return "Just now";
@@ -43,19 +43,165 @@ const isRecent = (date) => {
   return diff < 3600000; // < 1 hour
 };
 
-const TrackingHistoryTooltip = ({ booking }) => {
-  const lastTrack = booking.trackingHistory && booking.trackingHistory.length > 0
-    ? booking.trackingHistory[booking.trackingHistory.length - 1]
+const courierKeywords = ["bluedart", "dtdc", "delhivery", "safe express", "india post", "i carry"];
+const isCourierName = (name) => courierKeywords.some(c => (name || "").toLowerCase().includes(c));
+
+/**
+ * Computes the verification/attention age of a shipment:
+ * - Green (< 24h): Checked recently
+ * - Yellow (1 day / 24-48h): Needs attention
+ * - Orange (2 days / 48-72h): High attention
+ * - Red (3+ days / > 72h): Critical overdue
+ */
+export const getVerificationAttention = (booking) => {
+  if (!booking) {
+    return {
+      tier: 'new',
+      color: 'blue',
+      badgeClass: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
+      label: 'New',
+      days: 0,
+      hours: 0,
+      needsAttention: false,
+      message: 'New shipment'
+    };
+  }
+
+  const status = (booking.status || '').trim().toLowerCase();
+  const isFinished = status === 'delivered' || status === 'cancelled';
+
+  // Filter out any sync/seed logs so only real courier tracking updates are evaluated
+  const realTrackingHistory = (booking.trackingHistory || []).filter(t => {
+    const desc = (t?.description || '').toLowerCase();
+    return !desc.includes('seed') && !desc.includes('sync to main') && !desc.includes('verified and seeded') && !desc.includes('booking verified by');
+  });
+
+  const latestTrackDate = realTrackingHistory.length > 0
+    ? new Date(realTrackingHistory[realTrackingHistory.length - 1].timestamp)
+    : null;
+  const lastCheckDate = booking.lastCheckedAt ? new Date(booking.lastCheckedAt) : null;
+
+  // A check is only valid if it occurred at or after the latest tracking update
+  const isCheckCurrent = Boolean(lastCheckDate && (!latestTrackDate || lastCheckDate >= latestTrackDate));
+
+  // Baseline date: lastCheckedAt if check is current, otherwise latest tracking event or createdAt
+  const baselineDate = isCheckCurrent
+    ? lastCheckDate
+    : (latestTrackDate || new Date(booking.createdAt || booking.date || Date.now()));
+
+  const now = new Date();
+  const diffMs = Math.max(0, now - baselineDate);
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffHours / 24);
+
+  // If already checked recently (< 24 hours ago and check is current)
+  if (isCheckCurrent && diffHours < 24) {
+    return {
+      tier: 'checked',
+      color: 'emerald',
+      badgeClass: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20',
+      label: `Checked ${getTimeAgo(booking.lastCheckedAt)}`,
+      days: diffDays,
+      hours: diffHours,
+      needsAttention: false,
+      message: `Verified by ${booking.lastCheckedByName || 'Staff'} (${getTimeAgo(booking.lastCheckedAt)})`
+    };
+  }
+
+  // If completed/cancelled, don't show urgent alerts
+  if (isFinished) {
+    return {
+      tier: 'closed',
+      color: 'gray',
+      badgeClass: 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-white/10 hover:bg-gray-200',
+      label: booking.lastCheckedAt ? `Checked ${getTimeAgo(booking.lastCheckedAt)}` : (status === 'delivered' ? 'Delivered' : 'Cancelled'),
+      days: diffDays,
+      hours: diffHours,
+      needsAttention: false,
+      message: `Shipment is ${status}`
+    };
+  }
+
+  // Active shipments:
+  if (diffHours < 24) {
+    return {
+      tier: 'new',
+      color: 'blue',
+      badgeClass: 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30 hover:bg-blue-500/20',
+      label: 'New (< 24h)',
+      days: 0,
+      hours: diffHours,
+      needsAttention: false,
+      message: 'New shipment created within 24 hours'
+    };
+  } else if (diffDays === 1) {
+    // 1 Day unchecked (24h - 48h) -> YELLOW
+    return {
+      tier: 'day1',
+      color: 'yellow',
+      badgeClass: 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-300 border-yellow-500/40 hover:bg-yellow-500/25',
+      label: '1d Unchecked',
+      days: 1,
+      hours: diffHours,
+      needsAttention: true,
+      message: '⚠️ Not checked for 1 day! Review update.'
+    };
+  } else if (diffDays === 2) {
+    // 2 Days unchecked (48h - 72h) -> ORANGE
+    return {
+      tier: 'day2',
+      color: 'orange',
+      badgeClass: 'bg-orange-500/20 text-orange-700 dark:text-orange-300 border-orange-500/40 hover:bg-orange-500/30',
+      label: '2d Unchecked',
+      days: 2,
+      hours: diffHours,
+      needsAttention: true,
+      message: '⚠️ Not checked for 2 days! Review tracking updates.'
+    };
+  } else {
+    // 3+ Days unchecked (> 72h) -> RED (CRITICAL ATTENTION)
+    return {
+      tier: 'day3_plus',
+      color: 'red',
+      badgeClass: 'bg-red-500/20 text-red-700 dark:text-red-300 border-red-500/40 animate-pulse hover:bg-red-500/30',
+      label: `${diffDays}d Overdue`,
+      days: diffDays,
+      hours: diffHours,
+      needsAttention: true,
+      message: `🚨 CRITICAL: Unchecked for ${diffDays} days! Urgent attention required.`
+    };
+  }
+};
+
+const TrackingHistoryTooltip = ({ booking, rowIndex = 0 }) => {
+  const realTrackingHistory = (booking.trackingHistory || []).filter(t => {
+    const desc = (t?.description || '').toLowerCase();
+    return !desc.includes('seed') && !desc.includes('sync to main') && !desc.includes('verified and seeded') && !desc.includes('booking verified by');
+  });
+
+  const lastTrack = realTrackingHistory.length > 0
+    ? realTrackingHistory[realTrackingHistory.length - 1]
     : null;
 
+  const attention = getVerificationAttention(booking);
+
+  // If near the top of the table (row 0 or 1), open downwards so it doesn't get clipped behind the table header
+  const openDownward = rowIndex < 2;
+
   return (
-    <div className="absolute hidden group-hover:flex flex-col gap-1.5 z-30 w-64 p-3 bg-slate-900/95 backdrop-blur-md text-white rounded-xl shadow-2xl border border-slate-700/80 right-full mr-3 top-1/2 -translate-y-1/2 transition-all duration-200 ease-out origin-right scale-95 group-hover:scale-100 pointer-events-none">
+    <div className={`absolute hidden group-hover:flex flex-col gap-2 z-[99] w-72 p-3.5 bg-slate-900/95 backdrop-blur-md text-white rounded-2xl shadow-2xl border border-slate-700/80 left-1/2 -translate-x-1/2 transition-all duration-200 ease-out pointer-events-auto ${openDownward ? "top-full mt-2.5" : "bottom-full mb-2.5"}`}>
+      {/* Invisible hover bridge to prevent flicker when moving mouse into tooltip */}
+      <div className={`absolute left-0 right-0 h-3 bg-transparent ${openDownward ? "bottom-full" : "top-full"}`}></div>
+
       {/* Tooltip arrow */}
-      <div className="absolute top-1/2 -translate-y-1/2 -right-1.5 w-3 h-3 bg-slate-900 border-t border-r border-slate-700/80 rotate-45"></div>
+      <div className={`absolute left-1/2 -translate-x-1/2 w-3 h-3 bg-slate-900 border-slate-700/80 rotate-45 ${openDownward ? "-top-1.5 border-t border-l" : "-bottom-1.5 border-b border-r"}`}></div>
       
-      {/* Tooltip Content */}
-      <div className="flex items-center justify-between border-b border-slate-700 pb-1.5 mb-0.5">
-        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Last Status Update</span>
+      {/* Header: Last Status Update */}
+      <div className="flex items-center justify-between border-b border-slate-700/80 pb-1.5">
+        <span className="text-[10px] font-black text-orange-400 uppercase tracking-wider flex items-center gap-1">
+          <Truck className="w-3 h-3" />
+          Last Status Update
+        </span>
         {lastTrack?.timestamp && (
           <span className="text-[9px] text-slate-400 font-medium">
             {getTimeAgo(lastTrack.timestamp)}
@@ -63,39 +209,99 @@ const TrackingHistoryTooltip = ({ booking }) => {
         )}
       </div>
 
+      {/* Movement Details */}
       {lastTrack ? (
-        <div className="space-y-1.5 text-left whitespace-normal">
-          <div className="flex items-baseline gap-1.5">
-            <span className="text-[10px] font-semibold text-slate-400 select-none">Status:</span>
-            <span className="text-xs font-bold text-orange-400 capitalize">
+        <div className="space-y-1 text-left text-xs">
+          <div className="flex items-baseline justify-between gap-1.5">
+            <span className="text-[10px] font-semibold text-slate-400">Current Status:</span>
+            <span className="text-xs font-bold text-white capitalize bg-white/10 px-2 py-0.5 rounded">
               {lastTrack.status === 'empty_box_delivered' ? 'Empty Box Delivered' :
                lastTrack.status === 'filled_box_picked' ? 'Filled Box Picked' :
                lastTrack.status}
             </span>
           </div>
           {lastTrack.location && (
-            <div className="flex items-baseline gap-1.5">
-              <span className="text-[10px] font-semibold text-slate-400 select-none">Location:</span>
-              <span className="text-xs text-slate-200 font-medium">{lastTrack.location}</span>
+            <div className="flex items-baseline justify-between gap-1.5 text-slate-300">
+              <span className="text-[10px] font-semibold text-slate-400">Location:</span>
+              <span className="text-[11px] font-medium text-slate-200">{lastTrack.location}</span>
             </div>
           )}
           {lastTrack.description && (
-            <div className="flex flex-col mt-0.5 pt-0.5 border-t border-slate-800">
-              <span className="text-[9px] font-semibold text-slate-400 uppercase select-none">Message:</span>
-              <p className="text-[11px] text-slate-300 leading-relaxed italic font-serif">
-                "{lastTrack.description}"
-              </p>
+            <div className="mt-1 pt-1 border-t border-slate-800 text-[11px] text-slate-300 italic font-serif">
+              "{lastTrack.description}"
             </div>
           )}
-          <div className="text-[9px] text-slate-500 text-right mt-1 font-mono select-none">
-            {new Date(lastTrack.timestamp).toLocaleString()}
+          <div className="text-[9px] text-slate-500 text-right font-mono">
+            Updated: {new Date(lastTrack.timestamp).toLocaleString()}
           </div>
         </div>
       ) : (
-        <div className="text-center py-2 text-slate-400 text-xs italic">
-          No updates recorded
+        <div className="text-center py-1 text-slate-400 text-xs italic">
+          No movement logs recorded yet
         </div>
       )}
+
+      {/* Verification / Last Checked Section */}
+      <div className="mt-1 pt-2 border-t border-slate-700/80 space-y-1.5">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-black uppercase tracking-wider text-teal-400 flex items-center gap-1">
+            <CheckCircle2 className="w-3 h-3" />
+            Verification Check
+          </span>
+          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
+            attention.tier === 'checked' ? 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30' :
+            attention.tier === 'day1' ? 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30' :
+            attention.tier === 'day2' ? 'text-orange-400 bg-orange-500/10 border-orange-500/30' :
+            attention.tier === 'day3_plus' ? 'text-red-400 bg-red-500/10 border-red-500/30 animate-pulse' :
+            'text-slate-400 bg-white/5 border-slate-700'
+          }`}>
+            {attention.label}
+          </span>
+        </div>
+
+        {booking.lastCheckedAt ? (
+          <div className="text-[10px] text-slate-300 flex justify-between items-center">
+            <span className="text-slate-400">Checked By:</span>
+            <span className="font-semibold text-white">{booking.lastCheckedByName || "Staff"}</span>
+          </div>
+        ) : (
+          <p className="text-[10px] text-slate-400 italic">
+            Not checked yet for updates.
+          </p>
+        )}
+
+        {booking.lastCheckedAt && (
+          <div className="text-[9px] text-slate-500 text-right font-mono">
+            Checked: {new Date(booking.lastCheckedAt).toLocaleString()}
+          </div>
+        )}
+
+        {/* Attention Warning Box if shipment has not been checked */}
+        {attention.needsAttention && (
+          <div className={`p-2 rounded-xl text-xs font-medium border flex items-start gap-2 mt-1 ${
+            attention.tier === 'day3_plus' ? 'bg-red-500/15 border-red-500/40 text-red-200' :
+            attention.tier === 'day2' ? 'bg-orange-500/15 border-orange-500/40 text-orange-200' :
+            'bg-yellow-500/15 border-yellow-500/40 text-yellow-200'
+          }`}>
+            {attention.tier === 'day3_plus' ? <AlertCircle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" /> :
+             attention.tier === 'day2' ? <AlertTriangle className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" /> :
+             <Clock className="w-4 h-4 text-yellow-400 shrink-0 mt-0.5" />}
+            <div>
+              <div className="font-bold text-[10px] uppercase tracking-wider">Attention Required</div>
+              <div className="text-[10px] leading-tight mt-0.5">{attention.message}</div>
+            </div>
+          </div>
+        )}
+
+        {/* Action Link: Redirects to booking details so staff must inspect details rather than misusing quick-clicks */}
+        <Link
+          to={`/bookings/${booking._id}`}
+          className="w-full mt-1.5 py-1.5 px-3 bg-gradient-to-r from-primary-600 to-orange-600 hover:from-primary-500 hover:to-orange-500 text-white rounded-xl text-[11px] font-bold shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
+        >
+          <Eye className="w-3.5 h-3.5" />
+          <span>Open Details to Verify & Check</span>
+        </Link>
+      </div>
     </div>
   );
 };
@@ -130,6 +336,7 @@ const Bookings = () => {
   const [currentPage, setCurrentPage] = useState(parseInt(searchParams.get("page")) || 1)
   const [limit, setLimit] = useState(parseInt(searchParams.get("limit")) || 10)
   const [vendorFilter, setVendorFilter] = useState(searchParams.get("vendor") || "all")
+  const [partnerFilter, setPartnerFilter] = useState(searchParams.get("partner") || "all")
   const [officeFilter, setOfficeFilter] = useState(searchParams.get("office") || "main")
   const [staffFilter, setStaffFilter] = useState(searchParams.get("createdBy") || "all")
   const [paymentFilter, setPaymentFilter] = useState(searchParams.get("paymentStatus") || "all")
@@ -142,8 +349,18 @@ const Bookings = () => {
     partialCount: 0,
     totalCount: 0
   })
+  const [verificationSummary, setVerificationSummary] = useState({
+    checkedCount: 0,
+    day1Count: 0,
+    day2Count: 0,
+    day3Count: 0,
+    totalAttentionCount: 0
+  })
   const [offices, setOffices] = useState([])
   
+  // Verification Attention Filter (Unchecked for 1 day, 2 days, 3+ days)
+  const [attentionFilter, setAttentionFilter] = useState(searchParams.get("attention") || "all")
+
   // Date Filtering State
   const [dateFilter, setDateFilter] = useState(searchParams.get("date") || "all") // all, today, last7, last30, custom
   const [customStartDate, setCustomStartDate] = useState(searchParams.get("start") || "")
@@ -165,11 +382,13 @@ const Bookings = () => {
     const params = new URLSearchParams()
     if (searchTerm) params.set("search", searchTerm)
     if (statusFilter !== "all") params.set("status", statusFilter)
+    if (attentionFilter !== "all") params.set("attention", attentionFilter)
     if (serviceFilter !== "all") params.set("service", serviceFilter)
     if (paymentFilter !== "all") params.set("paymentStatus", paymentFilter)
     if (currentPage !== 1) params.set("page", currentPage.toString())
     if (limit !== 10) params.set("limit", limit.toString())
     if (vendorFilter !== "all") params.set("vendor", vendorFilter)
+    if (partnerFilter !== "all") params.set("partner", partnerFilter)
     if (officeFilter !== "all") params.set("office", officeFilter)
     if (staffFilter !== "all") params.set("createdBy", staffFilter)
     if (dateFilter !== "all") params.set("date", dateFilter)
@@ -177,12 +396,13 @@ const Bookings = () => {
     if (customEndDate) params.set("end", customEndDate)
 
     setSearchParams(params, { replace: true })
-  }, [searchTerm, statusFilter, serviceFilter, paymentFilter, currentPage, limit, vendorFilter, officeFilter, staffFilter, dateFilter, customStartDate, customEndDate])
+  }, [searchTerm, statusFilter, attentionFilter, serviceFilter, paymentFilter, currentPage, limit, vendorFilter, partnerFilter, officeFilter, staffFilter, dateFilter, customStartDate, customEndDate])
 
   const handleResetFilters = () => {
     setSearchInput("")
     setSearchTerm("")
     setStatusFilter("all")
+    setAttentionFilter("all")
     setServiceFilter("all")
     setPaymentFilter("all")
     setCurrentPage(1)
@@ -406,18 +626,20 @@ const Bookings = () => {
     try {
       setIsBulkUpdating(true)
       const t = localStorage.getItem("adminToken") || localStorage.getItem("token")
-      await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/bulk/assign-vendor`, {
+      await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/bulk/assign-partner`, {
         bookingIds: selectedIds,
+        partnerId: bulkVendorAssignment.vendorId,
+        partnerName: bulkVendorAssignment.vendorName,
         vendorId: bulkVendorAssignment.vendorId,
         vendorName: bulkVendorAssignment.vendorName
       }, { headers: { Authorization: `Bearer ${t}` } })
 
-      toast.success(`Assigned ${selectedIds.length} bookings to vendor successfully`)
+      toast.success(`Assigned ${selectedIds.length} bookings to partner ${bulkVendorAssignment.vendorName} successfully`)
       setSelectedIds([])
       setBulkModal({ open: false, type: "" })
       fetchBookings()
     } catch (error) {
-      toast.error("Bulk vendor assignment failed")
+      toast.error("Bulk partner assignment failed")
     } finally {
       setIsBulkUpdating(false)
     }
@@ -487,6 +709,53 @@ const Bookings = () => {
   const [paymentProof, setPaymentProof] = useState(null)
   const [isUpdatingPayment, setIsUpdatingPayment] = useState(false)
 
+  // Bulk Payment State
+  const [bulkPaymentModalOpen, setBulkPaymentModalOpen] = useState(false)
+  const [bulkPaymentMode, setBulkPaymentMode] = useState("online")
+  const [bulkPaymentNotes, setBulkPaymentNotes] = useState("")
+  const [isUpdatingBulkPayment, setIsUpdatingBulkPayment] = useState(false)
+
+  // Filter selected bookings that are NOT already paid
+  const pendingSelectedBookings = useMemo(() => {
+    return bookings.filter(b => selectedIds.includes(b._id) && b.paymentStatus !== "paid")
+  }, [bookings, selectedIds])
+
+  const handleBulkMarkAsPaid = async (e) => {
+    if (e) e.preventDefault()
+    if (pendingSelectedBookings.length === 0) {
+      toast.error("No pending payment orders selected.")
+      return
+    }
+
+    try {
+      setIsUpdatingBulkPayment(true)
+      const token = localStorage.getItem("adminToken") || localStorage.getItem("token")
+
+      const res = await axios.put(
+        `${import.meta.env.VITE_API_URL}/api/bookings/bulk/payment-status`,
+        {
+          bookingIds: pendingSelectedBookings.map(b => b._id),
+          paymentStatus: "paid",
+          paymentMode: bulkPaymentMode,
+          paymentNotes: bulkPaymentNotes.trim(),
+        },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      )
+
+      toast.success(res.data.message || `Marked ${pendingSelectedBookings.length} bookings as PAID!`)
+      setBulkPaymentModalOpen(false)
+      setSelectedIds([])
+      fetchBookings()
+    } catch (err) {
+      console.error("Bulk mark as paid error:", err)
+      toast.error(err.response?.data?.message || "Failed to mark orders as paid.")
+    } finally {
+      setIsUpdatingBulkPayment(false)
+    }
+  }
+
   // Invoice State
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false)
   const [invoiceBookings, setInvoiceBookings] = useState([])
@@ -499,7 +768,7 @@ const Bookings = () => {
 
   useEffect(() => {
     fetchBookings()
-  }, [currentPage, statusFilter, serviceFilter, paymentFilter, searchTerm, vendorFilter, officeFilter, staffFilter, dateFilter, customStartDate, customEndDate])
+  }, [currentPage, statusFilter, attentionFilter, serviceFilter, paymentFilter, searchTerm, vendorFilter, partnerFilter, officeFilter, staffFilter, dateFilter, customStartDate, customEndDate])
 
   const fetchBookings = async () => {
     try {
@@ -512,10 +781,13 @@ const Bookings = () => {
           page: currentPage,
           limit: limit,
           status: statusFilter,
+          attentionFilter: attentionFilter === "all" ? "" : attentionFilter,
           serviceType: serviceFilter,
           paymentStatus: paymentFilter,
           search: searchTerm,
           vendorFilter: vendorFilter,
+          courierFilter: vendorFilter,
+          partnerFilter: partnerFilter === "all" ? "" : partnerFilter,
           officeId: officeFilter === "all" ? "" : officeFilter,
           createdBy: staffFilter === "all" ? "" : staffFilter,
           startDate: getEffectiveStartDate(),
@@ -527,6 +799,9 @@ const Bookings = () => {
       setTotalPages(response.data.totalPages)
       if (response.data.paymentSummary) {
         setPaymentSummary(response.data.paymentSummary)
+      }
+      if (response.data.verificationSummary) {
+        setVerificationSummary(response.data.verificationSummary)
       }
     } catch (error) {
       toast.error("Error fetching bookings")
@@ -662,6 +937,24 @@ const Bookings = () => {
               <option value="cancelled">Cancelled</option>
             </select>
 
+            {/* Tracking Verification Attention Filter */}
+            <select
+              value={attentionFilter}
+              onChange={(e) => {
+                setAttentionFilter(e.target.value)
+                setCurrentPage(1)
+              }}
+              className="border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1A1A1A] dark:text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 transition-colors font-medium"
+              title="Filter by Verification Attention (Unchecked 1 day, 2 days, 3+ days)"
+            >
+              <option value="all">All Verification</option>
+              <option value="day3_plus">🚨 3+ Days Overdue ({verificationSummary.day3Count || 0})</option>
+              <option value="day2">⚠️ 2 Days Unchecked ({verificationSummary.day2Count || 0})</option>
+              <option value="day1">⚠️ 1 Day Unchecked ({verificationSummary.day1Count || 0})</option>
+              <option value="attention_needed">⚠️ All Needs Attention ({verificationSummary.totalAttentionCount || 0})</option>
+              <option value="checked">✓ Checked (&lt; 24h) ({verificationSummary.checkedCount || 0})</option>
+            </select>
+
             <select
               value={paymentFilter}
               onChange={(e) => {
@@ -676,12 +969,14 @@ const Bookings = () => {
               <option value="partial">Partial</option>
             </select>
 
+            {/* Courier Partner Filter (Shipping Carrier) */}
             <select
               value={vendorFilter}
               onChange={(e) => setVendorFilter(e.target.value)}
-              className="border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1A1A1A] dark:text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 transition-colors"
+              className="border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1A1A1A] dark:text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 transition-colors font-medium"
+              title="Filter by Shipping Courier (DTDC, Delhivery, BlueDart...)"
             >
-              <option value="all">All Vendors</option>
+              <option value="all">All Couriers</option>
               <option value="bluedart">BlueDart</option>
               <option value="dtdc (hirak)">DTDC (Hirak)</option>
               <option value="dtdc (sanjay)">DTDC (Sanjay)</option>
@@ -690,7 +985,23 @@ const Bookings = () => {
               <option value="india post">India Post</option>
               <option value="i carry">I Carry</option>
               <option value="other">Other</option>
-              <option value="none">No Vendor</option>
+              <option value="none">No Courier Assigned</option>
+            </select>
+
+            {/* Corporate Partner Filter (B2B Business Client) */}
+            <select
+              value={partnerFilter}
+              onChange={(e) => setPartnerFilter(e.target.value)}
+              className="border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1A1A1A] dark:text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 transition-colors font-medium"
+              title="Filter by Corporate Partner (B2B Client) or Direct Customer"
+            >
+              <option value="all">All Partners & Direct</option>
+              <option value="none">Direct Customers Only</option>
+              {vendors.map((v) => (
+                <option key={v._id} value={v.partnerId}>
+                  {v.name} ({v.partnerId})
+                </option>
+              ))}
             </select>
 
             <select
@@ -775,6 +1086,139 @@ const Bookings = () => {
               />
             </div>
           )}
+        </div>
+
+        {/* Verification Attention Quick Filter Pills */}
+        <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-gray-100 dark:border-white/10">
+          <span className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1.5 mr-1">
+            <Clock className="w-3.5 h-3.5" />
+            Verification Status:
+          </span>
+
+          <button
+            type="button"
+            onClick={() => {
+              setAttentionFilter("all")
+              setCurrentPage(1)
+            }}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border cursor-pointer ${
+              attentionFilter === "all"
+                ? "bg-gray-900 text-white dark:bg-white dark:text-black border-transparent shadow-sm"
+                : "bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-white/10 hover:bg-gray-200"
+            }`}
+          >
+            All Shipments
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setAttentionFilter(attentionFilter === "day3_plus" ? "all" : "day3_plus")
+              setCurrentPage(1)
+            }}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border flex items-center gap-1.5 cursor-pointer ${
+              attentionFilter === "day3_plus"
+                ? "bg-red-600 text-white border-red-600 shadow-sm ring-2 ring-red-500/20"
+                : "bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/30 hover:bg-red-500/20"
+            }`}
+            title="Filter bookings unchecked for 3+ days (Overdue)"
+          >
+            <AlertCircle className="w-3.5 h-3.5" />
+            <span>🚨 3+ Days Overdue</span>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+              attentionFilter === "day3_plus" ? "bg-white/20 text-white" : "bg-red-500/20 text-red-700 dark:text-red-300"
+            }`}>
+              {verificationSummary.day3Count || 0}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setAttentionFilter(attentionFilter === "day2" ? "all" : "day2")
+              setCurrentPage(1)
+            }}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border flex items-center gap-1.5 cursor-pointer ${
+              attentionFilter === "day2"
+                ? "bg-orange-600 text-white border-orange-600 shadow-sm ring-2 ring-orange-500/20"
+                : "bg-orange-500/10 text-orange-700 dark:text-orange-300 border-orange-500/30 hover:bg-orange-500/20"
+            }`}
+            title="Filter bookings unchecked for 2 days"
+          >
+            <AlertTriangle className="w-3.5 h-3.5" />
+            <span>⚠️ 2 Days Unchecked</span>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+              attentionFilter === "day2" ? "bg-white/20 text-white" : "bg-orange-500/20 text-orange-700 dark:text-orange-300"
+            }`}>
+              {verificationSummary.day2Count || 0}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setAttentionFilter(attentionFilter === "day1" ? "all" : "day1")
+              setCurrentPage(1)
+            }}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border flex items-center gap-1.5 cursor-pointer ${
+              attentionFilter === "day1"
+                ? "bg-yellow-500 text-gray-900 border-yellow-500 shadow-sm ring-2 ring-yellow-500/20 font-extrabold"
+                : "bg-yellow-500/10 text-yellow-700 dark:text-yellow-300 border-yellow-500/30 hover:bg-yellow-500/20"
+            }`}
+            title="Filter bookings unchecked for 1 day"
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>⚠️ 1 Day Unchecked</span>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+              attentionFilter === "day1" ? "bg-gray-900/20 text-gray-900" : "bg-yellow-500/20 text-yellow-700 dark:text-yellow-300"
+            }`}>
+              {verificationSummary.day1Count || 0}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setAttentionFilter(attentionFilter === "attention_needed" ? "all" : "attention_needed")
+              setCurrentPage(1)
+            }}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border flex items-center gap-1.5 cursor-pointer ${
+              attentionFilter === "attention_needed"
+                ? "bg-amber-600 text-white border-amber-600 shadow-sm ring-2 ring-amber-500/20"
+                : "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 hover:bg-amber-500/20"
+            }`}
+            title="Filter all bookings needing attention (1d, 2d, 3d+ overdue)"
+          >
+            <AlertTriangle className="w-3.5 h-3.5" />
+            <span>⚠️ All Needs Attention</span>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+              attentionFilter === "attention_needed" ? "bg-white/20 text-white" : "bg-amber-500/20 text-amber-700 dark:text-amber-300"
+            }`}>
+              {verificationSummary.totalAttentionCount || 0}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setAttentionFilter(attentionFilter === "checked" ? "all" : "checked")
+              setCurrentPage(1)
+            }}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border flex items-center gap-1.5 cursor-pointer ${
+              attentionFilter === "checked"
+                ? "bg-emerald-600 text-white border-emerald-600 shadow-sm ring-2 ring-emerald-500/20"
+                : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20"
+            }`}
+            title="Filter shipments checked in last 24 hours"
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>✓ Checked (&lt; 24h)</span>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+              attentionFilter === "checked" ? "bg-white/20 text-white" : "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
+            }`}>
+              {verificationSummary.checkedCount || 0}
+            </span>
+          </button>
         </div>
       </div>
 
@@ -899,7 +1343,7 @@ const Bookings = () => {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto styled-scrollbar styled-scrollbar-top">
+            <div className="overflow-x-auto styled-scrollbar styled-scrollbar-top min-h-[380px]">
               <table className="min-w-full divide-y divide-gray-200 dark:divide-white/10">
                 <thead className="bg-gray-50 dark:bg-white/5 transition-colors sticky top-0 z-10">
                   <tr>
@@ -922,15 +1366,15 @@ const Bookings = () => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Chargeable Wt.</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">Payment</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Vendor</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Track ID</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Partner</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Courier & Docket</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Created By</th>
                     <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-[#111111] divide-y divide-gray-200 dark:divide-white/10">
-                  {bookings.map((booking) => (
-                    <tr key={booking._id} className={`hover:bg-gray-50 dark:hover:bg-white/5 transition-colors ${selectedIds.includes(booking._id) ? 'bg-primary-50/30 dark:bg-primary-500/10' : ''}`}>
+                  {bookings.map((booking, index) => (
+                    <tr key={booking._id} className={`hover:bg-gray-50 dark:hover:bg-white/5 transition-colors relative hover:z-20 ${selectedIds.includes(booking._id) ? 'bg-primary-50/30 dark:bg-primary-500/10' : ''}`}>
                       <td className="px-6 py-4">
                         <input
                           type="checkbox"
@@ -1024,20 +1468,51 @@ const Bookings = () => {
                         <div className="text-sm font-bold text-gray-800 dark:text-gray-200 capitalize">{booking.serviceType}</div>
                         <div className="text-[10px] text-gray-400 font-medium">Source: {booking.bookingSource || 'web'}</div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap overflow-visible">
-                        <div className="flex items-center space-x-1.5 group relative cursor-help">
-                          <span className={`inline-flex px-2 py-0.5 text-[10px] font-bold uppercase rounded-full border ${getStatusColor(booking.status)}`}>
-                            {booking.serviceType?.toLowerCase() === 'campus-parcel' 
-                              ? (booking.status === 'empty_box_delivered' ? 'Box Delivered (For Packing)' :
-                                 booking.status === 'filled_box_picked' ? 'Box Picked (Ready)' :
-                                 booking.status)
-                              : booking.status}
-                          </span>
-                          {isRecent(booking.updatedAt) && (
-                            <span className="flex h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse"></span>
-                          )}
-                          <TrackingHistoryTooltip booking={booking} />
-                        </div>
+                      <td className="px-6 py-4 whitespace-nowrap overflow-visible relative group hover:z-50">
+                        {(() => {
+                          const attention = getVerificationAttention(booking);
+                          return (
+                            <div className="flex flex-col gap-1 items-start relative">
+                              {/* Top: Status Badge */}
+                              <div className="flex items-center space-x-1.5 cursor-help">
+                                <span className={`inline-flex px-2 py-0.5 text-[10px] font-bold uppercase rounded-full border ${getStatusColor(booking.status)}`}>
+                                  {booking.serviceType?.toLowerCase() === 'campus-parcel' 
+                                    ? (booking.status === 'empty_box_delivered' ? 'Box Delivered (For Packing)' :
+                                       booking.status === 'filled_box_picked' ? 'Box Picked (Ready)' :
+                                       booking.status)
+                                    : booking.status}
+                                </span>
+                                {isRecent(booking.updatedAt) && (
+                                  <span className="flex h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse" title="Updated in last 1 hour"></span>
+                                )}
+                              </div>
+
+                              {/* Bottom: Last Checked Verification / Attention Indicator */}
+                              <div>
+                                <Link
+                                  to={`/bookings/${booking._id}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                  title={`${attention.message} Click to open details and verify.`}
+                                  className={`inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded border transition-all cursor-pointer ${attention.badgeClass}`}
+                                >
+                                  {attention.tier === 'checked' && <CheckCircle2 className="w-2.5 h-2.5 text-emerald-500 shrink-0" />}
+                                  {attention.tier === 'day1' && <Clock className="w-2.5 h-2.5 text-yellow-500 shrink-0" />}
+                                  {attention.tier === 'day2' && <AlertTriangle className="w-2.5 h-2.5 text-orange-500 shrink-0" />}
+                                  {attention.tier === 'day3_plus' && <AlertCircle className="w-2.5 h-2.5 text-red-500 shrink-0" />}
+                                  {attention.tier === 'new' && <Clock className="w-2.5 h-2.5 text-blue-500 shrink-0" />}
+                                  {attention.tier === 'closed' && <CheckCircle2 className="w-2.5 h-2.5 text-gray-400 shrink-0" />}
+                                  <span>{attention.label}</span>
+                                </Link>
+                              </div>
+
+                              {/* Hover Tooltip */}
+                              <TrackingHistoryTooltip 
+                                booking={booking} 
+                                rowIndex={index}
+                              />
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white">
                         ₹{booking.pricing?.totalAmount || 0}
@@ -1060,27 +1535,92 @@ const Bookings = () => {
                           )}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-600 dark:text-gray-300">
-                        {booking.vendorName ? (
-                          booking.vendorName.toLowerCase() === 'bluedart' ? (
-                            <a href="https://bluedart.com/home" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline uppercase">
-                              {booking.vendorName}
-                            </a>
-                          ) : booking.vendorName.toLowerCase() === 'dtdc' ? (
-                            <a href="https://www.dtdc.com/track-your-shipment/" target="_blank" rel="noopener noreferrer" className="text-red-600 hover:underline uppercase">
-                              {booking.vendorName}
-                            </a>
-                          ) : booking.vendorName.toLowerCase() === 'delhivery' ? (
-                            <a href="https://www.delhivery.com/tracking" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline uppercase">
-                              {booking.vendorName}
-                            </a>
-                          ) : (
-                            <span className="uppercase">{booking.vendorName}</span>
-                          )
-                        ) : "-"}
+                      {/* Corporate Partner (B2B Client) Cell */}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {(() => {
+                          let displayPartner = null;
+                          let displayPartnerId = null;
+
+                          if (booking.partnerName && !isCourierName(booking.partnerName)) {
+                            displayPartner = booking.partnerName;
+                            displayPartnerId = booking.partnerId;
+                          } else if (booking.partnerId && !isCourierName(booking.partnerId)) {
+                            displayPartnerId = booking.partnerId;
+                            const matched = vendors.find(v => v.partnerId === booking.partnerId);
+                            displayPartner = matched ? matched.name : (booking.partnerName || booking.partnerId);
+                          } else if (booking.vendorId && String(booking.vendorId).startsWith('PAT')) {
+                            displayPartnerId = booking.vendorId;
+                            const matched = vendors.find(v => v.partnerId === booking.vendorId);
+                            displayPartner = matched ? matched.name : (booking.senderDetails?.name || booking.vendorId);
+                          } else if (booking.isVendorBooking && booking.vendorName && !isCourierName(booking.vendorName)) {
+                            displayPartner = booking.vendorName;
+                            displayPartnerId = booking.vendorId;
+                          } else if (booking.isVendorBooking && booking.senderDetails?.name && !isCourierName(booking.senderDetails.name)) {
+                            displayPartner = booking.senderDetails.name;
+                          }
+
+                          if (displayPartner) {
+                            return (
+                              <div className="flex flex-col">
+                                <span className="inline-flex items-center gap-1.5 text-xs font-bold text-pink-700 dark:text-pink-400 truncate max-w-[160px]" title={displayPartner}>
+                                  <span className="w-1.5 h-1.5 rounded-full bg-pink-500 shrink-0"></span>
+                                  {displayPartner}
+                                </span>
+                                {displayPartnerId && (
+                                  <span className="text-[10px] font-mono text-gray-400 dark:text-gray-500">
+                                    {displayPartnerId}
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <span className="inline-flex px-2 py-0.5 text-[10px] font-medium rounded-full bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400">
+                              Direct Customer
+                            </span>
+                          );
+                        })()}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400 font-mono">
-                        {booking.vendorTrackingId || "-"}
+
+                      {/* Courier Partner & Docket Cell */}
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        {(() => {
+                          const courierCarrier = booking.courierName || (isCourierName(booking.vendorName) ? booking.vendorName : (isCourierName(booking.partnerName) ? booking.partnerName : ""));
+
+                          if (courierCarrier || booking.vendorTrackingId) {
+                            return (
+                              <div className="flex flex-col">
+                                <span className="text-xs font-bold uppercase text-gray-800 dark:text-gray-200">
+                                  {courierCarrier || "Courier"}
+                                </span>
+                                {booking.vendorTrackingId ? (
+                                  (courierCarrier || booking.vendorName)?.toLowerCase().includes('bluedart') ? (
+                                    <a href="https://bluedart.com/home" target="_blank" rel="noopener noreferrer" className="text-[11px] font-mono font-bold text-blue-600 hover:underline">
+                                      {booking.vendorTrackingId}
+                                    </a>
+                                  ) : (courierCarrier || booking.vendorName)?.toLowerCase().includes('delhivery') ? (
+                                    <a href="https://www.delhivery.com/tracking" target="_blank" rel="noopener noreferrer" className="text-[11px] font-mono font-bold text-orange-600 hover:underline">
+                                      {booking.vendorTrackingId}
+                                    </a>
+                                  ) : (courierCarrier || booking.vendorName)?.toLowerCase().includes('dtdc') ? (
+                                    <a href="https://www.dtdc.com/track-your-shipment/" target="_blank" rel="noopener noreferrer" className="text-[11px] font-mono font-bold text-red-600 hover:underline">
+                                      {booking.vendorTrackingId}
+                                    </a>
+                                  ) : (
+                                    <span className="text-[11px] font-mono text-teal-600 dark:text-teal-400 font-bold">
+                                      {booking.vendorTrackingId}
+                                    </span>
+                                  )
+                                ) : (
+                                  <span className="text-[10px] text-amber-500 font-medium">No Docket</span>
+                                )}
+                              </div>
+                            );
+                          }
+
+                          return <span className="text-xs text-gray-400">-</span>;
+                        })()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         {booking.bookingSource === 'Agent' || booking.bookingSource === 'E-Docket' || booking.bookedByAgent || booking.agentUsername || booking.seededBy || (booking.notes && booking.notes.toLowerCase().includes('intake')) || (booking.notes && booking.notes.toLowerCase().includes('e-docket')) ? (
@@ -1273,7 +1813,7 @@ const Bookings = () => {
                     className="flex items-center gap-2 hover:bg-gray-800 px-3 py-2 rounded-xl transition-colors text-sm font-bold text-pink-400"
                   >
                     <UserPlus className="w-4 h-4" />
-                    Assign Vendor
+                    Assign Partner
                   </button>
                   <button
                     onClick={() => {
@@ -1285,7 +1825,7 @@ const Bookings = () => {
                     className="flex items-center gap-2 hover:bg-gray-800 px-3 py-2 rounded-xl transition-colors text-sm font-bold text-teal-400"
                   >
                     <Tag className="w-4 h-4" />
-                    Assign Docket
+                    Assign Courier & Docket
                   </button>
                   <button
                     onClick={() => {
@@ -1301,24 +1841,42 @@ const Bookings = () => {
                     <FileText className="w-4 h-4" />
                     Generate Invoice
                   </button>
-                  {selectedIds.length === 1 && (
+                  {/* Mark as Paid Action - Only visible if there are pending payment orders selected */}
+                  {pendingSelectedBookings.length > 0 && (
+                    <button
+                      onClick={() => {
+                        setBulkPaymentMode("online");
+                        setBulkPaymentNotes("");
+                        setBulkPaymentModalOpen(true);
+                      }}
+                      className="flex items-center gap-2 hover:bg-gray-800 px-3 py-2 rounded-xl transition-colors text-sm font-bold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30"
+                      title="Mark pending selected orders as Paid"
+                    >
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                      <span>
+                        Mark as Paid {pendingSelectedBookings.length > 1 ? `(${pendingSelectedBookings.length})` : ''}
+                      </span>
+                    </button>
+                  )}
+                  {selectedIds.length === 1 && pendingSelectedBookings.length === 1 && (
                     <button
                       onClick={() => {
                         const booking = bookings.find(b => b._id === selectedIds[0]);
                         if (booking) {
                           setPaymentBooking(booking);
-                          setPaymentStatus(booking.paymentStatus === "pending" ? "paid" : booking.paymentStatus || "paid");
-                          setAmountReceived(booking.amountReceived || "");
+                          setPaymentStatus("paid");
+                          setAmountReceived(booking.pricing?.totalAmount || booking.totalAmount || "");
                           setPaymentProof(null);
                           setPaymentModalOpen(true);
                         }
                       }}
                       className="flex items-center gap-2 hover:bg-gray-800 px-3 py-2 rounded-xl transition-colors text-sm font-bold text-green-400"
+                      title="Update payment details / upload proof"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
-                      Update Payment
+                      Edit Payment
                     </button>
                   )}
                   <button
@@ -1337,7 +1895,7 @@ const Bookings = () => {
                 <div className="bg-white dark:bg-[#1A1A1A] border dark:border-white/10 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
                   <div className="p-6 border-b border-gray-100 dark:border-white/10 flex justify-between items-center bg-gray-50 dark:bg-white/5 transition-colors">
                     <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-                      {bulkModal.type === 'status' ? 'Bulk Status Update' : bulkModal.type === 'vendor' ? 'Bulk Vendor Assignment' : 'Bulk Rider Assignment'}
+                      {bulkModal.type === 'status' ? 'Bulk Status Update' : bulkModal.type === 'vendor' ? 'Bulk Corporate Partner Assignment' : 'Bulk Rider Assignment'}
                     </h3>
                     <button onClick={() => setBulkModal({ open: false, type: "" })} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
                       <XCircle className="w-6 h-6" />
@@ -1512,7 +2070,7 @@ const Bookings = () => {
                     ) : bulkModal.type === 'vendor' ? (
                       <div className="space-y-4">
                         <div>
-                          <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Select Vendor</label>
+                          <label className="block text-sm font-bold text-gray-700 dark:text-gray-300 mb-2">Select Corporate Partner</label>
                           <select
                             value={bulkVendorAssignment.vendorId}
                             onChange={(e) => {
@@ -1524,7 +2082,7 @@ const Bookings = () => {
                             }}
                             className="w-full rounded-xl border-gray-200 dark:border-white/10 bg-white dark:bg-[#111111] dark:text-white focus:ring-primary-500 focus:border-primary-500 text-sm py-3 transition-colors"
                           >
-                            <option value="">Choose a vendor...</option>
+                            <option value="">Choose a corporate partner (Anand Cure, Hancore, etc.)...</option>
                             {vendors.map(v => (
                               <option key={v._id} value={v.partnerId}>{v.name} ({v.partnerId})</option>
                             ))}
@@ -2051,7 +2609,7 @@ const Bookings = () => {
           <div className="bg-white dark:bg-[#1A1A1A] rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200 border dark:border-white/10">
             <div className="p-6 border-b border-gray-100 dark:border-white/10 flex justify-between items-center bg-gray-50 dark:bg-white/5 transition-colors">
               <div>
-                <h3 className="text-lg font-black text-gray-900 dark:text-white">{docketModal.booking === "bulk" ? "Bulk Assign Docket" : "Assign Docket"}</h3>
+                <h3 className="text-lg font-black text-gray-900 dark:text-white">{docketModal.booking === "bulk" ? "Bulk Assign Courier & Docket" : "Assign Courier & Docket"}</h3>
                 <p className="text-[10px] font-bold text-teal-600 dark:text-teal-400 uppercase tracking-widest">{docketModal.booking === "bulk" ? `${selectedIds.length} Bookings Selected` : docketModal.booking?.bookingId}</p>
               </div>
               <button onClick={() => setDocketModal({ open: false, booking: null })} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
@@ -2061,7 +2619,7 @@ const Bookings = () => {
 
             <div className="p-8 space-y-6 bg-white dark:bg-[#1A1A1A] transition-colors">
               <div>
-                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Shipping Partner</label>
+                <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Courier Partner</label>
                 <select
                   value={docketVendor}
                   onChange={async (e) => {
@@ -2084,7 +2642,7 @@ const Bookings = () => {
                   }}
                   className="w-full bg-gray-50 dark:bg-[#111111] border border-gray-200 dark:border-white/10 p-4 rounded-2xl outline-none focus:ring-2 focus:ring-teal-500 font-bold text-gray-900 dark:text-white transition-colors"
                 >
-                  <option value="">Select Vendor</option>
+                  <option value="">Select Courier Partner</option>
                   <option value="BlueDart">BlueDart</option>
                   <option value="DTDC (Hirak)">DTDC (Hirak)</option>
                   <option value="DTDC (Sanjay)">DTDC (Sanjay)</option>
@@ -2098,13 +2656,13 @@ const Bookings = () => {
 
               {docketVendor === "Other" && (
                 <div>
-                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Other Vendor Name</label>
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Other Courier Name</label>
                   <div className="relative">
                     <input
                       type="text"
                       value={otherDocketVendor}
                       onChange={(e) => setOtherDocketVendor(e.target.value)}
-                      placeholder="Enter vendor name"
+                      placeholder="Enter courier name"
                       className="w-full bg-gray-50 dark:bg-[#111111] border border-gray-200 dark:border-white/10 p-4 rounded-2xl outline-none focus:ring-2 focus:ring-teal-500 font-bold text-gray-900 dark:text-white transition-colors"
                     />
                   </div>
@@ -2113,7 +2671,7 @@ const Bookings = () => {
 
               <div>
                 <div className="flex justify-between items-center mb-2">
-                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest">Tracking ID</label>
+                  <label className="block text-xs font-black text-gray-400 uppercase tracking-widest">Courier Tracking ID / Docket</label>
                   {!isTrackingIdEditable && (
                     <button
                       onClick={() => {
@@ -2136,7 +2694,7 @@ const Bookings = () => {
                     value={docketId}
                     onChange={(e) => setDocketId(e.target.value)}
                     readOnly={!isTrackingIdEditable}
-                    placeholder={isTrackingIdEditable ? "Enter Tracking ID manually..." : "Select a Vendor to auto-fetch..."}
+                    placeholder={isTrackingIdEditable ? "Enter Tracking ID manually..." : "Select a Courier to auto-fetch..."}
                     className={`w-full bg-gray-50 dark:bg-[#111111] border border-gray-200 dark:border-white/10 p-4 rounded-2xl outline-none focus:ring-2 focus:ring-teal-500 font-bold text-gray-900 dark:text-white transition-colors ${!isTrackingIdEditable ? 'opacity-60 cursor-not-allowed' : ''}`}
                   />
                   {isTrackingIdEditable && docketId && (
@@ -2159,6 +2717,7 @@ const Bookings = () => {
                       await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/bulk/assign-docket`, {
                         bookingIds: selectedIds,
                         vendorName: docketVendor === "Other" ? otherDocketVendor : docketVendor,
+                        courierName: docketVendor === "Other" ? otherDocketVendor : docketVendor,
                         vendorTrackingId: docketId
                       }, { headers: { Authorization: `Bearer ${token}` } });
                       toast.success(`Docket assigned to ${selectedIds.length} bookings successfully`);
@@ -2166,6 +2725,7 @@ const Bookings = () => {
                     } else {
                       await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/${docketModal.booking._id}`, {
                         vendorName: docketVendor === "Other" ? otherDocketVendor : docketVendor,
+                        courierName: docketVendor === "Other" ? otherDocketVendor : docketVendor,
                         vendorTrackingId: docketId
                       }, { headers: { Authorization: `Bearer ${token}` } });
                       toast.success("Docket assigned successfully");
@@ -2359,6 +2919,158 @@ const Bookings = () => {
                   Cancel
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Mark as Paid Modal */}
+      {bulkPaymentModalOpen && (
+        <div className="fixed inset-0 z-[80] overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true" onClick={() => !isUpdatingBulkPayment && setBulkPaymentModalOpen(false)}>
+              <div className="absolute inset-0 bg-black/60 backdrop-blur-sm"></div>
+            </div>
+
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+
+            <div className="inline-block align-bottom bg-white dark:bg-[#1A1A1A] rounded-2xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full border border-gray-100 dark:border-white/10 animate-in zoom-in-95 duration-200">
+              {/* Header */}
+              <div className="p-6 border-b border-gray-100 dark:border-white/10 flex justify-between items-center bg-gradient-to-r from-emerald-50 to-teal-50/40 dark:from-emerald-950/30 dark:to-teal-950/20">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shadow-lg shadow-emerald-200 dark:shadow-none">
+                    <CheckCircle2 className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                      Mark as Paid
+                    </h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">
+                      Update payment status from pending to paid
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => !isUpdatingBulkPayment && setBulkPaymentModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1.5 rounded-full hover:bg-white/60 dark:hover:bg-white/5 transition-colors"
+                >
+                  <XCircle className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Body */}
+              <form onSubmit={handleBulkMarkAsPaid} className="p-6 space-y-4">
+                {/* Stats / Total Amount Banner */}
+                <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/40 rounded-xl p-4 flex items-center justify-between">
+                  <div>
+                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+                      Orders to Mark as Paid
+                    </span>
+                    <div className="text-2xl font-black text-emerald-900 dark:text-emerald-200 mt-0.5">
+                      {pendingSelectedBookings.length} {pendingSelectedBookings.length === 1 ? 'Order' : 'Orders'}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">
+                      Total Amount
+                    </span>
+                    <div className="text-2xl font-black text-emerald-900 dark:text-emerald-200 mt-0.5">
+                      ₹{pendingSelectedBookings.reduce((sum, b) => sum + Number(b.pricing?.totalAmount || b.totalAmount || 0), 0).toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Notice if any already paid orders were selected */}
+                {selectedIds.length > pendingSelectedBookings.length && (
+                  <div className="text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 rounded-lg p-2.5">
+                    <strong>Note:</strong> {selectedIds.length - pendingSelectedBookings.length} of your {selectedIds.length} selected orders are already marked as Paid and will remain unchanged.
+                  </div>
+                )}
+
+                {/* Form fields */}
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1">
+                      Payment Mode / Method
+                    </label>
+                    <select
+                      value={bulkPaymentMode}
+                      onChange={(e) => setBulkPaymentMode(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-xl shadow-sm focus:ring-2 focus:ring-emerald-500 font-medium text-sm"
+                    >
+                      <option value="online">Online / UPI (Default)</option>
+                      <option value="cash">Cash</option>
+                      <option value="bank_transfer">Bank Transfer / NEFT / RTGS</option>
+                      <option value="card">Debit / Credit Card</option>
+                      <option value="cheque">Cheque</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1">
+                      Payment Reference / Notes (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. UPI Ref / UTR / Batch Receipt No."
+                      value={bulkPaymentNotes}
+                      onChange={(e) => setBulkPaymentNotes(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-xl shadow-sm focus:ring-2 focus:ring-emerald-500 font-medium text-sm"
+                    />
+                  </div>
+                </div>
+
+                {/* Selected Pending Orders List */}
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">
+                    Orders being updated ({pendingSelectedBookings.length})
+                  </label>
+                  <div className="max-h-44 overflow-y-auto rounded-xl border border-gray-200 dark:border-white/10 divide-y divide-gray-100 dark:divide-white/5 bg-gray-50/50 dark:bg-white/5 custom-scrollbar">
+                    {pendingSelectedBookings.map((b) => (
+                      <div key={b._id} className="p-2.5 flex items-center justify-between text-xs">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-gray-900 dark:text-white font-mono">
+                            {b.bookingId}
+                          </span>
+                          <span className="text-[11px] text-gray-500 dark:text-gray-400 truncate max-w-[180px]">
+                            {b.senderDetails?.name || 'Customer'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-500/20 dark:text-amber-400">
+                            {b.paymentStatus || 'pending'}
+                          </span>
+                          <span className="font-bold text-gray-900 dark:text-white">
+                            ₹{Number(b.pricing?.totalAmount || b.totalAmount || 0).toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Footer Buttons */}
+                <div className="pt-3 border-t border-gray-100 dark:border-white/10 flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    disabled={isUpdatingBulkPayment}
+                    onClick={() => setBulkPaymentModalOpen(false)}
+                    className="px-4 py-2.5 rounded-xl border border-gray-300 dark:border-white/10 text-xs font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5 transition-all"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isUpdatingBulkPayment || pendingSelectedBookings.length === 0}
+                    className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold transition-all shadow-md shadow-emerald-200 dark:shadow-none flex items-center gap-2"
+                  >
+                    {isUpdatingBulkPayment && (
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    )}
+                    <span>Confirm & Mark as Paid ({pendingSelectedBookings.length})</span>
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
-import { Upload, Plus, History, Package, CheckCircle, AlertCircle, Search, Trash2, FileText, ChevronRight, X, Edit2 } from "lucide-react";
+import { Upload, Plus, History, Package, CheckCircle, AlertCircle, Search, Trash2, FileText, ChevronRight, X, Edit2, ToggleLeft, ToggleRight, Info, RotateCcw, Tag } from "lucide-react";
 import toast from "react-hot-toast";
 import * as XLSX from "xlsx";
 
@@ -27,6 +27,20 @@ const DocketManagement = () => {
   const [editingDocket, setEditingDocket] = useState(null); // {id, value}
   const [expandedDocketId, setExpandedDocketId] = useState(null);
   const [orderListModal, setOrderListModal] = useState({ open: false, title: "", epId: [], usedBy: [] });
+  const [offlineModal, setOfflineModal] = useState({
+    open: false,
+    docket: null,
+    bookingId: "",
+    customerName: "",
+    reason: "Counter Booking",
+    proof: "",
+    notes: "",
+    loading: false
+  });
+  const [offlineDetailsModal, setOfflineDetailsModal] = useState({
+    open: false,
+    docket: null
+  });
 
   useEffect(() => {
     fetchStats();
@@ -212,6 +226,61 @@ const DocketManagement = () => {
     }
   };
 
+  const handleMarkUsedOffline = async (e) => {
+    e.preventDefault();
+    if (!offlineModal.bookingId.trim()) {
+      toast.error("Please enter a Booking ID or Reference Number");
+      return;
+    }
+    setOfflineModal(prev => ({ ...prev, loading: true }));
+    try {
+      const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
+      const res = await axios.put(
+        `${import.meta.env.VITE_API_URL}/api/dockets/${offlineModal.docket._id}/mark-used-offline`,
+        {
+          bookingId: offlineModal.bookingId.trim(),
+          customerName: offlineModal.customerName.trim(),
+          reason: offlineModal.reason,
+          proof: offlineModal.proof.trim(),
+          notes: offlineModal.notes.trim()
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      toast.success(res.data.message || `Docket ${offlineModal.docket.docketId} marked as used offline!`);
+      setOfflineModal({ open: false, docket: null, bookingId: "", customerName: "", reason: "Counter Booking", proof: "", notes: "", loading: false });
+      fetchVendorDockets(selectedVendorForDetails, detailsFilter);
+      fetchStats();
+      fetchUsedDockets();
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || "Failed to mark docket as used offline");
+    } finally {
+      setOfflineModal(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  const handleRevertToAvailable = async (docket) => {
+    if (!window.confirm(`Revert docket ${docket.docketId} back to Available inventory?`)) return;
+    try {
+      const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
+      const res = await axios.put(
+        `${import.meta.env.VITE_API_URL}/api/dockets/${docket._id}/mark-available`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      toast.success(res.data.message || `Docket ${docket.docketId} reverted to available!`);
+      fetchVendorDockets(selectedVendorForDetails, detailsFilter);
+      fetchStats();
+      fetchUsedDockets();
+      if (offlineDetailsModal.open) {
+        setOfflineDetailsModal({ open: false, docket: null });
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || "Failed to revert docket");
+    }
+  };
+
   return (
     <div className="space-y-8 p-4 sm:p-6 max-w-7xl mx-auto">
       {/* Header Area */}
@@ -308,13 +377,35 @@ const DocketManagement = () => {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-0.5">
-                        <span className="text-sm font-bold text-gray-900">{docket.assignedBy?.name || 'Admin'}</span>
-                        <span className="text-[10px] font-bold text-gray-500 uppercase">{docket.assignedByOffice ? docket.assignedByOffice.name : 'Main Office'}</span>
+                        <span className="text-sm font-bold text-gray-900">
+                          {docket.metadata?.isOffline ? (docket.metadata.markedBy || docket.assignedBy?.name || 'Staff') : (docket.assignedBy?.name || 'Admin')}
+                        </span>
+                        <span className="text-[10px] font-bold uppercase text-gray-500">
+                          {docket.metadata?.isOffline ? 'Offline Counter' : (docket.assignedByOffice ? docket.assignedByOffice.name : 'Main Office')}
+                        </span>
                       </div>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1">
-                        {Array.isArray(docket.epId) ? (
+                        {docket.metadata?.isOffline ? (
+                          <div className="flex flex-col gap-0.5">
+                            <div className="flex items-center gap-1.5">
+                              <span className="px-2 py-0.5 text-[9px] font-black uppercase rounded-full bg-purple-100 text-purple-700 border border-purple-200">
+                                OFFLINE
+                              </span>
+                              <span className="text-sm font-mono font-bold text-gray-900">
+                                {docket.metadata.bookingId || docket.epId?.[0] || 'Ref'}
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => setOfflineDetailsModal({ open: true, docket })}
+                              className="text-[11px] text-purple-700 font-semibold hover:underline text-left flex items-center gap-1"
+                            >
+                              <Info className="w-3 h-3" />
+                              {docket.metadata.reason || 'Counter Booking'} {docket.metadata.customerName ? `(${docket.metadata.customerName})` : ''} • View Details
+                            </button>
+                          </div>
+                        ) : Array.isArray(docket.epId) ? (
                           <button
                             onClick={() => setOrderListModal({ open: true, title: docket.docketId, epId: docket.epId, usedBy: docket.usedBy })}
                             className="text-sm font-bold text-orange-600 cursor-pointer border-b border-dashed border-orange-300 hover:text-orange-700 text-left self-start"
@@ -600,86 +691,158 @@ const DocketManagement = () => {
                 </div>
               ) : vendorDockets.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {vendorDockets.map((docket) => (
-                    <div key={docket._id} className={`p-4 rounded-2xl border transition-all flex flex-col justify-between ${docket.status === 'used' ? 'bg-orange-50/30 border-orange-100' : 'bg-green-50/30 border-green-100'}`}>
-                      <div className="flex justify-between items-start mb-3">
-                        {editingDocket?.id === docket._id ? (
-                          <div className="flex gap-2 w-full">
-                             <input 
-                               type="text" 
-                               value={editingDocket.value} 
-                               onChange={(e) => setEditingDocket({...editingDocket, value: e.target.value})}
-                               className="flex-1 bg-white border border-gray-200 px-2 py-1 rounded text-sm font-mono font-bold outline-none focus:ring-1 focus:ring-orange-500"
-                               autoFocus
-                             />
-                             <button 
-                               onClick={() => handleUpdateDocket(docket._id, editingDocket.value)}
-                               className="bg-orange-600 text-white px-2 py-1 rounded text-[10px] font-black"
-                             >
-                               SAVE
-                             </button>
-                             <button 
-                               onClick={() => setEditingDocket(null)}
-                               className="bg-gray-100 text-gray-500 px-2 py-1 rounded text-[10px] font-black"
-                             >
-                               X
-                             </button>
-                          </div>
-                        ) : (
-                          <>
-                            <span className="font-mono font-black text-gray-900">{docket.docketId}</span>
-                            {docket.status !== 'used' && (
-                              <div className="flex gap-1">
-                                <button 
-                                  onClick={() => setEditingDocket({id: docket._id, value: docket.docketId})}
-                                  className="p-1.5 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-all"
-                                >
-                                  <Edit2 className="w-4 h-4" />
-                                </button>
-                                <button 
-                                  onClick={() => deleteDocket(docket._id)}
-                                  className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
+                  {vendorDockets.map((docket) => {
+                    const isOffline = docket.metadata?.isOffline;
+                    return (
+                      <div 
+                        key={docket._id} 
+                        className={`p-4 rounded-2xl border transition-all flex flex-col justify-between ${
+                          docket.status === 'used' 
+                            ? isOffline 
+                              ? 'bg-purple-50/40 border-purple-200' 
+                              : 'bg-orange-50/30 border-orange-100' 
+                            : 'bg-green-50/30 border-green-100'
+                        }`}
+                      >
+                        <div className="flex justify-between items-start mb-3">
+                          {editingDocket?.id === docket._id ? (
+                            <div className="flex gap-2 w-full">
+                               <input 
+                                 type="text" 
+                                 value={editingDocket.value} 
+                                 onChange={(e) => setEditingDocket({...editingDocket, value: e.target.value})}
+                                 className="flex-1 bg-white border border-gray-200 px-2 py-1 rounded text-sm font-mono font-bold outline-none focus:ring-1 focus:ring-orange-500"
+                                 autoFocus
+                               />
+                               <button 
+                                 onClick={() => handleUpdateDocket(docket._id, editingDocket.value)}
+                                 className="bg-orange-600 text-white px-2 py-1 rounded text-[10px] font-black"
+                               >
+                                 SAVE
+                               </button>
+                               <button 
+                                 onClick={() => setEditingDocket(null)}
+                                 className="bg-gray-100 text-gray-500 px-2 py-1 rounded text-[10px] font-black"
+                               >
+                                 X
+                               </button>
+                            </div>
+                          ) : (
+                            <>
+                              <div className="flex flex-col">
+                                <span className="font-mono font-black text-gray-900 text-base">{docket.docketId}</span>
+                                {isOffline && (
+                                  <span className="text-[10px] font-bold text-purple-700 mt-0.5">
+                                    Ref: {docket.metadata?.bookingId || (Array.isArray(docket.epId) ? docket.epId[0] : docket.epId)}
+                                  </span>
+                                )}
                               </div>
-                            )}
-                          </>
-                        )}
-                      </div>
-                      <div className="flex justify-between items-end">
-                        <div className="flex flex-col gap-1">
-                          <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full self-start ${docket.status === 'used' ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'}`}>
-                            {docket.status}
-                          </span>
-                          {docket.status === 'used' && (
-                            <span className="text-[9px] font-bold text-gray-500 uppercase mt-1">
-                              {docket.assignedByOffice ? docket.assignedByOffice.name : 'Main Office'} • {docket.assignedBy?.name ? docket.assignedBy.name.split(' ')[0] : 'Admin'}
-                            </span>
+                              {docket.status !== 'used' && (
+                                <div className="flex gap-1">
+                                  <button 
+                                    onClick={() => setEditingDocket({id: docket._id, value: docket.docketId})}
+                                    className="p-1.5 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-all"
+                                    title="Edit Docket ID"
+                                  >
+                                    <Edit2 className="w-4 h-4" />
+                                  </button>
+                                  <button 
+                                    onClick={() => deleteDocket(docket._id)}
+                                    className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                    title="Delete Docket"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              )}
+                            </>
                           )}
                         </div>
-                        {docket.status === 'used' && (
-                          <div className="relative ml-2 flex justify-end pb-1">
-                            {Array.isArray(docket.epId) ? (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setOrderListModal({ open: true, title: docket.docketId, epId: docket.epId, usedBy: docket.usedBy });
-                                }}
-                                className="text-[10px] font-bold text-orange-600 truncate hover:text-orange-700 underline underline-offset-2 decoration-orange-300"
-                              >
-                                {docket.epId.length} Orders
-                              </button>
-                            ) : (
-                              <span className="text-[10px] font-bold text-gray-400 truncate" title={docket.epId}>
-                                {docket.epId}
+                        
+                        <div className="flex justify-between items-end gap-2 pt-2 border-t border-gray-100/60">
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full self-start ${
+                                docket.status === 'used' 
+                                  ? isOffline 
+                                    ? 'bg-purple-100 text-purple-700 border border-purple-200' 
+                                    : 'bg-orange-100 text-orange-600' 
+                                  : 'bg-green-100 text-green-600'
+                              }`}>
+                                {isOffline ? 'OFFLINE USED' : docket.status}
+                              </span>
+                            </div>
+                            {docket.status === 'used' && (
+                              <span className="text-[9px] font-bold text-gray-500 uppercase mt-0.5">
+                                {isOffline 
+                                  ? `Offline • ${docket.metadata?.markedBy?.name ? docket.metadata.markedBy.name.split(' ')[0] : 'Staff'}` 
+                                  : `${docket.assignedByOffice ? docket.assignedByOffice.name : 'Main Office'} • ${docket.assignedBy?.name ? docket.assignedBy.name.split(' ')[0] : 'Admin'}`
+                                }
                               </span>
                             )}
                           </div>
-                        )}
+
+                          <div className="flex items-center gap-1">
+                            {docket.status !== 'used' ? (
+                              <button
+                                onClick={() => setOfflineModal({
+                                  open: true,
+                                  docket,
+                                  bookingId: "",
+                                  customerName: "",
+                                  reason: "Counter Booking",
+                                  proof: "",
+                                  notes: "",
+                                  loading: false
+                                })}
+                                className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold text-purple-700 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg transition-all shadow-xs"
+                                title="Toggle to Mark this docket as used offline"
+                              >
+                                <ToggleLeft className="w-3.5 h-3.5" />
+                                <span>Mark Offline</span>
+                              </button>
+                            ) : isOffline ? (
+                              <div className="flex items-center gap-1">
+                                <button
+                                  onClick={() => setOfflineDetailsModal({ open: true, docket })}
+                                  className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold text-purple-700 bg-white border border-purple-200 hover:bg-purple-50 rounded-lg transition-all shadow-xs"
+                                  title="View offline booking proof and details"
+                                >
+                                  <Info className="w-3 h-3" />
+                                  <span>Proof</span>
+                                </button>
+                                <button
+                                  onClick={() => handleRevertToAvailable(docket)}
+                                  className="flex items-center p-1 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all"
+                                  title="Revert back to available"
+                                >
+                                  <RotateCcw className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="relative flex justify-end pb-0.5">
+                                {Array.isArray(docket.epId) ? (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setOrderListModal({ open: true, title: docket.docketId, epId: docket.epId, usedBy: docket.usedBy });
+                                    }}
+                                    className="text-[10px] font-bold text-orange-600 truncate hover:text-orange-700 underline underline-offset-2 decoration-orange-300"
+                                  >
+                                    {docket.epId.length} Orders
+                                  </button>
+                                ) : (
+                                  <span className="text-[10px] font-bold text-gray-400 truncate" title={docket.epId}>
+                                    {docket.epId}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center h-full text-gray-400 font-bold">
@@ -732,8 +895,251 @@ const DocketManagement = () => {
         </div>
       )}
 
+      {/* Mark Docket as Used Offline Modal */}
+      {offlineModal.open && offlineModal.docket && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gradient-to-r from-purple-50 to-indigo-50/30">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-purple-600 text-white flex items-center justify-center shadow-lg shadow-purple-200">
+                  <ToggleRight className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-black text-gray-900">Mark Docket as Used Offline</h3>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-[10px] font-bold text-purple-700 font-mono bg-purple-100/70 px-2 py-0.5 rounded">
+                      Docket: {offlineModal.docket.docketId}
+                    </span>
+                    <span className="text-[10px] font-bold text-gray-400">
+                      ({offlineModal.docket.vendor})
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <button 
+                onClick={() => setOfflineModal({ open: false, docket: null, bookingId: "", customerName: "", reason: "Counter Booking", proof: "", notes: "", loading: false })}
+                className="text-gray-400 hover:text-gray-600 p-1.5 rounded-full hover:bg-white/60 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleMarkUsedOffline} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Booking ID / Reference Number <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. EP-OFFLINE-8942 or Slip #1042"
+                  value={offlineModal.bookingId}
+                  onChange={(e) => setOfflineModal(prev => ({ ...prev, bookingId: e.target.value }))}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 text-sm font-semibold transition-all"
+                  autoFocus
+                />
+                <p className="text-[11px] text-gray-400 mt-1 font-medium">
+                  Enter the offline booking reference, manual bilty ID, or receipt number.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">
+                    Customer / Sender Name
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. John Doe / ABC Corp"
+                    value={offlineModal.customerName}
+                    onChange={(e) => setOfflineModal(prev => ({ ...prev, customerName: e.target.value }))}
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 text-sm font-medium transition-all"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">
+                    Usage Channel / Reason
+                  </label>
+                  <select
+                    value={offlineModal.reason}
+                    onChange={(e) => setOfflineModal(prev => ({ ...prev, reason: e.target.value }))}
+                    className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 text-sm font-medium transition-all bg-white"
+                  >
+                    <option value="Counter Booking">Counter Booking</option>
+                    <option value="Offline Manual Bilty">Offline Manual Bilty</option>
+                    <option value="Branch Office Booking">Branch Office Booking</option>
+                    <option value="Cash on Delivery Offline">Cash on Delivery Offline</option>
+                    <option value="Urgent Walk-in">Urgent Walk-in</option>
+                    <option value="Damaged / Scrapped">Damaged / Scrapped</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Proof Reference / Document Details
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Physical slip receipt #1234, scanned file ref, or cloud link"
+                  value={offlineModal.proof}
+                  onChange={(e) => setOfflineModal(prev => ({ ...prev, proof: e.target.value }))}
+                  className="w-full px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 text-sm font-medium transition-all"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">
+                  Additional Notes
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder="Any additional notes or reasons for offline usage..."
+                  value={offlineModal.notes}
+                  onChange={(e) => setOfflineModal(prev => ({ ...prev, notes: e.target.value }))}
+                  className="w-full px-4 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 text-sm font-medium transition-all resize-none"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-4 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => setOfflineModal({ open: false, docket: null, bookingId: "", customerName: "", reason: "Counter Booking", proof: "", notes: "", loading: false })}
+                  className="px-4 py-2.5 rounded-xl border border-gray-200 text-xs font-bold text-gray-600 hover:bg-gray-50 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={offlineModal.loading || !offlineModal.bookingId.trim()}
+                  className="px-5 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-bold transition-all shadow-md shadow-purple-200 flex items-center gap-2"
+                >
+                  {offlineModal.loading && (
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  )}
+                  <span>Mark as Used Offline</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Offline Details Modal */}
+      {offlineDetailsModal.open && offlineDetailsModal.docket && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-purple-50/50">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 border border-purple-200">
+                    OFFLINE USAGE PROOF
+                  </span>
+                </div>
+                <h3 className="text-xl font-black text-gray-900 font-mono mt-1">
+                  {offlineDetailsModal.docket.docketId}
+                </h3>
+                <p className="text-xs font-semibold text-gray-400">
+                  Vendor: {offlineDetailsModal.docket.vendor}
+                </p>
+              </div>
+              <button 
+                onClick={() => setOfflineDetailsModal({ open: false, docket: null })}
+                className="text-gray-400 hover:text-gray-600 p-1.5 rounded-full hover:bg-white/60 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 space-y-3">
+                <div className="flex justify-between items-start">
+                  <span className="text-xs font-bold text-gray-400 uppercase">Booking / Ref ID</span>
+                  <span className="text-sm font-black text-purple-700 font-mono">
+                    {offlineDetailsModal.docket.metadata?.bookingId || (Array.isArray(offlineDetailsModal.docket.epId) ? offlineDetailsModal.docket.epId.join(", ") : offlineDetailsModal.docket.epId)}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-start">
+                  <span className="text-xs font-bold text-gray-400 uppercase">Customer</span>
+                  <span className="text-xs font-bold text-gray-900">
+                    {offlineDetailsModal.docket.metadata?.customerName || "—"}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-start">
+                  <span className="text-xs font-bold text-gray-400 uppercase">Channel / Reason</span>
+                  <span className="text-xs font-bold text-gray-700">
+                    {offlineDetailsModal.docket.metadata?.reason || "Counter Booking"}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-start">
+                  <span className="text-xs font-bold text-gray-400 uppercase">Proof Reference</span>
+                  <span className="text-xs font-bold text-gray-900 break-all text-right max-w-[200px]">
+                    {offlineDetailsModal.docket.metadata?.proof || "—"}
+                  </span>
+                </div>
+
+                {offlineDetailsModal.docket.metadata?.notes && (
+                  <div className="pt-2 border-t border-gray-200/60">
+                    <span className="text-xs font-bold text-gray-400 uppercase block mb-1">Notes</span>
+                    <p className="text-xs text-gray-600 font-medium bg-white p-2 rounded-xl border border-gray-100">
+                      {offlineDetailsModal.docket.metadata.notes}
+                    </p>
+                  </div>
+                )}
+
+                <div className="pt-2 border-t border-gray-200/60 flex justify-between items-center text-[11px] text-gray-500">
+                  <span>Marked By:</span>
+                  <span className="font-bold text-gray-800">
+                    {offlineDetailsModal.docket.metadata?.markedBy?.name || "Admin"}
+                  </span>
+                </div>
+
+                <div className="flex justify-between items-center text-[11px] text-gray-500">
+                  <span>Date & Time:</span>
+                  <span className="font-bold text-gray-800">
+                    {offlineDetailsModal.docket.metadata?.markedAt 
+                      ? new Date(offlineDetailsModal.docket.metadata.markedAt).toLocaleString()
+                      : offlineDetailsModal.docket.usedAt 
+                        ? new Date(offlineDetailsModal.docket.usedAt).toLocaleString() 
+                        : "—"}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const d = offlineDetailsModal.docket;
+                    setOfflineDetailsModal({ open: false, docket: null });
+                    handleRevertToAvailable(d);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 text-xs font-bold transition-all"
+                  title="Revert back to available inventory"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Revert to Available</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOfflineDetailsModal({ open: false, docket: null })}
+                  className="px-5 py-2 rounded-xl bg-gray-900 text-white text-xs font-bold hover:bg-black transition-all"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 export default DocketManagement;
+
