@@ -138,9 +138,15 @@ router.post("/", authMiddleware, uploadPaymentProof.single("paymentProof"), asyn
       console.error("Error fetching pincode data for manual booking:", pinErr);
     }
 
+    // Sanitize manual bookingId: only use if explicitly provided with alphanumeric content
+    const cleanBookingId = (bookingId && typeof bookingId === 'string' && bookingId.replace(/^EP/i, '').trim().length > 0)
+      ? bookingId.trim().toUpperCase()
+      : undefined;
+
     // Manual Booking create karo
     const newBooking = new Booking({
-      bookingId,
+      bookingId: cleanBookingId,
+      adminCreated: Boolean(cleanBookingId),
       serviceType,
       senderDetails,
       receiverDetails,

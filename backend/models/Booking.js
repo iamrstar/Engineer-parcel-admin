@@ -1,4 +1,5 @@
 const mongoose = require("mongoose")
+const Counter = require("./Counter");
 
 const bookingSchema = new mongoose.Schema(
   {
@@ -242,6 +243,20 @@ const bookingSchema = new mongoose.Schema(
       date: { type: Date, default: Date.now },
       notes: { type: String }
     }],
+
+    // Direct Shipment Costs / Expenses (for Net Profit calculation per order)
+    expenses: {
+      courierCost: { type: Number, default: 0 },
+      packagingCost: { type: Number, default: 0 },
+      riderCost: { type: Number, default: 0 },
+      otherCost: { type: Number, default: 0 },
+      totalExpenses: { type: Number, default: 0 },
+      notes: { type: String, default: "" },
+      updatedAt: { type: Date },
+      updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+      updatedByName: { type: String, default: "" }
+    },
+
     estimatedDelivery: { type: String },
     isBoxDelivered: { type: Boolean, default: false },
     officeId: {
@@ -294,70 +309,86 @@ const bookingSchema = new mongoose.Schema(
 bookingSchema.pre("validate", async function (next) {
   if (!this.bookingId) {
     try {
-      const Booking = mongoose.model("Booking");
-      const IntakeBooking = mongoose.model("IntakeBooking");
+      const Booking = this.constructor;
+      let IntakeBooking;
+      try {
+        IntakeBooking = mongoose.model("IntakeBooking");
+      } catch (e) {
+        IntakeBooking = require("./IntakeBooking");
+      }
 
       let prefix = "EP";
-      let nextNum = 4601;
+      let counterKey = "trackingId";
+      let startSeq = 4601;
 
       if (this.officeId) {
-        const Office = mongoose.model("Office");
+        let Office;
+        try {
+          Office = mongoose.model("Office");
+        } catch (e) {
+          Office = require("./Office");
+        }
         const office = await Office.findById(this.officeId);
         if (office) {
           if (office.bookingPrefix) prefix = office.bookingPrefix;
-          if (office.bookingIdStart) nextNum = office.bookingIdStart;
+          if (office.bookingIdStart) startSeq = office.bookingIdStart;
         }
       }
 
-      // Escape prefix for regex
-      const escapedPrefix = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const regex = new RegExp(`^${escapedPrefix}\\d+$`);
-
-      let mainQuery = { bookingId: regex };
-      let intakeQuery = { trackingId: regex };
-
-      // Find the highest sequence number for this prefix regardless of office
-      // to prevent duplicate key errors since bookingId is unique across the collection
-
-
-      // Sort by creation date to get a good starting point
-      const lastMain = await Booking.findOne(mainQuery).sort({ createdAt: -1 });
-      const lastIntake = await IntakeBooking.findOne(intakeQuery).sort({ createdAt: -1 });
-
-      let maxFound = 0;
-      if (lastMain && lastMain.bookingId) {
-        const num = parseInt(lastMain.bookingId.replace(prefix, ""));
-        if (!isNaN(num)) maxFound = Math.max(maxFound, num);
-      }
-      if (lastIntake && lastIntake.trackingId) {
-        const num = parseInt(lastIntake.trackingId.replace(prefix, ""));
-        if (!isNaN(num)) maxFound = Math.max(maxFound, num);
+      if (prefix !== "EP") {
+        counterKey = `bookingId_${prefix}`;
       }
 
-      if (maxFound >= nextNum) {
-        nextNum = maxFound + 1;
+      // Ensure counter exists and starts at least at startSeq
+      const existingCounter = await Counter.findOne({ id: counterKey });
+      if (!existingCounter) {
+        await Counter.create({ id: counterKey, seq: Math.max(startSeq - 1, 0) });
+      } else if (existingCounter.seq < startSeq - 1) {
+        await Counter.updateOne({ id: counterKey }, { $set: { seq: startSeq - 1 } });
       }
 
       let isUnique = false;
+      let assignedId = "";
+
       while (!isUnique) {
-        let proposedId = `${prefix}${String(nextNum).padStart(5, "0")}`;
-        const existingMain = await Booking.findOne({ bookingId: proposedId });
-        const existingIntake = await IntakeBooking.findOne({ trackingId: proposedId });
-        
+        const updatedCounter = await Counter.findOneAndUpdate(
+          { id: counterKey },
+          { $inc: { seq: 1 } },
+          { new: true, upsert: true }
+        );
+
+        const seqNum = updatedCounter.seq;
+        const proposedId = `${prefix}${String(seqNum).padStart(5, "0")}`;
+
+        const existingMain = await Booking.findOne({ bookingId: proposedId }).lean();
+        const existingIntake = await IntakeBooking.findOne({ trackingId: proposedId }).lean();
+
         if (!existingMain && !existingIntake) {
-          this.bookingId = proposedId;
+          assignedId = proposedId;
           isUnique = true;
-        } else {
-          nextNum++;
         }
+      }
+
+      this.bookingId = assignedId;
+      if (!this.trackingId) {
+        this.trackingId = assignedId;
       }
     } catch (err) {
       console.error("Error generating sequential bookingId:", err);
-      // Fallback to timestamp to prevent saving error, but should not happen
+      // Fallback to timestamp to prevent saving error
       this.bookingId = `EP${Date.now()}`;
+    }
+  } else {
+    // If a manual bookingId is provided, also set trackingId if not present
+    if (!this.trackingId) {
+      this.trackingId = this.bookingId;
     }
   }
   next();
 });
 
-module.exports = mongoose.model("Booking", bookingSchema)
+// Performance compound indexes for reports, dashboards, and listings
+bookingSchema.index({ createdAt: -1, status: 1 });
+bookingSchema.index({ officeId: 1, createdAt: -1 });
+
+module.exports = mongoose.model("Booking", bookingSchema);

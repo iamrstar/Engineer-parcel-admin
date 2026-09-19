@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react"
 import { useParams, useNavigate } from "react-router-dom"
 import axios from "axios"
 import toast from "react-hot-toast"
-import { Package, Truck, MapPin, Calendar, Clock, User, Phone, Mail, ChevronRight, Edit2, Save, Trash2, ArrowLeft, CreditCard, XCircle, Tag, Printer, Bike, RefreshCw, CheckCircle2, Lock, AlertTriangle, AlertCircle } from "lucide-react"
+import { Package, Truck, MapPin, Calendar, Clock, User, Phone, Mail, ChevronRight, Edit2, Save, Trash2, ArrowLeft, CreditCard, XCircle, Tag, Printer, Bike, RefreshCw, CheckCircle2, Lock, AlertTriangle, AlertCircle, Wallet, TrendingUp, TrendingDown, DollarSign } from "lucide-react"
 import { useAuth } from "../contexts/AuthContext"
 import { getVerificationAttention, getTimeAgo } from "./Bookings"
 
@@ -33,6 +33,54 @@ const BookingDetail = () => {
   const [initialTrackingId, setInitialTrackingId] = useState("")
   const [isTrackingIdEditable, setIsTrackingIdEditable] = useState(false)
   const [markingChecked, setMarkingChecked] = useState(false)
+
+  // Direct Shipment Costs State
+  const [costModalOpen, setCostModalOpen] = useState(false)
+  const [costFormData, setCostFormData] = useState({
+    courierCost: "",
+    packagingCost: "",
+    riderCost: "",
+    otherCost: "",
+    notes: ""
+  })
+  const [savingCost, setSavingCost] = useState(false)
+
+  const handleOpenCostModal = () => {
+    setCostFormData({
+      courierCost: booking?.expenses?.courierCost || "",
+      packagingCost: booking?.expenses?.packagingCost || "",
+      riderCost: booking?.expenses?.riderCost || "",
+      otherCost: booking?.expenses?.otherCost || "",
+      notes: booking?.expenses?.notes || ""
+    })
+    setCostModalOpen(true)
+  }
+
+  const handleSaveCosts = async (e) => {
+    e.preventDefault()
+    try {
+      setSavingCost(true)
+      const token = localStorage.getItem("adminToken") || localStorage.getItem("token")
+      const res = await axios.put(
+        `${import.meta.env.VITE_API_URL}/api/bookings/${booking._id}/expenses`,
+        costFormData,
+        { headers: { Authorization: `Bearer ${token}` } }
+      )
+      if (res.data.success) {
+        toast.success("Shipment direct expenses updated")
+        setBooking(prev => ({
+          ...prev,
+          expenses: res.data.expenses
+        }))
+        setCostModalOpen(false)
+      }
+    } catch (err) {
+      console.error("Error saving expenses:", err)
+      toast.error(err.response?.data?.message || "Failed to save expenses")
+    } finally {
+      setSavingCost(false)
+    }
+  }
 
   // Dedicated Internal Roles Editing & Creator Access Control
   const [rolesEditMode, setRolesEditMode] = useState(false)
@@ -2226,6 +2274,113 @@ const BookingDetail = () => {
             </div>
           </div>
         </div>
+
+        {/* 💰 Shipment Cost & Profit Margin Card */}
+        <div className="bg-white dark:bg-[#1A1A1A] rounded-lg shadow p-4 sm:p-6 mt-4 sm:mt-6 border-l-4 border-emerald-500">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center">
+              <Wallet className="h-5 w-5 text-emerald-600 dark:text-emerald-400 mr-2" />
+              <div>
+                <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">
+                  Shipment Cost & Profit Margin
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Direct courier freight, packaging, and net margin on this order
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleOpenCostModal}
+              className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
+            >
+              <Edit2 className="w-3.5 h-3.5" />
+              <span>Edit Direct Costs</span>
+            </button>
+          </div>
+
+          {(() => {
+            const revenue = Number(booking.pricing?.totalAmount || booking.totalAmount || 0);
+            const courierCost = Number(booking.expenses?.courierCost || 0);
+            const packagingCost = Number(booking.expenses?.packagingCost || 0);
+            const riderCost = Number(booking.expenses?.riderCost || 0);
+            const otherCost = Number(booking.expenses?.otherCost || 0);
+            const totalDirect = courierCost + packagingCost + riderCost + otherCost;
+            const netProfit = revenue - totalDirect;
+            const margin = revenue > 0 ? ((netProfit / revenue) * 100).toFixed(1) : 0;
+            const isProfit = netProfit >= 0;
+
+            return (
+              <div className="space-y-4 text-xs">
+                {/* Cost Breakdown Grid */}
+                <div className="grid grid-cols-2 gap-3 p-3 bg-gray-50 dark:bg-white/5 rounded-xl">
+                  <div>
+                    <span className="text-gray-500 dark:text-gray-400 font-medium">Customer Billed:</span>
+                    <p className="font-bold text-sm text-gray-900 dark:text-white font-mono">
+                      ₹{revenue.toLocaleString("en-IN")}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 dark:text-gray-400 font-medium">Carrier Freight (DTDC/3PL):</span>
+                    <p className="font-bold text-sm text-amber-600 dark:text-amber-400 font-mono">
+                      ₹{courierCost.toLocaleString("en-IN")}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 dark:text-gray-400 font-medium">Packaging Material:</span>
+                    <p className="font-bold text-sm text-gray-700 dark:text-gray-300 font-mono">
+                      ₹{packagingCost.toLocaleString("en-IN")}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500 dark:text-gray-400 font-medium">Rider Payout / Fuel:</span>
+                    <p className="font-bold text-sm text-gray-700 dark:text-gray-300 font-mono">
+                      ₹{riderCost.toLocaleString("en-IN")}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Net Profit Banner */}
+                <div
+                  className={`p-4 rounded-xl flex items-center justify-between border ${
+                    isProfit
+                      ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800/40 text-emerald-900 dark:text-emerald-200"
+                      : "bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-800/40 text-rose-900 dark:text-rose-200"
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    {isProfit ? (
+                      <TrendingUp className="w-5 h-5 text-emerald-600 flex-shrink-0" />
+                    ) : (
+                      <TrendingDown className="w-5 h-5 text-rose-600 flex-shrink-0" />
+                    )}
+                    <div>
+                      <span className="font-black text-xs uppercase tracking-wider block">
+                        Order Net Profit
+                      </span>
+                      <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                        Total Direct Outflow: ₹{totalDirect.toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-xl font-black font-mono block">
+                      ₹{netProfit.toLocaleString("en-IN")}
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-white/60 dark:bg-white/10">
+                      {margin}% Margin
+                    </span>
+                  </div>
+                </div>
+
+                {booking.expenses?.notes && (
+                  <p className="text-[11px] text-gray-400 italic">
+                    Note: {booking.expenses.notes}
+                  </p>
+                )}
+              </div>
+            );
+          })()}
+        </div>
       </div>
 
       {/* Notes */}
@@ -3188,6 +3343,161 @@ const BookingDetail = () => {
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 💰 Direct Shipment Costs Modal */}
+      {costModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-[#1A1A1A] rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 max-w-md w-full overflow-hidden">
+            <div className="p-5 border-b border-gray-100 dark:border-white/10 flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-bold text-gray-900 dark:text-white">
+                  Direct Shipment Costs
+                </h3>
+                <p className="text-xs text-gray-500 font-mono">
+                  {booking.bookingId} — Billed: ₹{Number(booking.pricing?.totalAmount || booking.totalAmount || 0).toLocaleString("en-IN")}
+                </p>
+              </div>
+              <button
+                onClick={() => setCostModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              >
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveCosts} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase mb-1">
+                  Courier Carrier Freight Cost (₹)
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  min="0"
+                  placeholder="e.g. 350 (Paid to DTDC/Delhivery)"
+                  value={costFormData.courierCost}
+                  onChange={(e) => setCostFormData({ ...costFormData, courierCost: e.target.value })}
+                  className="w-full px-3.5 py-2.5 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-xl text-xs font-bold font-mono outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase mb-1">
+                    Packaging Cost (₹)
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    placeholder="e.g. 40 (Boxes, tape)"
+                    value={costFormData.packagingCost}
+                    onChange={(e) => setCostFormData({ ...costFormData, packagingCost: e.target.value })}
+                    className="w-full px-3.5 py-2.5 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-xl text-xs font-bold font-mono outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase mb-1">
+                    Rider Payout / Fuel (₹)
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    placeholder="e.g. 30"
+                    value={costFormData.riderCost}
+                    onChange={(e) => setCostFormData({ ...costFormData, riderCost: e.target.value })}
+                    className="w-full px-3.5 py-2.5 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-xl text-xs font-bold font-mono outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase mb-1">
+                  Other Direct Costs (₹)
+                </label>
+                <input
+                  type="number"
+                  step="any"
+                  min="0"
+                  placeholder="e.g. Loading/unloading charges"
+                  value={costFormData.otherCost}
+                  onChange={(e) => setCostFormData({ ...costFormData, otherCost: e.target.value })}
+                  className="w-full px-3.5 py-2.5 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-xl text-xs font-bold font-mono outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase mb-1">
+                  Cost Notes / Audit Remarks
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Docket AWB K50003... DTDC invoice"
+                  value={costFormData.notes}
+                  onChange={(e) => setCostFormData({ ...costFormData, notes: e.target.value })}
+                  className="w-full px-3.5 py-2.5 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              {/* Instant Calculated Margin Preview */}
+              {(() => {
+                const revenue = Number(booking.pricing?.totalAmount || booking.totalAmount || 0);
+                const courier = parseFloat(costFormData.courierCost) || 0;
+                const pack = parseFloat(costFormData.packagingCost) || 0;
+                const rider = parseFloat(costFormData.riderCost) || 0;
+                const other = parseFloat(costFormData.otherCost) || 0;
+                const totalCost = courier + pack + rider + other;
+                const profit = revenue - totalCost;
+                const margin = revenue > 0 ? ((profit / revenue) * 100).toFixed(1) : 0;
+                const isProfitable = profit >= 0;
+
+                return (
+                  <div
+                    className={`p-3.5 rounded-xl border flex items-center justify-between text-xs font-bold ${
+                      isProfitable
+                        ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/40 text-emerald-900 dark:text-emerald-200"
+                        : "bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800/40 text-rose-900 dark:text-rose-200"
+                    }`}
+                  >
+                    <div>
+                      <span>Estimated Order Profit:</span>
+                      <div className="text-base font-mono font-black mt-0.5">
+                        ₹{profit.toLocaleString("en-IN")}
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span>Margin:</span>
+                      <div className="text-base font-mono font-black mt-0.5">
+                        {margin}%
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div className="pt-2 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCostModalOpen(false)}
+                  className="px-4 py-2.5 rounded-xl border border-gray-300 dark:border-white/10 text-xs font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingCost}
+                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-200 dark:shadow-none transition-all flex items-center gap-1.5"
+                >
+                  {savingCost && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+                  <span>Save Shipment Costs</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

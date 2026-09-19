@@ -134,6 +134,7 @@ function App() {
               </ProtectedRoute>
             }
           />
+          <Route path="/expenses" element={<Navigate to="/sales-report" replace />} />
           <Route
             path="/user-management"
             element={

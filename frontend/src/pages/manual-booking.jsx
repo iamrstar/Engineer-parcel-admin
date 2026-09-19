@@ -489,7 +489,7 @@ export default function ManualBooking() {
       vendorTrackingId: formData.vendorTrackingId,
       premiumItemType: formData.premiumItemType,
       otherPremiumItem: formData.premiumItemType === "Other" ? formData.otherPremiumItem : "",
-      bookingId: isManualId ? `EP${formData.bookingId.replace(/^EP/i, '')}` : undefined,
+      bookingId: (isManualId && formData.bookingId.replace(/^EP/i, '').trim()) ? `EP${formData.bookingId.replace(/^EP/i, '').trim()}` : undefined,
       pricing: (() => {
         const total = parseFloat(formData.totalAmount) || 0;
         let base, tax;
@@ -1672,7 +1672,15 @@ export default function ManualBooking() {
                 </label>
                 <button
                   type="button"
-                  onClick={() => setIsManualId(!isManualId)}
+                  onClick={() => {
+                    if (isManualId) {
+                      // Switching back to Auto: clear any manual input
+                      setIsManualId(false);
+                      setFormData(prev => ({ ...prev, bookingId: "" }));
+                    } else {
+                      setIsManualId(true);
+                    }
+                  }}
                   className={`text-[10px] font-bold px-2 py-1 rounded border transition-all ${isManualId ? 'bg-orange-600 text-white border-orange-600' : 'bg-white dark:bg-[#2A2A2A] text-gray-600 dark:text-gray-400 border-gray-300 dark:border-white/10'}`}
                 >
                   {isManualId ? "Switch to Auto" : "Enter Manually"}
@@ -1789,6 +1797,8 @@ export default function ManualBooking() {
             <button
               type="button"
               onClick={() => {
+                setIsManualId(false);
+                setGeneratedId("");
                 setFormData({
                   pickupPincode: "",
                   deliveryPincode: "",

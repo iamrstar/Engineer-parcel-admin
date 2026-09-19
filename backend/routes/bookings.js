@@ -3120,4 +3120,58 @@ router.put("/:id/mark-checked", authMiddleware, async (req, res) => {
   }
 });
 
+/** ------------------------
+ * 💰 Direct Shipment Costs / Expenses Tracking
+ * ------------------------ */
+router.put("/:id/expenses", authMiddleware, async (req, res) => {
+  try {
+    const bookingId = req.params.id;
+    const { courierCost = 0, packagingCost = 0, riderCost = 0, otherCost = 0, notes = "" } = req.body;
+
+    const numCourier = Math.max(0, parseFloat(courierCost) || 0);
+    const numPackaging = Math.max(0, parseFloat(packagingCost) || 0);
+    const numRider = Math.max(0, parseFloat(riderCost) || 0);
+    const numOther = Math.max(0, parseFloat(otherCost) || 0);
+    const totalExpenses = numCourier + numPackaging + numRider + numOther;
+
+    const userName = req.admin ? req.admin.username : (req.user ? req.user.name : "Staff");
+    const userId = req.admin ? req.admin._id : (req.user ? req.user._id : null);
+
+    const booking = await Booking.findById(bookingId);
+    if (!booking) {
+      return res.status(404).json({ success: false, message: "Booking not found" });
+    }
+
+    booking.expenses = {
+      courierCost: numCourier,
+      packagingCost: numPackaging,
+      riderCost: numRider,
+      otherCost: numOther,
+      totalExpenses,
+      notes: notes.trim(),
+      updatedAt: new Date(),
+      updatedBy: userId,
+      updatedByName: userName
+    };
+
+    await booking.save();
+
+    const revenue = Number(booking.pricing?.totalAmount || booking.totalAmount || 0);
+    const netProfit = revenue - totalExpenses;
+    const marginPercent = revenue > 0 ? Number(((netProfit / revenue) * 100).toFixed(2)) : 0;
+
+    res.json({
+      success: true,
+      message: "Shipment expenses updated successfully",
+      expenses: booking.expenses,
+      netProfit,
+      marginPercent
+    });
+  } catch (error) {
+    console.error("Error updating shipment expenses:", error);
+    res.status(500).json({ success: false, message: error.message || "Server error updating shipment expenses" });
+  }
+});
+
 module.exports = router;
+

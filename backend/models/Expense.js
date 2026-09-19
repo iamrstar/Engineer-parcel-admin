@@ -1,0 +1,114 @@
+const mongoose = require("mongoose");
+const Counter = require("./Counter");
+
+const expenseCategories = [
+  "Monthly Rent",
+  "Electricity & Utilities",
+  "Salaries & Staff",
+  "Food & Refreshments",
+  "Courier Carrier Freight",
+  "Packaging Material",
+  "Rider & Fuel",
+  "Marketing & Ads",
+  "Equipment & Maintenance",
+  "Other Expenses",
+  // Backwards compatibility with previous labels:
+  "Office Rent & Utilities",
+  "Salaries & Incentives",
+  "Courier Freight",
+  "Miscellaneous"
+];
+
+const expenseSchema = new mongoose.Schema(
+  {
+    expenseId: {
+      type: String,
+      unique: true,
+      index: true
+    },
+    title: {
+      type: String,
+      required: [true, "Expense title is required"],
+      trim: true
+    },
+    category: {
+      type: String,
+      required: [true, "Expense category is required"],
+      enum: expenseCategories
+    },
+    amount: {
+      type: Number,
+      required: [true, "Expense amount is required"],
+      min: [0, "Amount must be positive"]
+    },
+    paymentMode: {
+      type: String,
+      enum: ["Cash", "UPI", "Bank Transfer", "Card", "Cheque"],
+      default: "UPI"
+    },
+    paymentStatus: {
+      type: String,
+      enum: ["Paid", "Pending"],
+      default: "Paid"
+    },
+    date: {
+      type: Date,
+      default: Date.now,
+      required: true
+    },
+    paidTo: {
+      type: String,
+      trim: true,
+      default: ""
+    },
+    officeId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Office",
+      default: null
+    },
+    receiptImage: {
+      type: String,
+      default: ""
+    },
+    notes: {
+      type: String,
+      trim: true,
+      default: ""
+    },
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null
+    },
+    createdByName: {
+      type: String,
+      default: "Admin"
+    }
+  },
+  { timestamps: true }
+);
+
+// Pre-validate hook for sequential expenseId generation (e.g., EXP-0001)
+expenseSchema.pre("validate", async function (next) {
+  if (!this.expenseId) {
+    try {
+      const counter = await Counter.findOneAndUpdate(
+        { id: "expenseId" },
+        { $inc: { seq: 1 } },
+        { new: true, upsert: true }
+      );
+      this.expenseId = `EXP-${String(counter.seq).padStart(4, "0")}`;
+    } catch (err) {
+      console.error("Error generating expenseId:", err);
+      this.expenseId = `EXP-${Date.now()}`;
+    }
+  }
+  next();
+});
+
+// Performance compound indexes for reports, ledger filtering, and listings
+expenseSchema.index({ date: -1, category: 1 });
+expenseSchema.index({ officeId: 1, date: -1 });
+
+module.exports = mongoose.model("Expense", expenseSchema);
+module.exports.expenseCategories = expenseCategories;
