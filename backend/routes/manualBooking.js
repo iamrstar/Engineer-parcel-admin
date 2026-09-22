@@ -93,7 +93,7 @@ router.post("/", authMiddleware, uploadPaymentProof.single("paymentProof"), asyn
     }
 
     // Resolve Corporate Partner & Courier distinctions
-    const courierKeywords = ["bluedart", "dtdc", "delhivery", "safe express", "india post", "i carry"];
+    const courierKeywords = ["bluedart", "dtdc", "delhivery", "safe express", "safex", "india post", "i carry", "icarry", "icl", "carry"];
     const isCourier = (str) => courierKeywords.some(c => (str || "").toLowerCase().includes(c));
 
     let finalCourierName = courierName || (isCourier(vendorName) ? vendorName : null);

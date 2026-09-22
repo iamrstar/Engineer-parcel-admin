@@ -49,6 +49,25 @@ const uploadPaymentProof = multer({
 });
 
 /** ------------------------
+ * 🛠️ Regex & Courier Matching Helpers
+ * ------------------------ */
+const escapeRegex = (str) => {
+  if (!str || typeof str !== "string") return "";
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+};
+
+const getCourierRegex = (filterVal) => {
+  if (!filterVal) return null;
+  const val = filterVal.trim().toLowerCase();
+  if (val.includes("hirak")) return /hirak/i;
+  if (val.includes("sanjay")) return /sanjay/i;
+  if (val.includes("safe") || val.includes("safex")) return /safe\s*express|safex/i;
+  if (val.includes("india post")) return /india\s*post/i;
+  if (val.includes("carry") || val.includes("icl")) return /i[\s_-]*carry|icarry|carry|icl/i;
+  return new RegExp(escapeRegex(filterVal.trim()), "i");
+};
+
+/** ------------------------
  * 📧 Helper: Send Delivery Email
  * ------------------------ */
 const sendDeliveryEmail = async (booking) => {
@@ -456,14 +475,16 @@ router.get("/stats/dashboard", authMiddleware, async (req, res) => {
     }
 
     if (serviceType && serviceType !== "all") {
-      query.serviceType = serviceType;
+      query.serviceType = new RegExp(`^${escapeRegex(serviceType.trim())}$`, "i");
     }
 
     if (bookingStatus && bookingStatus !== "all") {
       if (bookingStatus === "active") {
-        query.status = { $ne: "cancelled" };
+        query.status = { $not: /^\s*cancelled\s*$/i };
       } else if (bookingStatus === "cancelled") {
-        query.status = "cancelled";
+        query.status = /^\s*cancelled\s*$/i;
+      } else {
+        query.status = new RegExp(`^\\s*${escapeRegex(bookingStatus.trim())}\\s*$`, "i");
       }
     }
 
@@ -561,16 +582,20 @@ router.get("/sales/report", adminAuth, async (req, res) => {
     const { startDate, endDate, serviceType, paymentStatus, bookingStatus } = req.query;
     // Base match: default to non-cancelled unless specified
     const match = {};
-    if (bookingStatus === "all") {
+    if (!bookingStatus || bookingStatus === "all") {
       // no status filter
+    } else if (bookingStatus === "active") {
+      match.status = { $not: /^\s*cancelled\s*$/i };
     } else if (bookingStatus === "cancelled") {
-      match.status = "cancelled";
+      match.status = /^\s*cancelled\s*$/i;
     } else {
-      match.status = { $ne: "cancelled" };
+      match.status = new RegExp(`^\\s*${escapeRegex(bookingStatus.trim())}\\s*$`, "i");
     }
 
-    // Separate match for cancelled bookings tracking (same date/service filters but status=cancelled)
-    const cancelledMatch = { status: "cancelled" };
+    // Separate match for cancelled bookings tracking
+    const cancelledMatch = (bookingStatus && bookingStatus !== "all" && bookingStatus !== "active" && bookingStatus !== "cancelled")
+      ? { status: "__none__" }
+      : { status: /^\s*cancelled\s*$/i };
 
     // Date filtering: vendor bookings use pickupDate, non-vendor use createdAt
     const dateFilter = {};
@@ -605,8 +630,9 @@ router.get("/sales/report", adminAuth, async (req, res) => {
     }
 
     if (serviceType && serviceType !== "all") {
-      match.serviceType = serviceType;
-      cancelledMatch.serviceType = serviceType;
+      const serviceRegex = new RegExp(`^${escapeRegex(serviceType.trim())}$`, "i");
+      match.serviceType = serviceRegex;
+      cancelledMatch.serviceType = serviceRegex;
     }
 
     if (paymentStatus && paymentStatus !== "all") {
@@ -729,7 +755,7 @@ router.get("/sales/report", adminAuth, async (req, res) => {
       { $match: match },
       {
         $group: {
-          _id: "$serviceType",
+          _id: { $toLower: { $ifNull: ["$serviceType", "unknown"] } },
           totalBookings: { $sum: 1 },
           totalRevenue: {
             $sum: { $convert: { input: "$pricing.totalAmount", to: "double", onError: 0, onNull: 0 } }
@@ -802,7 +828,11 @@ router.get("/", authMiddleware, async (req, res) => {
     }
 
     if (status && status !== "all") {
-      query.status = status;
+      if (status === "active") {
+        query.status = { $not: /^\s*cancelled\s*$/i };
+      } else {
+        query.status = new RegExp(`^\\s*${escapeRegex(status.trim())}\\s*$`, "i");
+      }
     }
 
     if (serviceType && serviceType !== "all") {
@@ -823,53 +853,69 @@ router.get("/", authMiddleware, async (req, res) => {
 
     // Courier (Shipping Carrier) Filtering: DTDC, Delhivery, BlueDart, etc.
     const courierFilterValue = req.query.courierFilter || req.query.vendorFilter;
-    if (courierFilterValue) {
+    if (courierFilterValue && courierFilterValue !== "all") {
+      query.$and = query.$and || [];
       if (courierFilterValue === "none") {
-        query.$or = [
-          { courierName: { $exists: false } },
-          { courierName: "" },
-          { courierName: null },
-          { vendorName: { $exists: false } },
-          { vendorName: "" },
-          { vendorName: null }
-        ];
-      } else if (courierFilterValue !== "all") {
-        query.$or = [
-          { courierName: new RegExp(courierFilterValue, "i") },
-          { vendorName: new RegExp(courierFilterValue, "i") }
-        ];
+        query.$and.push({
+          $or: [
+            { courierName: { $exists: false } },
+            { courierName: "" },
+            { courierName: null }
+          ]
+        });
+      } else if (courierFilterValue === "other") {
+        query.$and.push({
+          courierName: {
+            $exists: true,
+            $nin: [null, ""],
+            $not: /hirak|sanjay|dtdc|bluedart|delhivery|safe\s*express|safex|india\s*post|i[\s_-]*carry|icl|carry/i
+          }
+        });
+      } else {
+        const courierRegex = getCourierRegex(courierFilterValue);
+        query.$and.push({
+          $or: [
+            { courierName: courierRegex },
+            { vendorName: courierRegex },
+            { partnerName: courierRegex }
+          ]
+        });
       }
     } else if (req.query.vendorNotAssigned === "true") {
-      query.$or = [
-        { courierName: { $exists: false } },
-        { courierName: "" },
-        { courierName: null },
-        { vendorName: { $exists: false } },
-        { vendorName: "" },
-        { vendorName: null }
-      ];
+      query.$and = query.$and || [];
+      query.$and.push({
+        $or: [
+          { courierName: { $exists: false } },
+          { courierName: "" },
+          { courierName: null }
+        ]
+      });
     }
 
     // Corporate Partner (B2B Client) Filtering: Anand Cure, Hancore, Direct Customers, etc.
-    if (req.query.partnerFilter) {
+    if (req.query.partnerFilter && req.query.partnerFilter !== "all") {
+      query.$and = query.$and || [];
       if (req.query.partnerFilter === "none") {
         // Direct Customers (not a partner booking)
-        query.$or = [
-          { isVendorBooking: { $ne: true } },
-          { partnerId: { $exists: false } },
-          { partnerId: "" },
-          { partnerId: null }
-        ];
-      } else if (req.query.partnerFilter !== "all") {
-        query.$or = [
-          { partnerId: req.query.partnerFilter },
-          { partnerName: new RegExp(req.query.partnerFilter, "i") },
-          { vendorId: req.query.partnerFilter }
-        ];
+        query.$and.push({
+          $or: [
+            { isVendorBooking: { $ne: true } },
+            { partnerId: { $exists: false } },
+            { partnerId: "" },
+            { partnerId: null }
+          ]
+        });
+      } else {
+        const partnerRegex = new RegExp(escapeRegex(req.query.partnerFilter.trim()), "i");
+        query.$and.push({
+          $or: [
+            { partnerId: req.query.partnerFilter },
+            { partnerName: partnerRegex },
+            { vendorId: req.query.partnerFilter }
+          ]
+        });
       }
     }
-
-
 
     // Date Filtering
     if (startDate || endDate) {
@@ -884,15 +930,16 @@ router.get("/", authMiddleware, async (req, res) => {
           {
             isVendorBooking: true,
             pickupDate: {
+              $exists: true,
+              $ne: null,
               ...(start && { $gte: start }),
               ...(end && { $lte: end })
             }
           },
           {
             $or: [
-              { isVendorBooking: false },
-              { isVendorBooking: { $exists: false } },
-              { isVendorBooking: null }
+              { isVendorBooking: { $ne: true } },
+              { pickupDate: { $in: [null, undefined] } }
             ],
             createdAt: {
               ...(start && { $gte: start }),
@@ -903,21 +950,19 @@ router.get("/", authMiddleware, async (req, res) => {
       });
     }
 
-    if (search) {
+    if (search && search.trim()) {
+      const cleanSearch = escapeRegex(search.trim());
       const searchOr = [
-        { bookingId: { $regex: search, $options: "i" } },
-        { trackingId: { $regex: search, $options: "i" } },
-        { vendorTrackingId: { $regex: search, $options: "i" } },
-        { "senderDetails.name": { $regex: search, $options: "i" } },
-        { "receiverDetails.name": { $regex: search, $options: "i" } },
-        { "senderDetails.phone": { $regex: search, $options: "i" } },
-        { "receiverDetails.phone": { $regex: search, $options: "i" } },
+        { bookingId: { $regex: cleanSearch, $options: "i" } },
+        { trackingId: { $regex: cleanSearch, $options: "i" } },
+        { vendorTrackingId: { $regex: cleanSearch, $options: "i" } },
+        { "senderDetails.name": { $regex: cleanSearch, $options: "i" } },
+        { "receiverDetails.name": { $regex: cleanSearch, $options: "i" } },
+        { "senderDetails.phone": { $regex: cleanSearch, $options: "i" } },
+        { "receiverDetails.phone": { $regex: cleanSearch, $options: "i" } },
       ];
-      if (query.$and) {
-        query.$and.push({ $or: searchOr });
-      } else {
-        query.$or = searchOr;
-      }
+      query.$and = query.$and || [];
+      query.$and.push({ $or: searchOr });
     }
 
     const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -1367,14 +1412,20 @@ router.get("/", authMiddleware, async (req, res) => {
  * ------------------------ */
 router.get("/export", adminAuth, async (req, res) => {
   try {
-    const { status, serviceType, search, startDate, endDate, vendorNotAssigned, vendorFilter, officeId, createdBy, paymentStatus } = req.query;
+    const { status, serviceType, search, startDate, endDate, vendorNotAssigned, vendorFilter, courierFilter, partnerFilter, officeId, createdBy, paymentStatus } = req.query;
     const query = {};
 
     if (createdBy && createdBy !== "all") {
       query.createdBy = createdBy;
     }
 
-    if (status && status !== "all") query.status = status;
+    if (status && status !== "all") {
+      if (status === "active") {
+        query.status = { $not: /^\s*cancelled\s*$/i };
+      } else {
+        query.status = new RegExp(`^\\s*${escapeRegex(status.trim())}\\s*$`, "i");
+      }
+    }
     if (serviceType && serviceType !== "all") query.serviceType = serviceType;
     
     if (req.admin && req.admin.officeId) {
@@ -1387,15 +1438,70 @@ router.get("/export", adminAuth, async (req, res) => {
       }
     }
     
-    if (vendorFilter) {
-      if (vendorFilter === "none") {
-        query.$or = [{ vendorName: { $exists: false } }, { vendorName: "" }, { vendorName: null }];
-      } else if (vendorFilter !== "all") {
-        query.vendorName = new RegExp(vendorFilter, "i");
+    const courierFilterVal = courierFilter || vendorFilter;
+    if (courierFilterVal && courierFilterVal !== "all") {
+      query.$and = query.$and || [];
+      if (courierFilterVal === "none") {
+        query.$and.push({
+          $or: [
+            { courierName: { $exists: false } },
+            { courierName: "" },
+            { courierName: null }
+          ]
+        });
+      } else if (courierFilterVal === "other") {
+        query.$and.push({
+          courierName: {
+            $exists: true,
+            $nin: [null, ""],
+            $not: /hirak|sanjay|dtdc|bluedart|delhivery|safe\s*express|safex|india\s*post|i[\s_-]*carry|icl|carry/i
+          }
+        });
+      } else {
+        const courierRegex = getCourierRegex(courierFilterVal);
+        query.$and.push({
+          $or: [
+            { courierName: courierRegex },
+            { vendorName: courierRegex },
+            { partnerName: courierRegex }
+          ]
+        });
       }
     } else if (vendorNotAssigned === "true") {
-      query.$or = [{ vendorName: { $exists: false } }, { vendorName: "" }, { vendorName: null }];
+      query.$and = query.$and || [];
+      query.$and.push({
+        $or: [
+          { courierName: { $exists: false } },
+          { courierName: "" },
+          { courierName: null }
+        ]
+      });
     }
+
+    // Partner Filter
+    if (partnerFilter && partnerFilter !== "all") {
+      query.$and = query.$and || [];
+      if (partnerFilter === "none") {
+        query.$and.push({
+          $or: [
+            { isVendorBooking: { $ne: true } },
+            { partnerId: { $exists: false } },
+            { partnerId: "" },
+            { partnerId: null }
+          ]
+        });
+      } else {
+        const partnerRegex = new RegExp(escapeRegex(partnerFilter.trim()), "i");
+        query.$and.push({
+          $or: [
+            { partnerId: partnerFilter },
+            { partnerName: partnerRegex },
+            { vendorId: partnerFilter }
+          ]
+        });
+      }
+    }
+
     if (startDate || endDate) {
       const start = startDate ? new Date(startDate) : null;
       if (start) start.setHours(0, 0, 0, 0);
@@ -1408,15 +1514,16 @@ router.get("/export", adminAuth, async (req, res) => {
           {
             isVendorBooking: true,
             pickupDate: {
+              $exists: true,
+              $ne: null,
               ...(start && { $gte: start }),
               ...(end && { $lte: end })
             }
           },
           {
             $or: [
-              { isVendorBooking: false },
-              { isVendorBooking: { $exists: false } },
-              { isVendorBooking: null }
+              { isVendorBooking: { $ne: true } },
+              { pickupDate: { $in: [null, undefined] } }
             ],
             createdAt: {
               ...(start && { $gte: start }),
@@ -1426,21 +1533,20 @@ router.get("/export", adminAuth, async (req, res) => {
         ]
       });
     }
-    if (search) {
+
+    if (search && search.trim()) {
+      const cleanSearch = escapeRegex(search.trim());
       const searchOr = [
-        { bookingId: { $regex: search, $options: "i" } },
-        { trackingId: { $regex: search, $options: "i" } },
-        { vendorTrackingId: { $regex: search, $options: "i" } },
-        { "senderDetails.name": { $regex: search, $options: "i" } },
-        { "receiverDetails.name": { $regex: search, $options: "i" } },
-        { "senderDetails.phone": { $regex: search, $options: "i" } },
-        { "receiverDetails.phone": { $regex: search, $options: "i" } },
+        { bookingId: { $regex: cleanSearch, $options: "i" } },
+        { trackingId: { $regex: cleanSearch, $options: "i" } },
+        { vendorTrackingId: { $regex: cleanSearch, $options: "i" } },
+        { "senderDetails.name": { $regex: cleanSearch, $options: "i" } },
+        { "receiverDetails.name": { $regex: cleanSearch, $options: "i" } },
+        { "senderDetails.phone": { $regex: cleanSearch, $options: "i" } },
+        { "receiverDetails.phone": { $regex: cleanSearch, $options: "i" } },
       ];
-      if (query.$and) {
-        query.$and.push({ $or: searchOr });
-      } else {
-        query.$or = searchOr;
-      }
+      query.$and = query.$and || [];
+      query.$and.push({ $or: searchOr });
     }
 
     if (paymentStatus && paymentStatus !== "all") {

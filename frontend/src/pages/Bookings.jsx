@@ -43,7 +43,7 @@ const isRecent = (date) => {
   return diff < 3600000; // < 1 hour
 };
 
-const courierKeywords = ["bluedart", "dtdc", "delhivery", "safe express", "india post", "i carry"];
+const courierKeywords = ["bluedart", "dtdc", "delhivery", "safe express", "safex", "india post", "i carry", "icarry", "icl", "carry"];
 const isCourierName = (name) => courierKeywords.some(c => (name || "").toLowerCase().includes(c));
 
 /**
@@ -427,6 +427,8 @@ const Bookings = () => {
           startDate: customStartDate || getEffectiveStartDate(dateFilter),
           endDate: customEndDate || getEffectiveEndDate(dateFilter),
           vendorFilter: vendorFilter,
+          courierFilter: vendorFilter,
+          partnerFilter: partnerFilter === "all" ? "" : partnerFilter,
           officeId: officeFilter === "all" ? "" : officeFilter,
           createdBy: staffFilter === "all" ? "" : staffFilter
         },
@@ -812,31 +814,40 @@ const Bookings = () => {
   }
 
   // Helper to calculate effective dates for API
-  const getEffectiveStartDate = () => {
-    if (dateFilter === "all") return ""
-    if (dateFilter === "custom") return customStartDate
+  const formatLocalDate = (d) => {
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  const getEffectiveStartDate = (overrideDateFilter) => {
+    const activeDateFilter = overrideDateFilter || dateFilter
+    if (activeDateFilter === "all") return ""
+    if (activeDateFilter === "custom") return customStartDate
 
     const now = new Date()
-    if (dateFilter === "today") {
-      return now.toISOString().split('T')[0]
+    if (activeDateFilter === "today") {
+      return formatLocalDate(now)
     }
-    if (dateFilter === "last7") {
+    if (activeDateFilter === "last7") {
       const d = new Date()
       d.setDate(d.getDate() - 7)
-      return d.toISOString().split('T')[0]
+      return formatLocalDate(d)
     }
-    if (dateFilter === "last30") {
+    if (activeDateFilter === "last30") {
       const d = new Date()
       d.setDate(d.getDate() - 30)
-      return d.toISOString().split('T')[0]
+      return formatLocalDate(d)
     }
     return ""
   }
 
-  const getEffectiveEndDate = () => {
-    if (dateFilter === "all") return ""
-    if (dateFilter === "custom") return customEndDate
-    return new Date().toISOString().split('T')[0]
+  const getEffectiveEndDate = (overrideDateFilter) => {
+    const activeDateFilter = overrideDateFilter || dateFilter
+    if (activeDateFilter === "all") return ""
+    if (activeDateFilter === "custom") return customEndDate
+    return formatLocalDate(new Date())
   }
 
   const getStatusColor = (status) => {
@@ -908,7 +919,10 @@ const Bookings = () => {
           <div className="flex flex-wrap gap-2">
             <select
               value={serviceFilter}
-              onChange={(e) => setServiceFilter(e.target.value)}
+              onChange={(e) => {
+                setServiceFilter(e.target.value)
+                setCurrentPage(1)
+              }}
               className="border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1A1A1A] dark:text-white rounded-lg px-3 py-2 text-sm transition-colors"
             >
               <option value="all">All Services</option>
@@ -924,10 +938,14 @@ const Bookings = () => {
 
             <select
               value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              onChange={(e) => {
+                setStatusFilter(e.target.value)
+                setCurrentPage(1)
+              }}
               className="border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1A1A1A] dark:text-white rounded-lg px-3 py-2 text-sm transition-colors"
             >
               <option value="all">All Status</option>
+              <option value="active">Active (Non-Cancelled)</option>
               <option value="pending">Pending</option>
               <option value="confirmed">Confirmed</option>
               <option value="picked">Picked</option>
@@ -972,7 +990,10 @@ const Bookings = () => {
             {/* Courier Partner Filter (Shipping Carrier) */}
             <select
               value={vendorFilter}
-              onChange={(e) => setVendorFilter(e.target.value)}
+              onChange={(e) => {
+                setVendorFilter(e.target.value)
+                setCurrentPage(1)
+              }}
               className="border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1A1A1A] dark:text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 transition-colors font-medium"
               title="Filter by Shipping Courier (DTDC, Delhivery, BlueDart...)"
             >
@@ -991,7 +1012,10 @@ const Bookings = () => {
             {/* Corporate Partner Filter (B2B Business Client) */}
             <select
               value={partnerFilter}
-              onChange={(e) => setPartnerFilter(e.target.value)}
+              onChange={(e) => {
+                setPartnerFilter(e.target.value)
+                setCurrentPage(1)
+              }}
               className="border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1A1A1A] dark:text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 transition-colors font-medium"
               title="Filter by Corporate Partner (B2B Client) or Direct Customer"
             >
@@ -1006,7 +1030,10 @@ const Bookings = () => {
 
             <select
               value={staffFilter}
-              onChange={(e) => setStaffFilter(e.target.value)}
+              onChange={(e) => {
+                setStaffFilter(e.target.value)
+                setCurrentPage(1)
+              }}
               className="border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1A1A1A] dark:text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 transition-colors"
             >
               <option value="all">All Staff</option>
@@ -1019,7 +1046,10 @@ const Bookings = () => {
 
             <select
               value={officeFilter}
-              onChange={(e) => setOfficeFilter(e.target.value)}
+              onChange={(e) => {
+                setOfficeFilter(e.target.value)
+                setCurrentPage(1)
+              }}
               className="border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1A1A1A] dark:text-white rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500 transition-colors"
             >
               <option value="main">Main Office</option>
@@ -1074,14 +1104,20 @@ const Bookings = () => {
               <input
                 type="date"
                 value={customStartDate}
-                onChange={(e) => setCustomStartDate(e.target.value)}
+                onChange={(e) => {
+                  setCustomStartDate(e.target.value)
+                  setCurrentPage(1)
+                }}
                 className="border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1A1A1A] dark:text-white color-scheme-light dark:color-scheme-dark rounded-lg px-3 py-2 text-sm transition-colors"
               />
               <span className="text-gray-400 dark:text-gray-500">to</span>
               <input
                 type="date"
                 value={customEndDate}
-                onChange={(e) => setCustomEndDate(e.target.value)}
+                onChange={(e) => {
+                  setCustomEndDate(e.target.value)
+                  setCurrentPage(1)
+                }}
                 className="border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1A1A1A] dark:text-white color-scheme-light dark:color-scheme-dark rounded-lg px-3 py-2 text-sm transition-colors"
               />
             </div>

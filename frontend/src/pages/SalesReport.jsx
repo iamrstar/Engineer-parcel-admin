@@ -56,6 +56,47 @@ const EXPENSE_CATEGORIES = [
 
 const PAYMENT_MODES = ["UPI", "Cash", "Bank Transfer", "Card", "Cheque"];
 
+const BASE_SERVICES = [
+  { value: "surface", label: "Surface" },
+  { value: "campus-parcel", label: "Campus Parcel" },
+  { value: "express", label: "Express" },
+  { value: "air", label: "Air" },
+  { value: "shifting", label: "Shifting" },
+  { value: "premium", label: "Premium" },
+  { value: "courier", label: "Courier" },
+  { value: "international", label: "International" },
+  { value: "local", label: "Local" },
+  { value: "city-parcel", label: "City Parcel" },
+  { value: "standard", label: "Standard" }
+];
+
+export const formatServiceName = (name) => {
+  if (!name) return "Unknown";
+  const clean = String(name).trim();
+  if (clean.toLowerCase() === "campus-parcel") return "Campus Parcel";
+  if (clean.toLowerCase() === "city-parcel") return "City Parcel";
+  if (clean.toLowerCase() === "rakhi-parcel") return "Rakhi Parcel";
+  return clean
+    .split(/[-_\s]+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+};
+
+const SERVICE_PIE_COLORS = [
+  "#0ea5e9", // Sky blue
+  "#10b981", // Emerald green
+  "#f59e0b", // Amber
+  "#6366f1", // Indigo
+  "#ec4899", // Pink
+  "#8b5cf6", // Purple
+  "#14b8a6", // Teal
+  "#f97316", // Orange
+  "#06b6d4", // Cyan
+  "#84cc16", // Lime
+  "#e11d48", // Rose
+  "#64748b"  // Slate
+];
+
 const SalesReport = () => {
   // CEO Authentication Gate (persists across session until locked or tab closed)
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
@@ -79,6 +120,25 @@ const SalesReport = () => {
   const [reportData, setReportData] = useState([]);
   const [serviceBreakdown, setServiceBreakdown] = useState([]);
   const [cancelledData, setCancelledData] = useState([]);
+
+  // Dynamically computed service options (Base list + any custom services found in database)
+  const serviceOptions = useMemo(() => {
+    const knownValues = new Set(BASE_SERVICES.map((s) => s.value.toLowerCase()));
+    const extraServices = [];
+
+    (serviceBreakdown || []).forEach((item) => {
+      const val = (item.serviceType || "").toLowerCase().trim();
+      if (val && !knownValues.has(val) && val !== "unknown") {
+        knownValues.add(val);
+        extraServices.push({
+          value: val,
+          label: formatServiceName(val)
+        });
+      }
+    });
+
+    return [...BASE_SERVICES, ...extraServices];
+  }, [serviceBreakdown]);
 
   // P&L & Expenses Data
   const [pnlData, setPnlData] = useState(null);
@@ -218,6 +278,8 @@ const SalesReport = () => {
           page: shipmentPage,
           limit: 15,
           search: shipmentSearch,
+          serviceType: serviceType !== "all" ? serviceType : undefined,
+          status: bookingStatus !== "all" ? bookingStatus : undefined,
           startDate: startDate || undefined,
           endDate: endDate || undefined
         }
@@ -254,6 +316,9 @@ const SalesReport = () => {
     selectedCategory,
     selectedPaymentMode,
     selectedPaymentStatus,
+    serviceType,
+    bookingStatus,
+    shipmentSearch,
     startDate,
     endDate,
     isAuthenticated
@@ -517,6 +582,7 @@ const SalesReport = () => {
           "Booking ID": item.bookingId,
           "Tracking ID": item.trackingId || "-",
           Date: new Date(item.createdAt).toLocaleDateString("en-IN"),
+          Service: formatServiceName(item.serviceType || "-"),
           Customer: item.senderDetails?.name || "-",
           "Billed Amount (₹)": rev,
           "Courier Freight (₹)": item.expenses?.courierCost || 0,
@@ -561,6 +627,19 @@ const SalesReport = () => {
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Sales Report");
+
+    if (serviceBreakdown && serviceBreakdown.length > 0) {
+      const srvData = serviceBreakdown.map((s) => ({
+        Service: formatServiceName(s.serviceType),
+        "Total Bookings": s.totalBookings,
+        "Total Revenue (₹)": s.totalRevenue || 0,
+        "Collected Revenue (₹)": s.collectedRevenue || 0,
+        "Paid Orders": s.paidOrders || 0
+      }));
+      const srvWs = XLSX.utils.json_to_sheet(srvData);
+      XLSX.utils.book_append_sheet(wb, srvWs, "Service Breakdown");
+    }
+
     XLSX.writeFile(wb, `Sales_Report_${new Date().toISOString().split("T")[0]}.xlsx`);
   };
 
@@ -852,12 +931,19 @@ const SalesReport = () => {
             <Filter className="w-4 h-4 text-gray-400" />
             <select
               value={serviceType}
-              onChange={(e) => setServiceType(e.target.value)}
-              className="bg-transparent border-none text-xs font-bold focus:ring-0 p-0 pr-6 text-gray-700 dark:text-gray-300 outline-none"
+              onChange={(e) => {
+                setServiceType(e.target.value);
+                setShipmentPage(1);
+              }}
+              className="bg-transparent border-none text-xs font-bold focus:ring-0 p-0 pr-6 text-gray-700 dark:text-gray-300 outline-none cursor-pointer"
+              title="Filter Sales by Service Type"
             >
               <option value="all">All Services</option>
-              <option value="courier">Courier</option>
-              <option value="campus-parcel">Campus Parcel</option>
+              {serviceOptions.map((srv) => (
+                <option key={srv.value} value={srv.value}>
+                  {srv.label}
+                </option>
+              ))}
             </select>
           </div>
 
@@ -878,12 +964,22 @@ const SalesReport = () => {
             <Activity className="w-4 h-4 text-gray-400" />
             <select
               value={bookingStatus}
-              onChange={(e) => setBookingStatus(e.target.value)}
-              className="bg-transparent border-none text-xs font-bold focus:ring-0 p-0 pr-6 text-gray-700 dark:text-gray-300 outline-none"
+              onChange={(e) => {
+                setBookingStatus(e.target.value);
+                setShipmentPage(1);
+              }}
+              className="bg-transparent border-none text-xs font-bold focus:ring-0 p-0 pr-6 text-gray-700 dark:text-gray-300 outline-none cursor-pointer"
+              title="Filter by Booking Status"
             >
-              <option value="active">Active Bookings</option>
-              <option value="cancelled">Cancelled</option>
+              <option value="active">Active (Non-Cancelled)</option>
               <option value="all">All Statuses</option>
+              <option value="delivered">Delivered</option>
+              <option value="confirmed">Confirmed</option>
+              <option value="in-transit">In-Transit</option>
+              <option value="out-for-delivery">Out for Delivery</option>
+              <option value="pending">Pending</option>
+              <option value="picked">Picked</option>
+              <option value="cancelled">Cancelled</option>
             </select>
           </div>
 
@@ -1020,12 +1116,12 @@ const SalesReport = () => {
                       {serviceBreakdown.map((entry, index) => (
                         <Cell
                           key={`cell-${index}`}
-                          fill={["#0ea5e9", "#10b981", "#f59e0b", "#6366f1", "#8b5cf6"][index % 5]}
+                          fill={SERVICE_PIE_COLORS[index % SERVICE_PIE_COLORS.length]}
                         />
                       ))}
                     </Pie>
                     <RechartsTooltip
-                      formatter={(value, name) => [value, name.charAt(0).toUpperCase() + name.slice(1)]}
+                      formatter={(value, name) => [value, formatServiceName(name)]}
                       contentStyle={{ borderRadius: "12px", border: "none", boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)" }}
                     />
                     <Legend
@@ -1034,7 +1130,7 @@ const SalesReport = () => {
                       iconType="circle"
                       formatter={(value) => (
                         <span className="capitalize text-gray-700 dark:text-gray-300 font-medium text-xs">
-                          {value}
+                          {formatServiceName(value)}
                         </span>
                       )}
                     />
@@ -1057,8 +1153,8 @@ const SalesReport = () => {
                     key={service.serviceType}
                     className="border border-gray-100 dark:border-white/10 rounded-xl p-4 bg-gray-50 dark:bg-[#111111]"
                   >
-                    <p className="font-bold text-gray-900 dark:text-white capitalize text-sm mb-2">
-                      {service.serviceType || "Unknown"}
+                    <p className="font-bold text-gray-900 dark:text-white text-sm mb-2">
+                      {formatServiceName(service.serviceType)}
                     </p>
                     <div className="flex justify-between items-end">
                       <div>
@@ -1678,8 +1774,15 @@ const SalesReport = () => {
                         <tr key={item._id} className="hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
                           <td className="px-4 py-3 whitespace-nowrap">
                             <div className="font-bold text-gray-900 dark:text-white font-mono">{item.bookingId}</div>
-                            <div className="text-[10px] text-gray-400">
-                              {new Date(item.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}
+                            <div className="flex items-center gap-1.5 mt-0.5">
+                              <span className="text-[10px] text-gray-400">
+                                {new Date(item.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })}
+                              </span>
+                              {item.serviceType && (
+                                <span className="inline-block px-1.5 py-0.2 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 text-[9px] font-bold">
+                                  {formatServiceName(item.serviceType)}
+                                </span>
+                              )}
                             </div>
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap font-medium text-gray-700 dark:text-gray-300">

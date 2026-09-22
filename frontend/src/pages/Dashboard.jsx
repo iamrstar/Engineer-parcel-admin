@@ -313,21 +313,29 @@ const Dashboard = () => {
                       className="bg-white/10 backdrop-blur-md text-white border border-white/20 rounded-xl px-3 py-2 outline-none font-medium cursor-pointer focus:ring-2 focus:ring-white/50 text-sm"
                     >
                       <option value="all" className="text-gray-900">All Services</option>
-                      <option value="shifting" className="text-gray-900">Shifting</option>
-                      <option value="express" className="text-gray-900">Express</option>
                       <option value="surface" className="text-gray-900">Surface</option>
-                      <option value="air" className="text-gray-900">Air</option>
-                      <option value="premium" className="text-gray-900">Premium</option>
                       <option value="campus-parcel" className="text-gray-900">Campus Parcel</option>
+                      <option value="express" className="text-gray-900">Express</option>
+                      <option value="air" className="text-gray-900">Air</option>
+                      <option value="shifting" className="text-gray-900">Shifting</option>
+                      <option value="premium" className="text-gray-900">Premium</option>
+                      <option value="courier" className="text-gray-900">Courier</option>
+                      <option value="international" className="text-gray-900">International</option>
                     </select>
                     <select
                       value={bookingStatusFilter}
                       onChange={(e) => setBookingStatusFilter(e.target.value)}
                       className="bg-white/10 backdrop-blur-md text-white border border-white/20 rounded-xl px-3 py-2 outline-none font-medium cursor-pointer focus:ring-2 focus:ring-white/50 text-sm"
                     >
-                      <option value="active" className="text-gray-900">Active Bookings</option>
-                      <option value="cancelled" className="text-gray-900">Cancelled Bookings</option>
-                      <option value="all" className="text-gray-900">All Bookings</option>
+                      <option value="all" className="text-gray-900">All Statuses</option>
+                      <option value="active" className="text-gray-900">Active (Non-Cancelled)</option>
+                      <option value="delivered" className="text-gray-900">Delivered</option>
+                      <option value="confirmed" className="text-gray-900">Confirmed</option>
+                      <option value="in-transit" className="text-gray-900">In-Transit</option>
+                      <option value="out-for-delivery" className="text-gray-900">Out for Delivery</option>
+                      <option value="pending" className="text-gray-900">Pending</option>
+                      <option value="picked" className="text-gray-900">Picked</option>
+                      <option value="cancelled" className="text-gray-900">Cancelled</option>
                     </select>
                     <select
                       value={paymentStatusFilter}
