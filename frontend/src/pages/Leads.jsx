@@ -23,7 +23,12 @@ import {
   ShieldCheck,
   FileText,
   UserCheck,
-  ArrowRightLeft
+  ArrowRightLeft,
+  MessageSquare,
+  Send,
+  Trash2,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
 import { socket } from '../utils/socket';
 
@@ -78,6 +83,11 @@ export default function Leads() {
     selectedStaffId: ''
   });
   const [isReassigning, setIsReassigning] = useState(false);
+
+  // Remarks & Chat Log State
+  const [expandedRemarks, setExpandedRemarks] = useState({});
+  const [remarkInputs, setRemarkInputs] = useState({});
+  const [submittingRemark, setSubmittingRemark] = useState({});
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
@@ -172,12 +182,48 @@ export default function Leads() {
       fetchReport();
     };
 
+    const handleRemarkAdded = ({ leadId, remark }) => {
+      const appendRemark = (list) =>
+        list.map((l) => {
+          if (l._id === leadId) {
+            const existing = l.remarks || [];
+            if (!existing.some((r) => r._id === remark._id)) {
+              return { ...l, remarks: [...existing, remark] };
+            }
+          }
+          return l;
+        });
+      setPendingLeads(appendRemark);
+      setMyLeads(appendRemark);
+      setAllLeads(appendRemark);
+    };
+
+    const handleRemarkDeleted = ({ leadId, remarkId }) => {
+      const removeRemark = (list) =>
+        list.map((l) => {
+          if (l._id === leadId) {
+            return {
+              ...l,
+              remarks: (l.remarks || []).filter((r) => r._id !== remarkId)
+            };
+          }
+          return l;
+        });
+      setPendingLeads(removeRemark);
+      setMyLeads(removeRemark);
+      setAllLeads(removeRemark);
+    };
+
     socket.on('new_lead', handleNewLead);
     socket.on('lead_accepted', handleLeadAccepted);
+    socket.on('lead_remark_added', handleRemarkAdded);
+    socket.on('lead_remark_deleted', handleRemarkDeleted);
 
     return () => {
       socket.off('new_lead', handleNewLead);
       socket.off('lead_accepted', handleLeadAccepted);
+      socket.off('lead_remark_added', handleRemarkAdded);
+      socket.off('lead_remark_deleted', handleRemarkDeleted);
     };
   }, []);
 
@@ -233,6 +279,205 @@ export default function Leads() {
       console.error('Error updating temperature:', err);
       toast.error(err.response?.data?.message || 'Failed to update temperature');
     }
+  };
+
+  // Remarks Management
+  const toggleRemarks = (leadId) => {
+    setExpandedRemarks((prev) => ({
+      ...prev,
+      [leadId]: !prev[leadId]
+    }));
+  };
+
+  const handleAddRemark = async (leadId, e) => {
+    if (e) e.preventDefault();
+    const text = (remarkInputs[leadId] || "").trim();
+    if (!text) return;
+
+    try {
+      setSubmittingRemark((prev) => ({ ...prev, [leadId]: true }));
+      const res = await axios.post(
+        `${import.meta.env.VITE_API_URL}/api/leads/${leadId}/remarks`,
+        { text },
+        getAuthHeaders()
+      );
+      if (res.data.success) {
+        toast.success("Remark added!");
+        setRemarkInputs((prev) => ({ ...prev, [leadId]: "" }));
+        const updateLeadList = (list) =>
+          list.map((l) => (l._id === leadId ? { ...l, remarks: res.data.remarks } : l));
+        setPendingLeads(updateLeadList);
+        setMyLeads(updateLeadList);
+        setAllLeads(updateLeadList);
+      }
+    } catch (err) {
+      console.error("Error adding remark:", err);
+      toast.error(err.response?.data?.message || "Failed to add remark");
+    } finally {
+      setSubmittingRemark((prev) => ({ ...prev, [leadId]: false }));
+    }
+  };
+
+  const handleDeleteRemark = async (leadId, remarkId) => {
+    if (!window.confirm("Are you sure you want to delete this remark?")) return;
+    try {
+      const res = await axios.delete(
+        `${import.meta.env.VITE_API_URL}/api/leads/${leadId}/remarks/${remarkId}`,
+        getAuthHeaders()
+      );
+      if (res.data.success) {
+        toast.success("Remark deleted");
+        const updateLeadList = (list) =>
+          list.map((l) => (l._id === leadId ? { ...l, remarks: res.data.remarks } : l));
+        setPendingLeads(updateLeadList);
+        setMyLeads(updateLeadList);
+        setAllLeads(updateLeadList);
+      }
+    } catch (err) {
+      console.error("Error deleting remark:", err);
+      toast.error(err.response?.data?.message || "Failed to delete remark");
+    }
+  };
+
+  // Reusable Remarks Chat Section Component
+  const renderRemarksSection = (lead, accentColor = 'emerald') => {
+    const isExpanded = !!expandedRemarks[lead._id];
+    const remarksCount = (lead.remarks || []).length;
+    const isSubmitting = !!submittingRemark[lead._id];
+    const inputValue = remarkInputs[lead._id] || "";
+
+    return (
+      <div className="mt-2.5 pt-2.5 border-t border-gray-100">
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => toggleRemarks(lead._id)}
+            className="flex items-center gap-1.5 text-xs font-bold text-gray-700 hover:text-emerald-700 transition-colors cursor-pointer select-none"
+          >
+            <MessageSquare className="h-3.5 w-3.5 text-emerald-600" />
+            <span>Remarks & Follow-ups</span>
+            <span
+              className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                remarksCount > 0
+                  ? "bg-emerald-100 text-emerald-800"
+                  : "bg-gray-100 text-gray-500"
+              }`}
+            >
+              {remarksCount}
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => toggleRemarks(lead._id)}
+            className="text-xs text-gray-400 hover:text-gray-600 p-1 flex items-center gap-0.5 cursor-pointer"
+          >
+            <span className="text-[11px] font-medium">{isExpanded ? "Hide" : "View"}</span>
+            {isExpanded ? (
+              <ChevronUp className="h-3.5 w-3.5" />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5" />
+            )}
+          </button>
+        </div>
+
+        {isExpanded && (
+          <div className="mt-2.5 bg-gray-50/90 rounded-xl p-3 border border-gray-200/80 flex flex-col gap-2.5 animate-in fade-in duration-150">
+            {/* Chat scroll feed */}
+            <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
+              {remarksCount > 0 ? (
+                lead.remarks.map((r, idx) => {
+                  const isMe =
+                    user &&
+                    (r.authorId === user._id ||
+                      r.authorName === (user.name || user.username));
+                  return (
+                    <div
+                      key={r._id || idx}
+                      className={`flex flex-col gap-1 p-2.5 rounded-xl text-xs ${
+                        isMe
+                          ? "bg-emerald-50/80 border border-emerald-200/80 ml-3"
+                          : "bg-white border border-gray-200 mr-3"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5">
+                          <div
+                            className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+                              isMe
+                                ? "bg-emerald-600 text-white"
+                                : "bg-gray-200 text-gray-700"
+                            }`}
+                          >
+                            {(r.authorName || "S").charAt(0).toUpperCase()}
+                          </div>
+                          <span className="font-bold text-gray-900 text-[11px]">
+                            {r.authorName || "Staff Member"}
+                          </span>
+                          <span className="text-[9px] px-1.5 py-0.2 rounded bg-gray-100 text-gray-600 uppercase font-semibold">
+                            {r.authorRole || "staff"}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[10px] text-gray-400">
+                          <Clock className="w-2.5 h-2.5" />
+                          <span>{formatDateTime(r.createdAt)}</span>
+                          {(isAdmin || isMe) && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteRemark(lead._id, r._id)}
+                              className="text-gray-400 hover:text-red-500 p-0.5 rounded transition-colors ml-1 cursor-pointer"
+                              title="Delete remark"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-gray-800 text-xs mt-0.5 whitespace-pre-wrap leading-relaxed">
+                        {r.text}
+                      </p>
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="text-center py-4 text-xs text-gray-400 bg-white rounded-lg border border-dashed border-gray-200">
+                  No remarks yet. Add the first conversation or follow-up note below!
+                </div>
+              )}
+            </div>
+
+            {/* Input box */}
+            <form
+              onSubmit={(e) => handleAddRemark(lead._id, e)}
+              className="flex items-center gap-1.5 pt-2 border-t border-gray-200/70"
+            >
+              <input
+                type="text"
+                placeholder="Type follow-up remark (e.g. called customer, requested callback at 4 PM)..."
+                value={inputValue}
+                onChange={(e) =>
+                  setRemarkInputs((prev) => ({ ...prev, [lead._id]: e.target.value }))
+                }
+                className="flex-1 bg-white text-xs text-gray-800 px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+              <button
+                type="submit"
+                disabled={isSubmitting || !inputValue.trim()}
+                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold rounded-lg transition-all flex items-center gap-1 shrink-0 cursor-pointer shadow-xs active:scale-95"
+              >
+                {isSubmitting ? (
+                  <RotateCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <>
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Send</span>
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
+        )}
+      </div>
+    );
   };
 
   const handleCreateLead = async (e) => {
@@ -679,7 +924,7 @@ export default function Leads() {
                     <div className="flex justify-between items-start gap-2">
                       <div>
                         <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                          {lead.name}
+                          {lead.name || 'Guest Lead'}
                         </h3>
                         <div className="flex items-center gap-3 mt-1 text-sm text-gray-600 font-medium">
                           <a href={`tel:${lead.phone}`} className="flex items-center gap-1 hover:text-blue-600">
@@ -721,6 +966,9 @@ export default function Leads() {
                         {lead.notes || lead.details?.message || lead.details?.requirement}
                       </div>
                     )}
+
+                    {/* Chat Remarks Section */}
+                    {renderRemarksSection(lead, 'blue')}
 
                     {/* Action Buttons */}
                     <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
@@ -868,7 +1116,7 @@ export default function Leads() {
                       <div className="flex justify-between items-start gap-2">
                         <div>
                           <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                            {lead.name}
+                            {lead.name || 'Guest Lead'}
                           </h3>
                           <div className="flex items-center gap-3 mt-1 text-sm text-gray-600 font-medium">
                             <a href={`tel:${lead.phone}`} className="flex items-center gap-1 hover:text-emerald-600">
@@ -983,6 +1231,9 @@ export default function Leads() {
                           </select>
                         </div>
                       </div>
+
+                      {/* Chat Remarks Section */}
+                      {renderRemarksSection(lead, 'emerald')}
                     </div>
                   );
                 })}
@@ -1192,7 +1443,7 @@ export default function Leads() {
               <div className="bg-gray-50 p-3 rounded-xl border border-gray-200 mb-4 text-xs space-y-1">
                 <div>
                   <span className="text-gray-500 font-medium">Customer: </span>
-                  <span className="font-bold text-gray-900">{reassignModal.lead.name}</span>
+                  <span className="font-bold text-gray-900">{reassignModal.lead.name || 'Guest Lead'}</span>
                   <span className="text-gray-400 ml-1">({reassignModal.lead.phone})</span>
                 </div>
                 <div>

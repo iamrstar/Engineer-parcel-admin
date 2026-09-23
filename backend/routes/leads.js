@@ -227,6 +227,7 @@ router.put('/:id/assign', authMiddleware, async (req, res) => {
     const targetName = targetUser.name || targetUser.username || 'Staff Member';
 
     lead.assignedTo = targetUser._id;
+    lead.assignedToModel = 'User';
     lead.acceptedByName = targetName;
     lead.acceptedBy = targetUser._id;
     lead.acceptedByModel = 'User';
@@ -235,6 +236,9 @@ router.put('/:id/assign', authMiddleware, async (req, res) => {
     }
     if (!lead.acceptedAt) {
       lead.acceptedAt = new Date();
+    }
+    if (!lead.name) {
+      lead.name = lead.details?.name || 'Guest Lead';
     }
     await lead.save();
 
@@ -268,10 +272,14 @@ router.put('/:id/accept', authMiddleware, async (req, res) => {
     const userName = active.name;
     lead.status = 'Accepted';
     lead.assignedTo = active._id;
+    lead.assignedToModel = active.model || 'User';
     lead.acceptedBy = active._id;
-    lead.acceptedByModel = active.model;
+    lead.acceptedByModel = active.model || 'User';
     lead.acceptedByName = userName;
     lead.acceptedAt = new Date();
+    if (!lead.name) {
+      lead.name = lead.details?.name || 'Guest Lead';
+    }
     await lead.save();
 
     // Emit event that lead was accepted so it updates real-time across users
@@ -308,6 +316,10 @@ router.put('/:id/decline', authMiddleware, async (req, res) => {
     // Check if declined by ALL staff/admins
     const totalStaff = await User.countDocuments({ role: { $in: ['admin', 'staff'] } });
     
+    if (!lead.name) {
+      lead.name = lead.details?.name || 'Guest Lead';
+    }
+
     if (lead.declinedBy.length >= totalStaff) {
       // Reset and trigger popup again
       lead.declinedBy = [];
@@ -348,11 +360,109 @@ router.put('/:id/status', authMiddleware, async (req, res) => {
     if (temperature) lead.temperature = temperature;
     if (notes !== undefined) lead.notes = notes;
 
+    if (!lead.name) {
+      lead.name = lead.details?.name || 'Guest Lead';
+    }
+
     await lead.save();
     res.json({ success: true, lead });
   } catch (error) {
     console.error('Error updating lead status:', error);
     res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// Add a chat-style remark / follow-up note to a lead
+router.post('/:id/remarks', authMiddleware, async (req, res) => {
+  try {
+    const active = getActiveUser(req);
+    if (!active) return res.status(401).json({ success: false, message: 'Unauthorized' });
+
+    const { text } = req.body;
+    if (!text || !text.trim()) {
+      return res.status(400).json({ success: false, message: 'Remark text cannot be empty' });
+    }
+
+    const lead = await Lead.findById(req.params.id);
+    if (!lead) return res.status(404).json({ success: false, message: 'Lead not found' });
+
+    if (!lead.name) {
+      lead.name = lead.details?.name || 'Guest Lead';
+    }
+
+    const newRemark = {
+      text: text.trim(),
+      authorId: active._id,
+      authorModel: active.model || 'User',
+      authorName: active.name || 'Staff Member',
+      authorRole: active.role || 'staff',
+      createdAt: new Date()
+    };
+
+    lead.remarks = lead.remarks || [];
+    lead.remarks.push(newRemark);
+    await lead.save();
+
+    const io = req.app.get('socketio');
+    if (io) {
+      io.emit('lead_remark_added', {
+        leadId: lead._id,
+        remark: lead.remarks[lead.remarks.length - 1]
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Remark added successfully',
+      remarks: lead.remarks,
+      lead
+    });
+  } catch (error) {
+    console.error('Error adding lead remark:', error);
+    res.status(500).json({ success: false, message: 'Server error adding remark' });
+  }
+});
+
+// Delete a remark (Admin or author only)
+router.delete('/:id/remarks/:remarkId', authMiddleware, async (req, res) => {
+  try {
+    const active = getActiveUser(req);
+    if (!active) return res.status(401).json({ success: false, message: 'Unauthorized' });
+
+    const lead = await Lead.findById(req.params.id);
+    if (!lead) return res.status(404).json({ success: false, message: 'Lead not found' });
+
+    const remarkIndex = (lead.remarks || []).findIndex(
+      (r) => r._id.toString() === req.params.remarkId
+    );
+    if (remarkIndex === -1) {
+      return res.status(404).json({ success: false, message: 'Remark not found' });
+    }
+
+    const remark = lead.remarks[remarkIndex];
+    const isAuthor = remark.authorId && remark.authorId.toString() === active._id.toString();
+    if (!active.isAdmin && !isAuthor) {
+      return res.status(403).json({ success: false, message: 'Not authorized to delete this remark' });
+    }
+
+    lead.remarks.splice(remarkIndex, 1);
+    if (!lead.name) {
+      lead.name = lead.details?.name || 'Guest Lead';
+    }
+    await lead.save();
+
+    const io = req.app.get('socketio');
+    if (io) {
+      io.emit('lead_remark_deleted', {
+        leadId: lead._id,
+        remarkId: req.params.remarkId
+      });
+    }
+
+    res.json({ success: true, message: 'Remark deleted', remarks: lead.remarks, lead });
+  } catch (error) {
+    console.error('Error deleting remark:', error);
+    res.status(500).json({ success: false, message: 'Server error deleting remark' });
   }
 });
 

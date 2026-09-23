@@ -1,12 +1,12 @@
 const mongoose = require('mongoose');
 
 const leadSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  phone: { type: String, required: true },
-  email: { type: String },
+  name: { type: String, default: 'Guest Lead', trim: true },
+  phone: { type: String, required: true, trim: true },
+  email: { type: String, default: '', trim: true },
   source: { type: String, default: 'Admin Leads' },
-  details: { type: Object },
-  notes: { type: String },
+  details: { type: Object, default: {} },
+  notes: { type: String, default: '' },
 
   // Admin Management Fields
   status: {
@@ -21,8 +21,13 @@ const leadSchema = new mongoose.Schema({
   },
   assignedTo: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    refPath: 'assignedToModel',
     default: null
+  },
+  assignedToModel: {
+    type: String,
+    enum: ['User', 'Admin'],
+    default: 'User'
   },
   acceptedBy: {
     type: mongoose.Schema.Types.ObjectId,
@@ -59,6 +64,14 @@ const leadSchema = new mongoose.Schema({
   declinedBy: [{
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
+  }],
+  remarks: [{
+    text: { type: String, required: true, trim: true },
+    authorId: { type: mongoose.Schema.Types.ObjectId },
+    authorModel: { type: String, enum: ['User', 'Admin'], default: 'User' },
+    authorName: { type: String, default: 'Staff' },
+    authorRole: { type: String, default: 'staff' },
+    createdAt: { type: Date, default: Date.now }
   }]
 }, { timestamps: true });
 
