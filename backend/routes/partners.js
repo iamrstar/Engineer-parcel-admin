@@ -49,6 +49,7 @@ router.get("/search/:query", adminAuth, async (req, res) => {
                 { phone: { $regex: query, $options: "i" } },
                 { city: { $regex: query, $options: "i" } },
                 { email: { $regex: query, $options: "i" } },
+                { gstNumber: { $regex: query, $options: "i" } },
             ],
         }).limit(20);
         res.json(vendors);

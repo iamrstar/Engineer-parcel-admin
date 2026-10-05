@@ -186,6 +186,7 @@ const Vendors = () => {
     name: "",
     email: "",
     phone: "",
+    gstNumber: "",
     address: "",
     address2: "",
     city: "",
@@ -376,6 +377,7 @@ const Vendors = () => {
         name: vendor.name,
         phone: vendor.phone,
         email: vendor.email || "",
+        gstNumber: vendor.gstNumber || "",
         address: vendor.address,
         address2: vendor.address2 || "",
         city: vendor.city,
@@ -394,6 +396,7 @@ const Vendors = () => {
         name: "",
         phone: "",
         email: "",
+        gstNumber: "",
         address: "",
         address2: "",
         city: "",
@@ -452,7 +455,8 @@ const Vendors = () => {
   const filteredVendors = vendors.filter(vendor =>
     vendor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     vendor.partnerId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    vendor.phone.includes(searchTerm)
+    vendor.phone.includes(searchTerm) ||
+    (vendor.gstNumber && vendor.gstNumber.toLowerCase().includes(searchTerm.toLowerCase()))
   )
 
   return (
@@ -480,7 +484,7 @@ const Vendors = () => {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
           <input
             type="text"
-            placeholder="Search by vendor name, ID, or phone..."
+            placeholder="Search by vendor name, ID, phone, or GST..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 bg-gray-50 dark:bg-[#111111] border-none rounded-xl focus:ring-2 focus:ring-orange-500 text-sm"
@@ -521,7 +525,14 @@ const Vendors = () => {
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-semibold text-gray-900 dark:text-white">{vendor.name}</div>
-                          <div className="text-xs text-orange-600 font-mono font-bold">ID: {vendor.partnerId}</div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-xs text-orange-600 font-mono font-bold">ID: {vendor.partnerId}</span>
+                            {vendor.gstNumber && (
+                              <span className="text-[10px] font-mono font-bold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800">
+                                GST: {vendor.gstNumber}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </td>
@@ -634,13 +645,14 @@ const Vendors = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Password {editingVendor && "(Leave blank to keep current)"}</label>
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">GST Number</label>
                   <input
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm"
-                    placeholder="Portal Password"
+                    type="text"
+                    maxLength={15}
+                    value={formData.gstNumber || ""}
+                    onChange={(e) => setFormData({ ...formData, gstNumber: e.target.value.toUpperCase() })}
+                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm uppercase font-mono"
+                    placeholder="e.g. 22AAAAA0000A1Z5"
                   />
                 </div>
                 <div>
@@ -653,6 +665,16 @@ const Vendors = () => {
                     onChange={(e) => setFormData({ ...formData, pricePerKg: Number(e.target.value) })}
                     className="w-full px-4 py-2.5 bg-gray-50 dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm"
                     placeholder="e.g. 50"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">Password {editingVendor && "(Leave blank to keep current)"}</label>
+                  <input
+                    type="password"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    className="w-full px-4 py-2.5 bg-gray-50 dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none text-sm"
+                    placeholder="Portal Password"
                   />
                 </div>
 
@@ -803,7 +825,14 @@ const Vendors = () => {
               </button>
               <div>
                 <h2 className="text-xl font-bold text-gray-900 dark:text-white">{selectedVendorForFinance.name}</h2>
-                <p className="text-xs text-orange-600 font-mono font-bold tracking-tight">PARTNER FINANCE DASHBOARD • {selectedVendorForFinance.partnerId}</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <p className="text-xs text-orange-600 font-mono font-bold tracking-tight">PARTNER FINANCE DASHBOARD • {selectedVendorForFinance.partnerId}</p>
+                  {selectedVendorForFinance.gstNumber && (
+                    <span className="text-[10px] font-mono font-bold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800">
+                      GST: {selectedVendorForFinance.gstNumber}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
             <div className="flex items-center gap-3">

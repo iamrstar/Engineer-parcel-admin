@@ -47,6 +47,11 @@ const partnerSchema = new mongoose.Schema({
         required: true,
         trim: true,
     },
+    gstNumber: {
+        type: String,
+        trim: true,
+        uppercase: true,
+    },
     address: {
         type: String,
         required: true,
