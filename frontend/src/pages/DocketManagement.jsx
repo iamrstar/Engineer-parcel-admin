@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
-import { Upload, Plus, History, Package, CheckCircle, AlertCircle, Search, Trash2, FileText, ChevronRight, X, Edit2, ToggleLeft, ToggleRight, Info, RotateCcw, Tag } from "lucide-react";
+import { Upload, Plus, History, Package, CheckCircle, AlertCircle, Search, Trash2, FileText, ChevronRight, X, Edit2, ToggleLeft, ToggleRight, Info, RotateCcw, Tag, CheckSquare, Square, CheckCircle2 } from "lucide-react";
 import toast from "react-hot-toast";
 import * as XLSX from "xlsx";
 
@@ -40,6 +40,16 @@ const DocketManagement = () => {
   const [offlineDetailsModal, setOfflineDetailsModal] = useState({
     open: false,
     docket: null
+  });
+  const [selectedDocketIds, setSelectedDocketIds] = useState([]);
+  const [docketSearchTerm, setDocketSearchTerm] = useState("");
+  const [bulkModal, setBulkModal] = useState({
+    open: false,
+    bookingId: "",
+    customerName: "",
+    reason: "Counter Booking",
+    notes: "",
+    loading: false
   });
 
   useEffect(() => {
@@ -170,6 +180,8 @@ const DocketManagement = () => {
 
   const openVendorDetails = async (vendorName) => {
     setSelectedVendorForDetails(vendorName);
+    setSelectedDocketIds([]);
+    setDocketSearchTerm("");
     setShowDetailsModal(true);
     fetchVendorDockets(vendorName, "all");
   };
@@ -177,6 +189,7 @@ const DocketManagement = () => {
   const fetchVendorDockets = async (vendorName, status) => {
     setDetailsLoading(true);
     setDetailsFilter(status);
+    setSelectedDocketIds([]);
     try {
       const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
       const url = `${import.meta.env.VITE_API_URL}/api/dockets/vendor/${encodeURIComponent(vendorName)}${status !== "all" ? `?status=${status}` : ""}`;
@@ -189,6 +202,54 @@ const DocketManagement = () => {
       toast.error("Failed to fetch vendor dockets");
     } finally {
       setDetailsLoading(false);
+    }
+  };
+
+  const toggleDocketSelection = (id) => {
+    setSelectedDocketIds(prev =>
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkMarkUsed = async (e) => {
+    e.preventDefault();
+    if (selectedDocketIds.length === 0) {
+      toast.error("Please select at least one docket");
+      return;
+    }
+    setBulkModal(prev => ({ ...prev, loading: true }));
+    try {
+      const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
+      const res = await axios.put(
+        `${import.meta.env.VITE_API_URL}/api/dockets/bulk-mark-used`,
+        {
+          docketIds: selectedDocketIds,
+          bookingId: bulkModal.bookingId.trim(),
+          customerName: bulkModal.customerName.trim(),
+          reason: bulkModal.reason,
+          notes: bulkModal.notes.trim()
+        },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      toast.success(res.data.message || `${selectedDocketIds.length} dockets marked as used!`);
+      setBulkModal({
+        open: false,
+        bookingId: "",
+        customerName: "",
+        reason: "Counter Booking",
+        notes: "",
+        loading: false
+      });
+      setSelectedDocketIds([]);
+      fetchVendorDockets(selectedVendorForDetails, detailsFilter);
+      fetchStats();
+      fetchUsedDockets();
+    } catch (err) {
+      console.error(err);
+      toast.error(err.response?.data?.message || "Failed to mark dockets as used");
+    } finally {
+      setBulkModal(prev => ({ ...prev, loading: false }));
     }
   };
 
@@ -278,6 +339,27 @@ const DocketManagement = () => {
     } catch (err) {
       console.error(err);
       toast.error(err.response?.data?.message || "Failed to revert docket");
+    }
+  };
+
+  const filteredVendorDockets = vendorDockets.filter((docket) => {
+    if (!docketSearchTerm.trim()) return true;
+    const term = docketSearchTerm.toLowerCase();
+    const docketId = (docket.docketId || "").toLowerCase();
+    const ref = (docket.metadata?.bookingId || (Array.isArray(docket.epId) ? docket.epId.join(" ") : docket.epId) || "").toLowerCase();
+    const cust = (docket.metadata?.customerName || "").toLowerCase();
+    return docketId.includes(term) || ref.includes(term) || cust.includes(term);
+  });
+
+  const availableDocketsInView = filteredVendorDockets.filter(d => d.status === "available");
+  const allAvailableSelected = availableDocketsInView.length > 0 && availableDocketsInView.every(d => selectedDocketIds.includes(d._id));
+
+  const toggleSelectAllAvailable = () => {
+    const availableIds = availableDocketsInView.map(d => d._id);
+    if (allAvailableSelected) {
+      setSelectedDocketIds(prev => prev.filter(id => !availableIds.includes(id)));
+    } else {
+      setSelectedDocketIds(prev => Array.from(new Set([...prev, ...availableIds])));
     }
   };
 
@@ -672,16 +754,105 @@ const DocketManagement = () => {
               </button>
             </div>
 
-            <div className="p-4 bg-white border-b border-gray-50 flex gap-2">
-              {['all', 'available', 'used'].map((status) => (
-                <button
-                  key={status}
-                  onClick={() => fetchVendorDockets(selectedVendorForDetails, status)}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold capitalize transition-all ${detailsFilter === status ? 'bg-orange-600 text-white shadow-lg shadow-orange-100' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
-                >
-                  {status}
-                </button>
-              ))}
+            {/* Filter, Search & Bulk Actions Bar */}
+            <div className="p-4 bg-white border-b border-gray-100 space-y-3">
+              <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between">
+                <div className="flex gap-1.5 bg-gray-50 p-1 rounded-2xl border border-gray-100">
+                  {['all', 'available', 'used'].map((status) => {
+                    const count = status === 'all' 
+                      ? vendorDockets.length 
+                      : vendorDockets.filter(d => d.status === status).length;
+                    return (
+                      <button
+                        key={status}
+                        onClick={() => fetchVendorDockets(selectedVendorForDetails, status)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold capitalize transition-all flex items-center gap-1.5 ${
+                          detailsFilter === status
+                            ? 'bg-orange-600 text-white shadow-md shadow-orange-100'
+                            : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+                        }`}
+                      >
+                        <span>{status}</span>
+                        <span className={`text-[10px] px-1.5 py-0.2 rounded-full ${
+                          detailsFilter === status ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-600'
+                        }`}>
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="relative flex-1 sm:max-w-xs">
+                  <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Search Docket ID / Ref..."
+                    value={docketSearchTerm}
+                    onChange={(e) => setDocketSearchTerm(e.target.value)}
+                    className="w-full pl-9 pr-8 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold outline-none focus:ring-2 focus:ring-orange-500"
+                  />
+                  {docketSearchTerm && (
+                    <button
+                      onClick={() => setDocketSearchTerm("")}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {availableDocketsInView.length > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-gray-100">
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={toggleSelectAllAvailable}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl text-xs font-bold text-gray-700 transition-all cursor-pointer"
+                    >
+                      {allAvailableSelected ? (
+                        <CheckSquare className="w-4 h-4 text-purple-600" />
+                      ) : (
+                        <Square className="w-4 h-4 text-gray-400" />
+                      )}
+                      <span>{allAvailableSelected ? "Deselect All" : `Select All Available (${availableDocketsInView.length})`}</span>
+                    </button>
+                    {selectedDocketIds.length > 0 && (
+                      <span className="text-xs font-bold text-purple-700 bg-purple-50 border border-purple-100 px-2.5 py-1 rounded-xl">
+                        {selectedDocketIds.length} selected
+                      </span>
+                    )}
+                  </div>
+
+                  {selectedDocketIds.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedDocketIds([])}
+                        className="text-xs font-bold text-gray-500 hover:text-gray-700 px-2.5 py-1.5 cursor-pointer"
+                      >
+                        Clear
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBulkModal({
+                          open: true,
+                          bookingId: "",
+                          customerName: "",
+                          reason: "Counter Booking",
+                          notes: "",
+                          loading: false
+                        })}
+                        className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs px-4 py-2 rounded-xl shadow-md shadow-purple-100 transition-all cursor-pointer"
+                      >
+                        <CheckCircle2 className="w-4 h-4" />
+                        <span>Mark as Used ({selectedDocketIds.length})</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
@@ -689,24 +860,35 @@ const DocketManagement = () => {
                 <div className="flex items-center justify-center h-full">
                   <div className="w-8 h-8 border-4 border-orange-200 border-t-orange-600 rounded-full animate-spin"></div>
                 </div>
-              ) : vendorDockets.length > 0 ? (
+              ) : filteredVendorDockets.length > 0 ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {vendorDockets.map((docket) => {
+                  {filteredVendorDockets.map((docket) => {
                     const isOffline = docket.metadata?.isOffline;
+                    const isSelected = selectedDocketIds.includes(docket._id);
+                    const isAvailable = docket.status === 'available';
                     return (
                       <div 
                         key={docket._id} 
+                        onClick={() => {
+                          if (isAvailable && !editingDocket) {
+                            toggleDocketSelection(docket._id);
+                          }
+                        }}
                         className={`p-4 rounded-2xl border transition-all flex flex-col justify-between ${
-                          docket.status === 'used' 
-                            ? isOffline 
-                              ? 'bg-purple-50/40 border-purple-200' 
-                              : 'bg-orange-50/30 border-orange-100' 
-                            : 'bg-green-50/30 border-green-100'
+                          isAvailable ? 'cursor-pointer' : ''
+                        } ${
+                          isSelected
+                            ? 'ring-2 ring-purple-600 border-purple-400 bg-purple-50/80 shadow-md'
+                            : docket.status === 'used' 
+                              ? isOffline 
+                                ? 'bg-purple-50/40 border-purple-200' 
+                                : 'bg-orange-50/30 border-orange-100' 
+                              : 'bg-green-50/30 border-green-100 hover:border-green-300'
                         }`}
                       >
                         <div className="flex justify-between items-start mb-3">
                           {editingDocket?.id === docket._id ? (
-                            <div className="flex gap-2 w-full">
+                            <div className="flex gap-2 w-full" onClick={(e) => e.stopPropagation()}>
                                <input 
                                  type="text" 
                                  value={editingDocket.value} 
@@ -730,7 +912,18 @@ const DocketManagement = () => {
                           ) : (
                             <>
                               <div className="flex flex-col">
-                                <span className="font-mono font-black text-gray-900 text-base">{docket.docketId}</span>
+                                <div className="flex items-center gap-2">
+                                  {isAvailable && (
+                                    <input
+                                      type="checkbox"
+                                      checked={isSelected}
+                                      onChange={() => toggleDocketSelection(docket._id)}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500 cursor-pointer accent-purple-600"
+                                    />
+                                  )}
+                                  <span className="font-mono font-black text-gray-900 text-base">{docket.docketId}</span>
+                                </div>
                                 {isOffline && (
                                   <span className="text-[10px] font-bold text-purple-700 mt-0.5">
                                     Ref: {docket.metadata?.bookingId || (Array.isArray(docket.epId) ? docket.epId[0] : docket.epId)}
@@ -738,7 +931,7 @@ const DocketManagement = () => {
                                 )}
                               </div>
                               {docket.status !== 'used' && (
-                                <div className="flex gap-1">
+                                <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                                   <button 
                                     onClick={() => setEditingDocket({id: docket._id, value: docket.docketId})}
                                     className="p-1.5 text-gray-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg transition-all"
@@ -759,7 +952,7 @@ const DocketManagement = () => {
                           )}
                         </div>
                         
-                        <div className="flex justify-between items-end gap-2 pt-2 border-t border-gray-100/60">
+                        <div className="flex justify-between items-end gap-2 pt-2 border-t border-gray-100/60" onClick={(e) => e.stopPropagation()}>
                           <div className="flex flex-col gap-1">
                             <div className="flex items-center gap-1.5 flex-wrap">
                               <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full self-start ${
@@ -851,6 +1044,162 @@ const DocketManagement = () => {
                 </div>
               )}
             </div>
+
+            {/* Sticky Bottom Multi-Select Bar */}
+            {selectedDocketIds.length > 0 && (
+              <div className="p-3.5 bg-gradient-to-r from-purple-900 to-indigo-950 text-white flex items-center justify-between border-t border-purple-800 shadow-2xl animate-in slide-in-from-bottom duration-200 z-10">
+                <div className="flex items-center gap-3">
+                  <span className="w-7 h-7 rounded-xl bg-purple-500 text-white font-black text-xs flex items-center justify-center shadow-sm">
+                    {selectedDocketIds.length}
+                  </span>
+                  <div>
+                    <span className="text-sm font-bold block leading-tight">
+                      {selectedDocketIds.length === 1 ? '1 Docket Selected' : `${selectedDocketIds.length} Dockets Selected`}
+                    </span>
+                    <span className="text-[10px] text-purple-200 font-medium">Ready to be marked as used</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDocketIds([])}
+                    className="px-3 py-1.5 text-xs font-semibold text-purple-200 hover:text-white transition-colors cursor-pointer"
+                  >
+                    Clear Selection
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBulkModal({
+                      open: true,
+                      bookingId: "",
+                      customerName: "",
+                      reason: "Counter Booking",
+                      notes: "",
+                      loading: false
+                    })}
+                    className="px-4 py-2 bg-white text-purple-900 hover:bg-purple-50 font-black text-xs rounded-xl shadow-lg flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-purple-700" />
+                    <span>Mark as Used ({selectedDocketIds.length})</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Mark as Used Modal */}
+      {bulkModal.open && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setBulkModal({ ...bulkModal, open: false })} />
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg relative z-10 p-6 sm:p-8 overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center mb-4">
+              <div>
+                <h3 className="text-xl font-black text-gray-900">Mark Dockets as Used</h3>
+                <p className="text-xs text-purple-600 font-bold mt-0.5">
+                  {selectedDocketIds.length} {selectedDocketIds.length === 1 ? 'docket' : 'dockets'} selected from {selectedVendorForDetails}
+                </p>
+              </div>
+              <button 
+                onClick={() => setBulkModal({ ...bulkModal, open: false })} 
+                className="p-2 hover:bg-gray-100 rounded-full text-gray-400 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleBulkMarkUsed} className="space-y-4">
+              {/* Selected IDs Preview */}
+              <div className="bg-purple-50/60 p-3.5 rounded-2xl border border-purple-100 max-h-28 overflow-y-auto">
+                <p className="text-[10px] font-bold text-purple-700 uppercase tracking-wider mb-1.5">
+                  Selected IDs ({selectedDocketIds.length}):
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {vendorDockets.filter(d => selectedDocketIds.includes(d._id)).map(d => (
+                    <span key={d._id} className="text-[11px] font-mono font-bold bg-white text-purple-800 border border-purple-200 px-2 py-0.5 rounded-lg shadow-xs">
+                      {d.docketId}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-600 mb-1">
+                  Booking ID / Reference (Optional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Counter Booking / Batch 123"
+                  value={bulkModal.bookingId}
+                  onChange={(e) => setBulkModal({ ...bulkModal, bookingId: e.target.value })}
+                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 mb-1">Usage Reason</label>
+                  <select
+                    value={bulkModal.reason}
+                    onChange={(e) => setBulkModal({ ...bulkModal, reason: e.target.value })}
+                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="Counter Booking">Counter Booking</option>
+                    <option value="Offline Booking">Offline Booking</option>
+                    <option value="Direct Vendor Shipment">Direct Vendor Shipment</option>
+                    <option value="Batch Consumption">Batch Consumption</option>
+                    <option value="Void / Damaged">Void / Damaged</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-600 mb-1">Customer / Agent (Optional)</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Walk-in / Agent"
+                    value={bulkModal.customerName}
+                    onChange={(e) => setBulkModal({ ...bulkModal, customerName: e.target.value })}
+                    className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-semibold outline-none focus:ring-2 focus:ring-purple-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-600 mb-1">Notes / Remarks (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="Any additional remarks..."
+                  value={bulkModal.notes}
+                  onChange={(e) => setBulkModal({ ...bulkModal, notes: e.target.value })}
+                  className="w-full px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setBulkModal({ ...bulkModal, open: false })}
+                  className="flex-1 py-3 text-gray-600 font-bold bg-gray-100 hover:bg-gray-200 rounded-xl text-sm transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={bulkModal.loading}
+                  className="flex-[2] py-3 text-white font-bold bg-purple-600 hover:bg-purple-700 rounded-xl text-sm transition-all shadow-lg shadow-purple-200 flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  {bulkModal.loading ? (
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      <CheckCircle2 className="w-4 h-4" />
+                      <span>Confirm Mark as Used ({selectedDocketIds.length})</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -2211,7 +2211,7 @@ router.put("/:id", authMiddleware, async (req, res) => {
         const existingDocket = await DocketInventory.findOne({ docketId: trackingId });
         if (existingDocket && existingDocket.status === "used") {
           const isUsedByUs = existingDocket.usedBy && existingDocket.usedBy.some(id => id.toString() === currentBooking._id.toString());
-          if (!isUsedByUs && existingDocket.usedBy && existingDocket.usedBy.length > 0) {
+          if (!isUsedByUs) {
             return res.status(400).json({ message: `Docket ID ${trackingId} is already marked as used in the inventory.` });
           }
         }

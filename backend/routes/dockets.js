@@ -75,6 +75,54 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
+// @route   PUT /api/dockets/bulk-mark-used
+// @desc    Mark multiple docket IDs as used
+router.put("/bulk-mark-used", adminAuth, async (req, res) => {
+  try {
+    const { docketIds, bookingId, customerName, reason, notes } = req.body;
+
+    if (!docketIds || !Array.isArray(docketIds) || docketIds.length === 0) {
+      return res.status(400).json({ message: "Please select at least one docket ID." });
+    }
+
+    const assignedUser = req.admin || req.user;
+    const ref = (bookingId && bookingId.trim()) || "Counter Booking";
+    const userReason = (reason && reason.trim()) || "Counter Booking";
+
+    const result = await DocketInventory.updateMany(
+      { _id: { $in: docketIds } },
+      {
+        $set: {
+          status: "used",
+          usedAt: new Date(),
+          epId: [ref],
+          assignedBy: assignedUser?._id || null,
+          assignedByOffice: assignedUser?.officeId || null,
+          metadata: {
+            isOffline: true,
+            bookingId: ref,
+            customerName: customerName ? customerName.trim() : "",
+            reason: userReason,
+            notes: notes ? notes.trim() : "",
+            markedAt: new Date(),
+            markedBy: assignedUser?.name || "Admin",
+            markedByRole: assignedUser?.role || "admin",
+          },
+        },
+      }
+    );
+
+    res.json({
+      success: true,
+      message: `${result.modifiedCount} docket(s) marked as used!`,
+      count: result.modifiedCount,
+    });
+  } catch (error) {
+    console.error("Bulk mark used error:", error);
+    res.status(500).json({ message: "Failed to mark dockets as used." });
+  }
+});
+
 // Update a docket ID
 router.put("/:id", async (req, res) => {
   try {

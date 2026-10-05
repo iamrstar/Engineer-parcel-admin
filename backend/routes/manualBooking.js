@@ -119,7 +119,7 @@ router.post("/", authMiddleware, uploadPaymentProof.single("paymentProof"), asyn
 
       const DocketInventory = require("../models/DocketInventory");
       const existingDocket = await DocketInventory.findOne({ docketId: trackingIdStr });
-      if (existingDocket && existingDocket.status === "used" && existingDocket.usedBy && existingDocket.usedBy.length > 0) {
+      if (existingDocket && existingDocket.status === "used") {
         return res.status(400).json({ error: `Docket ID ${trackingIdStr} is already marked as used in the inventory.` });
       }
     }
