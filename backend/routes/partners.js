@@ -74,37 +74,35 @@ router.post("/", adminAuth, async (req, res) => {
         }
 
         if (!data.partnerId) {
-            let counter = await Counter.findOne({ id: "partnerId" });
-            
-            // If counter doesn't exist, initialize it based on the highest existing ID (or at least 11 as requested)
-            if (!counter) {
-                const lastPartner = await Vendor.findOne({ partnerId: /^PAT/ })
-                    .sort({ partnerId: -1 })
-                    .collation({ locale: "en_US", numericOrdering: true });
-                    
-                let maxSeq = 0;
-                if (lastPartner && lastPartner.partnerId) {
-                    const lastIdStr = lastPartner.partnerId.replace('PAT', '');
-                    const lastIdNum = parseInt(lastIdStr, 10);
-                    if (!isNaN(lastIdNum)) {
-                        maxSeq = lastIdNum;
-                    }
-                }
+            // Find highest existing PAT ID to guarantee contiguous numbering without skipping
+            const lastPartner = await Vendor.findOne({ partnerId: /^PAT\d+$/ })
+                .sort({ partnerId: -1 })
+                .collation({ locale: "en_US", numericOrdering: true });
                 
-                // Ensure we don't reuse PAT0011 if it was deleted
-                maxSeq = Math.max(maxSeq, 11);
-                counter = await Counter.create({ id: "partnerId", seq: maxSeq });
+            let maxSeq = 0;
+            if (lastPartner && lastPartner.partnerId) {
+                const lastIdStr = lastPartner.partnerId.replace('PAT', '');
+                const lastIdNum = parseInt(lastIdStr, 10);
+                if (!isNaN(lastIdNum)) {
+                    maxSeq = lastIdNum;
+                }
             }
 
-            counter = await Counter.findOneAndUpdate(
-                { id: "partnerId" },
-                { $inc: { seq: 1 } },
-                { new: true }
-            );
+            const nextSeq = maxSeq + 1;
+            data.partnerId = `PAT${String(nextSeq).padStart(4, '0')}`;
 
-            data.partnerId = `PAT${String(counter.seq).padStart(4, '0')}`;
+            // Keep Counter synchronized
+            await Counter.findOneAndUpdate(
+                { id: "partnerId" },
+                { $set: { seq: nextSeq } },
+                { upsert: true }
+            );
         }
         
+        if (!data.vendorId && data.partnerId) {
+            data.vendorId = data.partnerId;
+        }
+
         const vendor = new Vendor(data);
         const newVendor = await vendor.save();
         res.status(201).json(newVendor);

@@ -7,6 +7,11 @@ const partnerSchema = new mongoose.Schema({
         unique: true,
         trim: true,
     },
+    vendorId: {
+        type: String,
+        trim: true,
+        sparse: true,
+    },
     // API Authentication for E-commerce Partners
     apiKey: {
         type: String,

@@ -32,6 +32,30 @@ export const AuthProvider = ({ children }) => {
       axios.post(`${API_BASE_URL}/api/attendance/mark`).catch(e => console.log("Attendance not marked", e))
     }
     setLoading(false)
+
+    // Handle token expiry cleanly across the app
+    const interceptor = axios.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        if (
+          error.response?.status === 401 &&
+          !error.config?.url?.includes("/api/auth/login") &&
+          !error.config?.url?.includes("/api/users/login")
+        ) {
+          if (localStorage.getItem("token") || localStorage.getItem("adminToken")) {
+            localStorage.removeItem("adminToken")
+            localStorage.removeItem("token")
+            localStorage.removeItem("userData")
+            delete axios.defaults.headers.common["Authorization"]
+            setIsAuthenticated(false)
+            setUser(null)
+          }
+        }
+        return Promise.reject(error)
+      }
+    )
+
+    return () => axios.interceptors.response.eject(interceptor)
   }, [])
 
   const login = async (identifier, password) => {

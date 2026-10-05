@@ -411,11 +411,22 @@ const BookingDetail = () => {
   const fetchBooking = async () => {
     try {
       const response = await axios.get(`${import.meta.env.VITE_API_URL}/api/bookings/${id}`)
-      setBooking(response.data)
+      const data = response.data
+      if (data && data.pricing) {
+        const curTotal = Number(data.pricing.totalAmount)
+        const base = Number(data.pricing.basePrice) || 0
+        if ((!curTotal || curTotal <= 0) && base > 0) {
+          const tax = Number(data.pricing.tax) || 0
+          const pkg = Number(data.pricing.packagingCharge) || 0
+          const disc = Number(data.pricing.discount || data.couponDiscount) || 0
+          data.pricing.totalAmount = Math.round((base + tax + pkg - disc) * 100) / 100
+        }
+      }
+      setBooking(data)
       // Initialize assignment state
       setAssignmentData({
-        riderId: response.data.assignedRider?._id || response.data.assignedRider || "",
-        assignedFor: response.data.assignedFor || "pickup"
+        riderId: data.assignedRider?._id || data.assignedRider || "",
+        assignedFor: data.assignedFor || "pickup"
       })
     } catch (error) {
       toast.error("Error fetching booking details")
@@ -469,8 +480,22 @@ const BookingDetail = () => {
         return;
       }
 
+      // Ensure totalAmount is calculated if basePrice > 0
+      let bookingToSave = { ...booking };
+      const curTotal = Number(bookingToSave.pricing?.totalAmount);
+      const base = Number(bookingToSave.pricing?.basePrice) || 0;
+      if ((!curTotal || curTotal <= 0) && base > 0) {
+        const tax = Number(bookingToSave.pricing?.tax) || 0;
+        const pkg = Number(bookingToSave.pricing?.packagingCharge) || 0;
+        const disc = Number(bookingToSave.pricing?.discount || bookingToSave.couponDiscount) || 0;
+        bookingToSave.pricing = {
+          ...bookingToSave.pricing,
+          totalAmount: Math.round((base + tax + pkg - disc) * 100) / 100
+        };
+      }
+
       setSaving(true)
-      const res = await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/${id}`, { ...booking, notify: !!notify })
+      const res = await axios.put(`${import.meta.env.VITE_API_URL}/api/bookings/${id}`, { ...bookingToSave, notify: !!notify })
       toast.success("Booking updated successfully")
       setEditMode(false)
       setDeliveryNotifyModal({ open: false, type: "", data: null });
@@ -2135,7 +2160,20 @@ const BookingDetail = () => {
                     className="w-full px-3 py-2 text-sm sm:text-base border border-gray-300 dark:border-white/10 rounded-lg focus:ring-2 focus:ring-primary-500 font-semibold"
                   />
                 ) : (
-                  <p className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">₹{booking.pricing?.totalAmount || 0}</p>
+                  <p className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
+                    ₹{(() => {
+                      const cur = Number(booking.pricing?.totalAmount);
+                      if (cur > 0) return cur;
+                      const base = Number(booking.pricing?.basePrice) || 0;
+                      if (base > 0) {
+                        const tax = Number(booking.pricing?.tax) || 0;
+                        const pkg = Number(booking.pricing?.packagingCharge) || 0;
+                        const disc = Number(booking.pricing?.discount || booking.couponDiscount) || 0;
+                        return Math.round((base + tax + pkg - disc) * 100) / 100;
+                      }
+                      return 0;
+                    })()}
+                  </p>
                 )}
               </div>
             </div>
@@ -2259,17 +2297,35 @@ const BookingDetail = () => {
                     </button>
                   </div>
                 ) : (
-                  <button
-                    onClick={handleSendPaymentLink}
-                    disabled={sendingLink || booking.pricing?.totalAmount <= 0}
-                    className="w-full px-4 py-3 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-100"
-                  >
-                    {sendingLink ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
-                    GENERATE & SEND PAYMENT LINK
-                  </button>
-                )}
-                {booking.pricing?.totalAmount <= 0 && (
-                   <p className="text-[10px] text-red-500 mt-1 font-medium italic">* Amount must be greater than 0 to generate a link</p>
+                  (() => {
+                    const effectiveTotal = Number(booking.pricing?.totalAmount) > 0 
+                      ? Number(booking.pricing.totalAmount) 
+                      : (() => {
+                          const base = Number(booking.pricing?.basePrice) || 0;
+                          if (base > 0) {
+                            const tax = Number(booking.pricing?.tax) || 0;
+                            const pkg = Number(booking.pricing?.packagingCharge) || 0;
+                            const disc = Number(booking.pricing?.discount || booking.couponDiscount) || 0;
+                            return Math.round((base + tax + pkg - disc) * 100) / 100;
+                          }
+                          return 0;
+                        })();
+                    return (
+                      <>
+                        <button
+                          onClick={handleSendPaymentLink}
+                          disabled={sendingLink || effectiveTotal <= 0}
+                          className="w-full px-4 py-3 bg-indigo-600 text-white text-sm font-bold rounded-xl hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {sendingLink ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CreditCard className="w-4 h-4" />}
+                          GENERATE & SEND PAYMENT LINK
+                        </button>
+                        {effectiveTotal <= 0 && (
+                          <p className="text-[10px] text-red-500 mt-1 font-medium italic">* Amount must be greater than 0 to generate a link</p>
+                        )}
+                      </>
+                    );
+                  })()
                 )}
             </div>
           </div>
@@ -2299,7 +2355,16 @@ const BookingDetail = () => {
           </div>
 
           {(() => {
-            const revenue = Number(booking.pricing?.totalAmount || booking.totalAmount || 0);
+            const revenue = Number(booking.pricing?.totalAmount || booking.totalAmount || 0) || (() => {
+              const base = Number(booking.pricing?.basePrice) || 0;
+              if (base > 0) {
+                const tax = Number(booking.pricing?.tax) || 0;
+                const pkg = Number(booking.pricing?.packagingCharge) || 0;
+                const disc = Number(booking.pricing?.discount || booking.couponDiscount) || 0;
+                return Math.round((base + tax + pkg - disc) * 100) / 100;
+              }
+              return 0;
+            })();
             const courierCost = Number(booking.expenses?.courierCost || 0);
             const packagingCost = Number(booking.expenses?.packagingCost || 0);
             const riderCost = Number(booking.expenses?.riderCost || 0);

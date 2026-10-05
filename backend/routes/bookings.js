@@ -63,7 +63,7 @@ const getCourierRegex = (filterVal) => {
   if (val.includes("sanjay")) return /sanjay/i;
   if (val.includes("safe") || val.includes("safex")) return /safe\s*express|safex/i;
   if (val.includes("india post")) return /india\s*post/i;
-  if (val.includes("carry") || val.includes("icl")) return /i[\s_-]*carry|icarry|carry|icl/i;
+  if (val.includes("i carry") || val.includes("icarry") || val === "icl") return /i\s*carry|icl/i;
   return new RegExp(escapeRegex(filterVal.trim()), "i");
 };
 
@@ -80,11 +80,11 @@ const sendDeliveryEmail = async (booking) => {
         if (office && office.enableDeliveryEmail === false) {
           return; // Skip delivery email for this office
         }
-      } catch (err) {}
+      } catch (err) { }
     }
     const sendEmail = require("../utils/sendEmail");
     const reviewLink = "https://search.google.com/local/writereview?placeid=ChIJO9LYJiignysRoxbn5RCefB4";
-    
+
     const emailHtml = `
       <div style="font-family: sans-serif; color: #333; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 20px; border-radius: 12px;">
         <div style="text-align: center; margin-bottom: 20px;">
@@ -110,7 +110,7 @@ const sendDeliveryEmail = async (booking) => {
     `;
 
     const recipients = [booking.senderDetails?.email, booking.receiverDetails?.email].filter(Boolean);
-    
+
     if (recipients.length > 0) {
       await sendEmail({
         to: recipients.join(","),
@@ -130,7 +130,7 @@ const sendDeliveryEmail = async (booking) => {
 router.get("/stats/performance-leaderboard", adminAuth, async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
-    
+
     // Date filter for bookings and marks
     let dateFilterQuery = {};
     // Date string filter for attendance (YYYY-MM-DD)
@@ -146,7 +146,7 @@ router.get("/stats/performance-leaderboard", adminAuth, async (req, res) => {
         $gte: start,
         $lte: end
       };
-      
+
       const startStr = new Date(startDate).toISOString().split('T')[0];
       const endStr = new Date(endDate).toISOString().split('T')[0];
       attendanceDateQuery = {
@@ -214,10 +214,10 @@ router.get("/stats/performance-leaderboard", adminAuth, async (req, res) => {
     attendances.forEach(att => {
       if (att.user) {
         initUser(att.user);
-        
+
         let isLate = false;
         if (att.firstLoginAt) {
-          const istTime = new Date(att.firstLoginAt.toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
+          const istTime = new Date(att.firstLoginAt.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
           isLate = (istTime.getHours() > 10) || (istTime.getHours() === 10 && istTime.getMinutes() > 30);
         } else {
           isLate = att.status === 'Late';
@@ -335,7 +335,7 @@ router.get("/stats/performance-leaderboard", adminAuth, async (req, res) => {
 router.get("/stats/incentive-report", adminAuth, async (req, res) => {
   try {
     const { startDate, endDate, userId } = req.query;
-    
+
     let dateFilterQuery = {};
 
     if (startDate && endDate) {
@@ -346,7 +346,7 @@ router.get("/stats/incentive-report", adminAuth, async (req, res) => {
     }
 
     const bookingQuery = dateFilterQuery.$gte ? { createdAt: dateFilterQuery } : {};
-    
+
     // Only fetch bookings where handlingAgent or packagingAgent exists
     bookingQuery.$or = [
       { handlingAgent: { $exists: true, $ne: null } },
@@ -417,7 +417,7 @@ router.get("/stats/incentive-report", adminAuth, async (req, res) => {
 router.post("/stats/performance-marks", adminAuth, async (req, res) => {
   try {
     const { userId, points, reason } = req.body;
-    
+
     if (!userId || points === undefined || !reason) {
       return res.status(400).json({ message: "Missing required fields" });
     }
@@ -475,16 +475,14 @@ router.get("/stats/dashboard", authMiddleware, async (req, res) => {
     }
 
     if (serviceType && serviceType !== "all") {
-      query.serviceType = new RegExp(`^${escapeRegex(serviceType.trim())}$`, "i");
+      query.serviceType = serviceType;
     }
 
     if (bookingStatus && bookingStatus !== "all") {
       if (bookingStatus === "active") {
-        query.status = { $not: /^\s*cancelled\s*$/i };
+        query.status = { $ne: "cancelled" };
       } else if (bookingStatus === "cancelled") {
-        query.status = /^\s*cancelled\s*$/i;
-      } else {
-        query.status = new RegExp(`^\\s*${escapeRegex(bookingStatus.trim())}\\s*$`, "i");
+        query.status = "cancelled";
       }
     }
 
@@ -527,7 +525,7 @@ router.get("/stats/dashboard", authMiddleware, async (req, res) => {
     // Use query for totalRevenue match, but if bookingStatus wasn't provided, default to active for revenue only (to match original behavior, or let user explicitly ask for all)
     const revenueQuery = { ...query };
     if (!bookingStatus || bookingStatus === "active") {
-        revenueQuery.status = { $ne: "cancelled" };
+      revenueQuery.status = { $ne: "cancelled" };
     }
 
     const totalRevenue = await Booking.aggregate([
@@ -582,20 +580,16 @@ router.get("/sales/report", adminAuth, async (req, res) => {
     const { startDate, endDate, serviceType, paymentStatus, bookingStatus } = req.query;
     // Base match: default to non-cancelled unless specified
     const match = {};
-    if (!bookingStatus || bookingStatus === "all") {
+    if (bookingStatus === "all") {
       // no status filter
-    } else if (bookingStatus === "active") {
-      match.status = { $not: /^\s*cancelled\s*$/i };
     } else if (bookingStatus === "cancelled") {
-      match.status = /^\s*cancelled\s*$/i;
+      match.status = "cancelled";
     } else {
-      match.status = new RegExp(`^\\s*${escapeRegex(bookingStatus.trim())}\\s*$`, "i");
+      match.status = { $ne: "cancelled" };
     }
 
-    // Separate match for cancelled bookings tracking
-    const cancelledMatch = (bookingStatus && bookingStatus !== "all" && bookingStatus !== "active" && bookingStatus !== "cancelled")
-      ? { status: "__none__" }
-      : { status: /^\s*cancelled\s*$/i };
+    // Separate match for cancelled bookings tracking (same date/service filters but status=cancelled)
+    const cancelledMatch = { status: "cancelled" };
 
     // Date filtering: vendor bookings use pickupDate, non-vendor use createdAt
     const dateFilter = {};
@@ -630,9 +624,8 @@ router.get("/sales/report", adminAuth, async (req, res) => {
     }
 
     if (serviceType && serviceType !== "all") {
-      const serviceRegex = new RegExp(`^${escapeRegex(serviceType.trim())}$`, "i");
-      match.serviceType = serviceRegex;
-      cancelledMatch.serviceType = serviceRegex;
+      match.serviceType = serviceType;
+      cancelledMatch.serviceType = serviceType;
     }
 
     if (paymentStatus && paymentStatus !== "all") {
@@ -716,10 +709,12 @@ router.get("/sales/report", adminAuth, async (req, res) => {
           onlineAmount: {
             $sum: {
               $cond: [
-                { $and: [
-                  { $eq: ["$paymentStatus", "paid"] },
-                  { $in: ["$paymentMethod", ["online", "Online"]] }
-                ]},
+                {
+                  $and: [
+                    { $eq: ["$paymentStatus", "paid"] },
+                    { $in: ["$paymentMethod", ["online", "Online"]] }
+                  ]
+                },
                 { $convert: { input: "$pricing.totalAmount", to: "double", onError: 0, onNull: 0 } }, 0
               ]
             }
@@ -755,7 +750,7 @@ router.get("/sales/report", adminAuth, async (req, res) => {
       { $match: match },
       {
         $group: {
-          _id: { $toLower: { $ifNull: ["$serviceType", "unknown"] } },
+          _id: "$serviceType",
           totalBookings: { $sum: 1 },
           totalRevenue: {
             $sum: { $convert: { input: "$pricing.totalAmount", to: "double", onError: 0, onNull: 0 } }
@@ -828,11 +823,7 @@ router.get("/", authMiddleware, async (req, res) => {
     }
 
     if (status && status !== "all") {
-      if (status === "active") {
-        query.status = { $not: /^\s*cancelled\s*$/i };
-      } else {
-        query.status = new RegExp(`^\\s*${escapeRegex(status.trim())}\\s*$`, "i");
-      }
+      query.status = status;
     }
 
     if (serviceType && serviceType !== "all") {
@@ -868,7 +859,7 @@ router.get("/", authMiddleware, async (req, res) => {
           courierName: {
             $exists: true,
             $nin: [null, ""],
-            $not: /hirak|sanjay|dtdc|bluedart|delhivery|safe\s*express|safex|india\s*post|i[\s_-]*carry|icl|carry/i
+            $not: /hirak|sanjay|dtdc|bluedart|delhivery|safe\s*express|safex|india\s*post|i\s*carry|icl/i
           }
         });
       } else {
@@ -876,8 +867,7 @@ router.get("/", authMiddleware, async (req, res) => {
         query.$and.push({
           $or: [
             { courierName: courierRegex },
-            { vendorName: courierRegex },
-            { partnerName: courierRegex }
+            { vendorName: courierRegex }
           ]
         });
       }
@@ -1303,12 +1293,12 @@ router.get("/", authMiddleware, async (req, res) => {
     const createdByIds = [...new Set(bookingsRaw.map(b => b.createdBy).filter(Boolean))];
     const agentIds = [...new Set(bookingsRaw.map(b => b.agentId).filter(Boolean))];
     const allUserIds = [...new Set([...createdByIds, ...agentIds])];
-    
+
     const [users, admins] = await Promise.all([
       User.find({ _id: { $in: allUserIds } }, "name username role").lean(),
       Admin.find({ _id: { $in: createdByIds } }, "username").lean()
     ]);
-    
+
     const creatorMap = {};
     users.forEach(u => creatorMap[u._id.toString()] = { name: u.name, username: u.username, role: u.role });
     admins.forEach(a => creatorMap[a._id.toString()] = { name: a.username, username: a.username, role: 'admin' });
@@ -1328,13 +1318,13 @@ router.get("/", authMiddleware, async (req, res) => {
       }
 
       // Check if this booking came from E-Docket / Agent Intake
-      const isFromIntake = b.bookingSource === 'Agent' || 
-                           b.bookingSource === 'E-Docket' || 
-                           Boolean(b.bookedByAgent) || 
-                           Boolean(b.agentUsername) || 
-                           Boolean(b.seededBy) || 
-                           Boolean(b.notes && b.notes.toLowerCase().includes('intake')) ||
-                           Boolean(b.notes && b.notes.toLowerCase().includes('e-docket'));
+      const isFromIntake = b.bookingSource === 'Agent' ||
+        b.bookingSource === 'E-Docket' ||
+        Boolean(b.bookedByAgent) ||
+        Boolean(b.agentUsername) ||
+        Boolean(b.seededBy) ||
+        Boolean(b.notes && b.notes.toLowerCase().includes('intake')) ||
+        Boolean(b.notes && b.notes.toLowerCase().includes('e-docket'));
 
       let bookedByAgent = b.bookedByAgent || b.agentUsername || null;
       let agentUsername = b.agentUsername || b.bookedByAgent || null;
@@ -1355,8 +1345,8 @@ router.get("/", authMiddleware, async (req, res) => {
         return !desc.includes("seed") && !desc.includes("sync to main") && !desc.includes("verified and seeded") && !desc.includes("booking verified by");
       });
 
-      let updatedBooking = { 
-        ...b, 
+      let updatedBooking = {
+        ...b,
         trackingHistory: cleanTrackingHistory,
         createdBy,
         bookingSource: isFromIntake ? (b.bookingSource || "Agent") : (b.bookingSource || "admin"),
@@ -1414,20 +1404,14 @@ router.get("/export", adminAuth, async (req, res) => {
   try {
     const { status, serviceType, search, startDate, endDate, vendorNotAssigned, vendorFilter, courierFilter, partnerFilter, officeId, createdBy, paymentStatus } = req.query;
     const query = {};
-
+ 
     if (createdBy && createdBy !== "all") {
       query.createdBy = createdBy;
     }
 
-    if (status && status !== "all") {
-      if (status === "active") {
-        query.status = { $not: /^\s*cancelled\s*$/i };
-      } else {
-        query.status = new RegExp(`^\\s*${escapeRegex(status.trim())}\\s*$`, "i");
-      }
-    }
+    if (status && status !== "all") query.status = status;
     if (serviceType && serviceType !== "all") query.serviceType = serviceType;
-    
+
     if (req.admin && req.admin.officeId) {
       query.officeId = req.admin.officeId;
     } else if (officeId && officeId !== "all") {
@@ -1437,7 +1421,7 @@ router.get("/export", adminAuth, async (req, res) => {
         query.officeId = officeId;
       }
     }
-    
+
     const courierFilterVal = courierFilter || vendorFilter;
     if (courierFilterVal && courierFilterVal !== "all") {
       query.$and = query.$and || [];
@@ -1454,7 +1438,7 @@ router.get("/export", adminAuth, async (req, res) => {
           courierName: {
             $exists: true,
             $nin: [null, ""],
-            $not: /hirak|sanjay|dtdc|bluedart|delhivery|safe\s*express|safex|india\s*post|i[\s_-]*carry|icl|carry/i
+            $not: /hirak|sanjay|dtdc|bluedart|delhivery|safe\s*express|safex|india\s*post|i\s*carry|icl/i
           }
         });
       } else {
@@ -1462,8 +1446,7 @@ router.get("/export", adminAuth, async (req, res) => {
         query.$and.push({
           $or: [
             { courierName: courierRegex },
-            { vendorName: courierRegex },
-            { partnerName: courierRegex }
+            { vendorName: courierRegex }
           ]
         });
       }
@@ -1633,7 +1616,7 @@ router.put("/bulk/status", adminAuth, async (req, res) => {
 
     await Booking.updateMany(
       { _id: { $in: bookingIds } },
-      { 
+      {
         $set: { status: finalStatus },
         $push: { trackingHistory: { $each: trackEntries } }
       }
@@ -1675,7 +1658,7 @@ router.put("/bulk/assign", adminAuth, async (req, res) => {
     if (!rider) return res.status(404).json({ message: "Rider not found" });
 
     const updateObj = {
-      $set: { 
+      $set: {
         assignedRider: riderId,
         assignedFor: assignedFor || "pickup"
       },
@@ -1742,22 +1725,36 @@ router.put(["/bulk/assign-vendor", "/bulk/assign-partner"], adminAuth, async (re
       let chargeable = Math.ceil(weight);
       if (chargeable < 1) chargeable = 1;
 
-      const totalAmount = chargeable * pricePerKg;
+      let updateDoc = {
+        partnerId: targetPartnerId,
+        partnerName: targetPartnerName,
+        vendorId: targetPartnerId,
+        vendorName: targetPartnerName,
+        isVendorBooking: true,
+        "packageDetails.chargeableWeight": chargeable,
+        "packageDetails.chargeableWeightUnit": "kg"
+      };
+
+      if (pricePerKg > 0) {
+        updateDoc["pricing.totalAmount"] = Math.round(chargeable * pricePerKg * 100) / 100;
+      } else {
+        // If partner doesn't have a special per-kg rate, preserve or calculate proper totalAmount
+        const currentTotal = Number(booking.pricing?.totalAmount) || 0;
+        if (currentTotal <= 0) {
+          const base = Number(booking.pricing?.basePrice) || 0;
+          const pkg = Number(booking.pricing?.packagingCharge) || 0;
+          const tax = Number(booking.pricing?.tax) || 0;
+          const disc = Number(booking.pricing?.discount || booking.couponDiscount) || 0;
+          const computed = Math.round((base + pkg + tax - disc) * 100) / 100;
+          if (computed > 0) {
+            updateDoc["pricing.totalAmount"] = computed;
+          }
+        }
+      }
 
       await Booking.updateOne(
         { _id: booking._id },
-        { 
-          $set: { 
-            partnerId: targetPartnerId,
-            partnerName: targetPartnerName,
-            vendorId: targetPartnerId, 
-            vendorName: targetPartnerName, 
-            isVendorBooking: true,
-            "pricing.totalAmount": totalAmount,
-            "packageDetails.chargeableWeight": chargeable,
-            "packageDetails.chargeableWeightUnit": "kg"
-          }
-        }
+        { $set: updateDoc }
       );
     }
 
@@ -1790,11 +1787,11 @@ router.put("/bulk/assign-docket", adminAuth, async (req, res) => {
     // Update all bookings
     await Booking.updateMany(
       { _id: { $in: bookingIds } },
-      { 
-        $set: { 
-          vendorTrackingId, 
-          vendorName, 
-          courierName: vendorName 
+      {
+        $set: {
+          vendorTrackingId,
+          vendorName,
+          courierName: vendorName
         },
         $push: {
           trackingHistory: {
@@ -1814,11 +1811,11 @@ router.put("/bulk/assign-docket", adminAuth, async (req, res) => {
     // Sync with Docket Inventory
     await DocketInventory.findOneAndUpdate(
       { docketId: vendorTrackingId.toString().trim() },
-      { 
+      {
         $set: { status: "used", usedAt: new Date() },
-        $addToSet: { 
+        $addToSet: {
           usedBy: { $each: ObjectIds },
-          epId: { $each: epIds } 
+          epId: { $each: epIds }
         }
       }
     );
@@ -1918,7 +1915,7 @@ router.get("/tasks/tomorrow-count", authMiddleware, async (req, res) => {
   try {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    
+
     // Format to start/end of day for accurate comparison
     const startOfTomorrow = new Date(tomorrow);
     startOfTomorrow.setHours(0, 0, 0, 0);
@@ -1979,7 +1976,7 @@ router.get("/stats/recent-rider-activity", authMiddleware, async (req, res) => {
 router.get("/:id", authMiddleware, async (req, res) => {
   try {
     let query = {};
-    
+
     // Check if ID is a valid MongoDB ObjectId
     if (mongoose.Types.ObjectId.isValid(req.params.id)) {
       query = { _id: req.params.id };
@@ -2000,7 +1997,7 @@ router.get("/:id", authMiddleware, async (req, res) => {
       .populate('agentId', 'name username role')
       .populate('seededBy', 'name username')
       .populate('verifiedBy', 'name username');
-      
+
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
     }
@@ -2021,8 +2018,8 @@ router.get("/:id", authMiddleware, async (req, res) => {
  * ------------------------ */
 router.get("/:id/receipt", authMiddleware, async (req, res) => {
   try {
-    const query = mongoose.Types.ObjectId.isValid(req.params.id) 
-      ? { _id: req.params.id } 
+    const query = mongoose.Types.ObjectId.isValid(req.params.id)
+      ? { _id: req.params.id }
       : { bookingId: req.params.id };
 
     const booking = await Booking.findOne(query).lean();
@@ -2086,24 +2083,24 @@ router.put("/:id", authMiddleware, async (req, res) => {
     const idParam = req.params.id ? req.params.id.toString().trim() : "";
     const isObjectId = mongoose.Types.ObjectId.isValid(idParam) && idParam.length === 24;
 
-    const query = isObjectId 
-      ? { 
-          $or: [
-            { _id: idParam }, 
-            { bookingId: idParam },
-            { bookingId: new RegExp(`^${idParam}$`, 'i') },
-            { trackingId: idParam },
-            { vendorTrackingId: idParam }
-          ] 
-        }
-      : { 
-          $or: [
-            { bookingId: idParam },
-            { bookingId: new RegExp(`^${idParam}$`, 'i') },
-            { trackingId: idParam },
-            { vendorTrackingId: idParam }
-          ] 
-        };
+    const query = isObjectId
+      ? {
+        $or: [
+          { _id: idParam },
+          { bookingId: idParam },
+          { bookingId: new RegExp(`^${idParam}$`, 'i') },
+          { trackingId: idParam },
+          { vendorTrackingId: idParam }
+        ]
+      }
+      : {
+        $or: [
+          { bookingId: idParam },
+          { bookingId: new RegExp(`^${idParam}$`, 'i') },
+          { trackingId: idParam },
+          { vendorTrackingId: idParam }
+        ]
+      };
 
     // Helper to flatten nested objects (like packageDetails) to prevent 
     // Mongoose validation errors on missing required sub-document fields
@@ -2139,7 +2136,7 @@ router.put("/:id", authMiddleware, async (req, res) => {
     delete cleanBody.vendorPaymentHistory;
 
     const idFields = ['assignedRider', 'pickupRider', 'deliveryRider', 'userId', 'salesAgent', 'handlingAgent', 'packagingAgent', 'trackingAgent'];
-    
+
     idFields.forEach(field => {
       if (cleanBody.hasOwnProperty(field)) {
         const val = cleanBody[field];
@@ -2175,18 +2172,35 @@ router.put("/:id", authMiddleware, async (req, res) => {
       return res.status(404).json({ message: "Booking not found" });
     }
 
+    // Ensure pricing.totalAmount is properly computed if basePrice exists and totalAmount is 0/missing
+    const bBasePrice = updateData['pricing.basePrice'] !== undefined 
+      ? Number(updateData['pricing.basePrice']) 
+      : Number(currentBooking.pricing?.basePrice || 0);
+
+    if (bBasePrice > 0) {
+      const bPkg = updateData['pricing.packagingCharge'] !== undefined ? Number(updateData['pricing.packagingCharge']) : Number(currentBooking.pricing?.packagingCharge || 0);
+      const bTax = updateData['pricing.tax'] !== undefined ? Number(updateData['pricing.tax']) : Number(currentBooking.pricing?.tax || 0);
+      const bDisc = updateData['pricing.discount'] !== undefined ? Number(updateData['pricing.discount']) : Number(currentBooking.pricing?.discount || currentBooking.couponDiscount || 0);
+      
+      const reqTotal = updateData['pricing.totalAmount'] !== undefined ? Number(updateData['pricing.totalAmount']) : Number(currentBooking.pricing?.totalAmount || 0);
+      
+      if (!reqTotal || reqTotal <= 0) {
+        updateData['pricing.totalAmount'] = Math.round((bBasePrice + bPkg + bTax - bDisc) * 100) / 100;
+      }
+    }
+
     // Vendor tracking validation
     const isVendor = (updateData.isVendorBooking !== undefined) ? Boolean(updateData.isVendorBooking) : Boolean(currentBooking.isVendorBooking);
 
     // ✅ Validate if vendorTrackingId (Docket ID) is already in use
     if (updateData.vendorTrackingId) {
       const trackingId = updateData.vendorTrackingId.toString().trim();
-      
+
       if (currentBooking.vendorTrackingId !== trackingId) {
         // Check if another booking is using it
-        const otherBooking = await Booking.findOne({ 
-          vendorTrackingId: trackingId, 
-          _id: { $ne: currentBooking._id } 
+        const otherBooking = await Booking.findOne({
+          vendorTrackingId: trackingId,
+          _id: { $ne: currentBooking._id }
         });
 
         if (otherBooking) {
@@ -2208,9 +2222,9 @@ router.put("/:id", authMiddleware, async (req, res) => {
     const roleFields = ['salesAgent', 'handlingAgent', 'packagingAgent', 'trackingAgent'];
     const activeUser = req.admin || req.user;
     let pushUpdates = {};
-    
+
     const isRoleUpdate = roleFields.some(field => updateData[field] !== undefined && updateData[field] !== (currentBooking[field] ? currentBooking[field].toString() : null));
-    
+
     if (isRoleUpdate) {
       const isAdmin = req.admin || (req.user && (req.user.role === 'admin' || req.user.role === 'main_admin' || req.user.role === 'office_admin'));
       const isStaffOrAgent = req.user && ['staff', 'agent'].includes(req.user.role);
@@ -2222,7 +2236,7 @@ router.put("/:id", authMiddleware, async (req, res) => {
         (currentBooking.bookedByAgent && activeUser.name && currentBooking.bookedByAgent.trim().toLowerCase() === activeUser.name.trim().toLowerCase()) ||
         (currentBooking.agentUsername && activeUser.username && currentBooking.agentUsername.trim().toLowerCase() === activeUser.username.trim().toLowerCase())
       );
-      
+
       if (!isAdmin && !isCreator && !isStaffOrAgent) {
         return res.status(403).json({ message: "You are not authorized to edit internal roles for this booking." });
       }
@@ -2270,8 +2284,8 @@ router.put("/:id", authMiddleware, async (req, res) => {
     }
 
     const booking = await Booking.findOneAndUpdate(
-      query, 
-      updateQuery, 
+      query,
+      updateQuery,
       { new: true }
     );
 
@@ -2284,7 +2298,7 @@ router.put("/:id", authMiddleware, async (req, res) => {
       try {
         await DocketInventory.findOneAndUpdate(
           { docketId: req.body.vendorTrackingId.toString().trim() },
-          { 
+          {
             $set: { status: "used", usedAt: new Date() },
             $addToSet: { usedBy: booking._id, epId: booking.bookingId }
           }
@@ -2318,24 +2332,24 @@ router.put("/:id/internal-roles", authMiddleware, async (req, res) => {
     const idParam = req.params.id ? req.params.id.toString().trim() : "";
     const isObjectId = mongoose.Types.ObjectId.isValid(idParam) && idParam.length === 24;
 
-    const query = isObjectId 
-      ? { 
-          $or: [
-            { _id: idParam }, 
-            { bookingId: idParam },
-            { bookingId: new RegExp(`^${idParam}$`, 'i') },
-            { trackingId: idParam },
-            { vendorTrackingId: idParam }
-          ] 
-        }
-      : { 
-          $or: [
-            { bookingId: idParam },
-            { bookingId: new RegExp(`^${idParam}$`, 'i') },
-            { trackingId: idParam },
-            { vendorTrackingId: idParam }
-          ] 
-        };
+    const query = isObjectId
+      ? {
+        $or: [
+          { _id: idParam },
+          { bookingId: idParam },
+          { bookingId: new RegExp(`^${idParam}$`, 'i') },
+          { trackingId: idParam },
+          { vendorTrackingId: idParam }
+        ]
+      }
+      : {
+        $or: [
+          { bookingId: idParam },
+          { bookingId: new RegExp(`^${idParam}$`, 'i') },
+          { trackingId: idParam },
+          { vendorTrackingId: idParam }
+        ]
+      };
 
     const booking = await Booking.findOne(query);
     if (!booking) {
@@ -2356,8 +2370,8 @@ router.put("/:id/internal-roles", authMiddleware, async (req, res) => {
     );
 
     if (!isAdmin && !isCreator && !isStaffOrAgent) {
-      return res.status(403).json({ 
-        message: "You are not authorized to edit internal roles." 
+      return res.status(403).json({
+        message: "You are not authorized to edit internal roles."
       });
     }
 
@@ -2423,10 +2437,10 @@ router.put("/:id/internal-roles", authMiddleware, async (req, res) => {
       .populate('seededBy', 'name username')
       .populate('verifiedBy', 'name username');
 
-    res.json({ 
-      success: true, 
-      message: "Internal roles updated successfully", 
-      booking: updatedBooking 
+    res.json({
+      success: true,
+      message: "Internal roles updated successfully",
+      booking: updatedBooking
     });
   } catch (error) {
     console.error("Error updating internal roles:", error);
@@ -2439,8 +2453,8 @@ router.put("/:id/internal-roles", authMiddleware, async (req, res) => {
  * ------------------------ */
 router.delete("/:id", authMiddleware, async (req, res) => {
   try {
-    const query = mongoose.Types.ObjectId.isValid(req.params.id) 
-      ? { _id: req.params.id } 
+    const query = mongoose.Types.ObjectId.isValid(req.params.id)
+      ? { _id: req.params.id }
       : { bookingId: req.params.id };
 
     const booking = await Booking.findOneAndDelete(query);
@@ -2462,8 +2476,8 @@ router.delete("/:id", authMiddleware, async (req, res) => {
 // ✅ Use this endpoint for tracking history updates
 router.put("/:id/tracking", authMiddleware, async (req, res) => {
   try {
-    const query = mongoose.Types.ObjectId.isValid(req.params.id) 
-      ? { _id: req.params.id } 
+    const query = mongoose.Types.ObjectId.isValid(req.params.id)
+      ? { _id: req.params.id }
       : { bookingId: req.params.id };
 
     const { status, location, description, timestamp } = req.body;
@@ -2524,8 +2538,8 @@ router.put("/:id/tracking", authMiddleware, async (req, res) => {
  * ------------------------ */
 router.post("/:id/payment-link", authMiddleware, async (req, res) => {
   try {
-    const query = mongoose.Types.ObjectId.isValid(req.params.id) 
-      ? { _id: req.params.id } 
+    const query = mongoose.Types.ObjectId.isValid(req.params.id)
+      ? { _id: req.params.id }
       : { bookingId: req.params.id };
 
     const booking = await Booking.findOne(query);
@@ -2556,7 +2570,7 @@ router.post("/:id/payment-link", authMiddleware, async (req, res) => {
       await Booking.findOneAndUpdate(query, { $set: { paymentLink: paymentLink.short_url } }, { runValidators: false });
       return res.json({ paymentLink: paymentLink.short_url });
     }
-    
+
     res.status(500).json({ message: "Failed to receive link from Razorpay" });
   } catch (error) {
     console.error("Razorpay Link Error:", error);
@@ -2570,8 +2584,8 @@ router.post("/:id/payment-link", authMiddleware, async (req, res) => {
 router.put("/:id/tracking/:trackingId", authMiddleware, async (req, res) => {
   try {
     const { status, location, description, timestamp } = req.body;
-    const query = mongoose.Types.ObjectId.isValid(req.params.id) 
-      ? { _id: req.params.id } 
+    const query = mongoose.Types.ObjectId.isValid(req.params.id)
+      ? { _id: req.params.id }
       : { bookingId: req.params.id };
 
     const booking = await Booking.findOne(query);
@@ -2594,7 +2608,7 @@ router.put("/:id/tracking/:trackingId", authMiddleware, async (req, res) => {
     const updated = await Booking.findOneAndUpdate(
       query,
       {
-        $set: { 
+        $set: {
           status: (trackIndex === booking.trackingHistory.length - 1 && status) ? status : booking.status,
           currentLocation: (trackIndex === booking.trackingHistory.length - 1 && location) ? location : booking.currentLocation,
           trackingHistory: booking.trackingHistory
@@ -2614,8 +2628,8 @@ router.put("/:id/tracking/:trackingId", authMiddleware, async (req, res) => {
  * ------------------------ */
 router.delete("/:id/tracking/:trackingId", authMiddleware, async (req, res) => {
   try {
-    const query = mongoose.Types.ObjectId.isValid(req.params.id) 
-      ? { _id: req.params.id } 
+    const query = mongoose.Types.ObjectId.isValid(req.params.id)
+      ? { _id: req.params.id }
       : { bookingId: req.params.id };
 
     const updated = await Booking.findOneAndUpdate(
@@ -2650,7 +2664,7 @@ router.put("/:id/assign", adminAuth, async (req, res) => {
     }
 
     const updateObj = {
-      $set: { 
+      $set: {
         assignedRider: riderId || null,
         assignedFor: assignedFor || "pickup"
       }
@@ -2670,7 +2684,7 @@ router.put("/:id/assign", adminAuth, async (req, res) => {
       const rider = await User.findById(riderId);
       if (rider) {
         // Check if there's already an assignment entry for this specific purpose in the tracking history
-        const alreadyAssigned = booking.trackingHistory.some(entry => 
+        const alreadyAssigned = booking.trackingHistory.some(entry =>
           entry.description && entry.description.includes(`assigned for ${assignedFor || "pickup"}`)
         );
 
@@ -2692,8 +2706,8 @@ router.put("/:id/assign", adminAuth, async (req, res) => {
       updateObj,
       { new: true, runValidators: false }
     ).populate('assignedRider', 'name phone')
-     .populate('pickupRider', 'name phone')
-     .populate('deliveryRider', 'name phone');
+      .populate('pickupRider', 'name phone')
+      .populate('deliveryRider', 'name phone');
     res.json(updated);
   } catch (error) {
     console.error("Error assigning rider:", error);
@@ -2753,7 +2767,7 @@ router.put("/:id/reschedule-campus", adminAuth, async (req, res) => {
 
     const typeLabel = rescheduleType === "pickup" ? "Box Pickup" : "Box Delivery";
     const sourceLabel = source === "admin" ? "Admin/Internal Reasons" : "Customer Request";
-    
+
     const trackingUpdate = {
       status: booking.status,
       location: booking.currentLocation || "Hub",
@@ -2860,7 +2874,7 @@ router.put("/:id/cancel", authMiddleware, async (req, res) => {
 
     const updated = await Booking.findByIdAndUpdate(
       req.params.id,
-      { 
+      {
         $set: { status: "cancelled" },
         $push: { trackingHistory: statusEntry }
       },
@@ -2944,11 +2958,11 @@ router.get("/tasks/tomorrow-count", adminAuth, async (req, res) => {
   try {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     // Tomorrow start: today + 1 day
     const tomorrowStart = new Date(today);
     tomorrowStart.setDate(tomorrowStart.getDate() + 1);
-    
+
     // Day after tomorrow start: today + 2 days
     const tomorrowEnd = new Date(today);
     tomorrowEnd.setDate(tomorrowEnd.getDate() + 2);
@@ -2958,11 +2972,11 @@ router.get("/tasks/tomorrow-count", adminAuth, async (req, res) => {
     const count = await Booking.countDocuments({
       serviceType: "campus-parcel",
       $or: [
-        { 
+        {
           pickupDate: { $gte: tomorrowStart, $lt: tomorrowEnd },
           status: { $nin: ['picked', 'in-transit', 'out-for-delivery', 'delivered', 'cancelled'] }
         },
-        { 
+        {
           boxDeliveryDate: { $gte: tomorrowStart, $lt: tomorrowEnd },
           isBoxDelivered: { $ne: true }
         }
@@ -2972,9 +2986,9 @@ router.get("/tasks/tomorrow-count", adminAuth, async (req, res) => {
     res.json({ count: count || 0 });
   } catch (error) {
     console.error("Error in /tasks/tomorrow-count:", error);
-    res.status(500).json({ 
+    res.status(500).json({
       message: "Server error fetching task count",
-      error: error.message 
+      error: error.message
     });
   }
 });
@@ -3025,25 +3039,25 @@ router.get("/tasks/tomorrow", adminAuth, async (req, res) => {
       .populate('deliveryRider', 'name phone');
 
     // Categorize
-    const boxPickups = bookings.filter(b => 
-      b.pickupDate && 
-      new Date(b.pickupDate) >= targetStart && 
+    const boxPickups = bookings.filter(b =>
+      b.pickupDate &&
+      new Date(b.pickupDate) >= targetStart &&
       new Date(b.pickupDate) < targetEnd
     );
 
-    const boxDeliveries = bookings.filter(b => 
-      b.boxDeliveryDate && 
-      new Date(b.boxDeliveryDate) >= targetStart && 
+    const boxDeliveries = bookings.filter(b =>
+      b.boxDeliveryDate &&
+      new Date(b.boxDeliveryDate) >= targetStart &&
       new Date(b.boxDeliveryDate) < targetEnd
     );
 
-    res.json({ 
-      boxPickups: boxPickups || [], 
-      boxDeliveries: boxDeliveries || [] 
+    res.json({
+      boxPickups: boxPickups || [],
+      boxDeliveries: boxDeliveries || []
     });
   } catch (error) {
     console.error("Error in /tasks/tomorrow:", error);
-    res.status(500).json({ 
+    res.status(500).json({
       message: "Server error fetching tasks",
       error: error.message
     });
@@ -3070,7 +3084,7 @@ router.put("/:id/tasks/complete", adminAuth, async (req, res) => {
     const updated = await Booking.findByIdAndUpdate(
       req.params.id,
       {
-        $set: { 
+        $set: {
           status: (type === 'pickup' ? 'picked' : booking.status),
           isBoxDelivered: (type === 'delivery' ? true : booking.isBoxDelivered)
         },
@@ -3127,12 +3141,12 @@ router.put("/:id/unassign-docket", authMiddleware, async (req, res) => {
     if (!booking) return res.status(404).json({ message: "Booking not found" });
 
     const docketIdToUnassign = booking.vendorTrackingId;
-    
+
     if (docketIdToUnassign) {
       // 1. Release the docket in DocketInventory
       await DocketInventory.findOneAndUpdate(
         { docketId: docketIdToUnassign.toString().trim() },
-        { 
+        {
           $set: { status: "available" },
           $unset: { usedAt: "" },
           $pull: { usedBy: booking._id, epId: booking.bookingId }
@@ -3143,7 +3157,7 @@ router.put("/:id/unassign-docket", authMiddleware, async (req, res) => {
     // 2. Clear from booking
     const updated = await Booking.findByIdAndUpdate(
       req.params.id,
-      { 
+      {
         $set: { vendorTrackingId: "" }
       },
       { new: true, runValidators: false }
@@ -3165,11 +3179,11 @@ router.put("/:id/payment-status", authMiddleware, uploadPaymentProof.single("pay
     if (!booking) return res.status(404).json({ message: "Booking not found" });
 
     const updateData = { paymentStatus };
-    
+
     if (amountReceived !== undefined) {
       updateData.amountReceived = Number(amountReceived);
     }
-    
+
     if (req.file) {
       updateData.paymentProof = `/uploads/payments/${req.file.filename}`;
     }

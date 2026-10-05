@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react"
 import { Link, useSearchParams } from "react-router-dom"
 import axios from "axios"
 import toast from "react-hot-toast"
-import { Search, Filter, Eye, FileText, Calendar, XCircle, Tag, RotateCcw, FileDown, CheckCircle2, UserPlus, Trash2, Plus, ArrowRight, IndianRupee, Clock, Wallet, Truck, AlertTriangle, AlertCircle } from "lucide-react"
+import { Search, Filter, Eye, FileText, Calendar, XCircle, X, Tag, RotateCcw, FileDown, CheckCircle2, UserPlus, Trash2, Plus, ArrowRight, IndianRupee, Clock, Wallet, Truck, AlertTriangle, AlertCircle } from "lucide-react"
 import * as XLSX from "xlsx"
 import { useAuth } from "../contexts/AuthContext"
 
@@ -901,22 +901,44 @@ const Bookings = () => {
       </div>
 
       {/* Filters Section */}
-      <div className="bg-white dark:bg-[#111111] rounded-lg shadow border border-transparent dark:border-white/10 p-6 mb-6 transition-colors">
-        <div className="flex flex-col sm:flex-row gap-4 mb-4">
-          <form onSubmit={handleSearch} className="flex-1">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+      <div className="bg-white dark:bg-[#111111] rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 p-5 md:p-6 mb-6 transition-colors">
+        {/* Search Bar Row */}
+        <div className="mb-4">
+          <form onSubmit={handleSearch} className="w-full">
+            <div className="relative flex items-center">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5 pointer-events-none" />
               <input
                 type="text"
-                placeholder="Search by Booking ID, Track ID, Sender/Receiver..."
+                placeholder="Search by Booking ID, Track ID, Sender/Receiver Name, Phone, City..."
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-white/10 bg-white dark:bg-[#1A1A1A] dark:text-white rounded-lg focus:ring-2 focus:ring-primary-500 placeholder-gray-400 dark:placeholder-gray-500 transition-colors"
+                className="w-full pl-11 pr-24 py-2.5 bg-gray-50/70 dark:bg-[#1A1A1A] border border-gray-200 dark:border-white/10 text-gray-900 dark:text-white rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 placeholder-gray-400 dark:placeholder-gray-500 text-sm font-medium transition-all outline-none"
               />
+              {searchInput && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchInput("")
+                    setCurrentPage(1)
+                  }}
+                  className="absolute right-20 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1 transition-colors"
+                  title="Clear search"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+              <button
+                type="submit"
+                className="absolute right-2 top-1/2 -translate-y-1/2 px-3.5 py-1.5 bg-primary-600 hover:bg-primary-700 active:scale-95 text-white rounded-lg text-xs font-bold shadow-sm transition-all flex items-center gap-1.5"
+              >
+                <span>Search</span>
+              </button>
             </div>
           </form>
-          
-          <div className="flex flex-wrap gap-2">
+        </div>
+        
+        {/* Dropdown Filters Row */}
+        <div className="flex flex-wrap items-center gap-2 mb-4">
             <select
               value={serviceFilter}
               onChange={(e) => {
@@ -1077,7 +1099,6 @@ const Bookings = () => {
               Reset
             </button>
           </div>
-        </div>
 
         <div className="flex flex-wrap items-center gap-4 pt-4 border-t border-gray-100 dark:border-white/10">
           <div className="flex items-center gap-2 font-medium text-gray-500 dark:text-gray-400">
@@ -1551,7 +1572,18 @@ const Bookings = () => {
                         })()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white">
-                        ₹{booking.pricing?.totalAmount || 0}
+                        ₹{(() => {
+                          const amt = Number(booking.pricing?.totalAmount);
+                          if (amt > 0) return amt;
+                          const base = Number(booking.pricing?.basePrice) || 0;
+                          if (base > 0) {
+                            const tax = Number(booking.pricing?.tax) || 0;
+                            const pkg = Number(booking.pricing?.packagingCharge) || 0;
+                            const disc = Number(booking.pricing?.discount || booking.couponDiscount) || 0;
+                            return Math.round((base + tax + pkg - disc) * 100) / 100;
+                          }
+                          return 0;
+                        })()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-900 dark:text-white">
                         {booking.packageDetails?.chargeableWeight || booking.packageDetails?.weight || booking.weight || 0} {booking.packageDetails?.chargeableWeightUnit || booking.packageDetails?.weightUnit || booking.weightUnit || 'kg'}
