@@ -36,23 +36,44 @@ const BookingDetail = () => {
 
   // Direct Shipment Costs State
   const [costModalOpen, setCostModalOpen] = useState(false)
+  const [costPreset, setCostPreset] = useState("all") // "all", "courier", "shifting"
+  const [cardGstMode, setCardGstMode] = useState("with_gst") // "with_gst", "without_gst"
   const [costFormData, setCostFormData] = useState({
     courierCost: "",
     packagingCost: "",
     riderCost: "",
+    labourCost: "",
+    labourCount: "",
+    labourRatePerPerson: "",
+    labourRemarks: "",
+    commissionAmount: "",
+    commissionPayee: "",
     otherCost: "",
+    taxCalculationMode: "with_gst",
     notes: ""
   })
   const [savingCost, setSavingCost] = useState(false)
 
   const handleOpenCostModal = () => {
+    const savedMode = booking?.expenses?.taxCalculationMode || "with_gst"
     setCostFormData({
-      courierCost: booking?.expenses?.courierCost || "",
-      packagingCost: booking?.expenses?.packagingCost || "",
-      riderCost: booking?.expenses?.riderCost || "",
-      otherCost: booking?.expenses?.otherCost || "",
-      notes: booking?.expenses?.notes || ""
+      courierCost: booking?.expenses?.courierCost ?? "",
+      packagingCost: booking?.expenses?.packagingCost ?? "",
+      riderCost: booking?.expenses?.riderCost ?? "",
+      labourCost: booking?.expenses?.labourCost ?? "",
+      labourCount: booking?.expenses?.labourCount ?? "",
+      labourRatePerPerson: booking?.expenses?.labourRatePerPerson ?? "",
+      labourRemarks: booking?.expenses?.labourRemarks ?? "",
+      commissionAmount: booking?.expenses?.commissionAmount ?? "",
+      commissionPayee: booking?.expenses?.commissionPayee ?? "",
+      otherCost: booking?.expenses?.otherCost ?? "",
+      taxCalculationMode: savedMode,
+      notes: booking?.expenses?.notes ?? ""
     })
+    setCostPreset(
+      (booking?.expenses?.labourCost > 0 || booking?.expenses?.commissionAmount > 0) ? "shifting" :
+      (booking?.expenses?.courierCost > 0) ? "courier" : "all"
+    )
     setCostModalOpen(true)
   }
 
@@ -2333,29 +2354,63 @@ const BookingDetail = () => {
 
         {/* 💰 Shipment Cost & Profit Margin Card */}
         <div className="bg-white dark:bg-[#1A1A1A] rounded-lg shadow p-4 sm:p-6 mt-4 sm:mt-6 border-l-4 border-emerald-500">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
             <div className="flex items-center">
               <Wallet className="h-5 w-5 text-emerald-600 dark:text-emerald-400 mr-2" />
               <div>
-                <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white">
-                  Shipment Cost & Profit Margin
+                <h3 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <span>Shipment Cost & Profit Margin</span>
+                  {booking.expenses?.taxCalculationMode && (
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+                      Saved: {booking.expenses.taxCalculationMode === "without_gst" ? "Excl. GST" : "With GST"}
+                    </span>
+                  )}
                 </h3>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Direct courier freight, packaging, and net margin on this order
+                  Direct courier, packaging, rider, labour & commission costs with live margin
                 </p>
               </div>
             </div>
-            <button
-              onClick={handleOpenCostModal}
-              className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
-            >
-              <Edit2 className="w-3.5 h-3.5" />
-              <span>Edit Direct Costs</span>
-            </button>
+
+            <div className="flex items-center gap-2">
+              {/* With / Without GST Calculation Toggle */}
+              <div className="inline-flex items-center bg-gray-100 dark:bg-white/10 p-0.5 rounded-lg border border-gray-200 dark:border-white/10 text-[11px] font-bold">
+                <button
+                  type="button"
+                  onClick={() => setCardGstMode("with_gst")}
+                  className={`px-2.5 py-1 rounded-md transition-all ${
+                    cardGstMode === "with_gst"
+                      ? "bg-white dark:bg-emerald-600 text-gray-900 dark:text-white shadow-xs font-black"
+                      : "text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
+                  }`}
+                >
+                  With GST
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCardGstMode("without_gst")}
+                  className={`px-2.5 py-1 rounded-md transition-all ${
+                    cardGstMode === "without_gst"
+                      ? "bg-white dark:bg-emerald-600 text-gray-900 dark:text-white shadow-xs font-black"
+                      : "text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
+                  }`}
+                >
+                  Without GST
+                </button>
+              </div>
+
+              <button
+                onClick={handleOpenCostModal}
+                className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5"
+              >
+                <Edit2 className="w-3.5 h-3.5" />
+                <span>Edit Costs</span>
+              </button>
+            </div>
           </div>
 
           {(() => {
-            const revenue = Number(booking.pricing?.totalAmount || booking.totalAmount || 0) || (() => {
+            const grossBilled = Number(booking.pricing?.totalAmount || booking.totalAmount || 0) || (() => {
               const base = Number(booking.pricing?.basePrice) || 0;
               if (base > 0) {
                 const tax = Number(booking.pricing?.tax) || 0;
@@ -2365,44 +2420,106 @@ const BookingDetail = () => {
               }
               return 0;
             })();
+            const taxAmount = Number(booking.pricing?.tax || 0) || Math.round(grossBilled - (grossBilled / 1.18));
+            const netRevenue = Math.max(0, grossBilled - taxAmount);
+            const activeRevenue = cardGstMode === "without_gst" ? netRevenue : grossBilled;
+
             const courierCost = Number(booking.expenses?.courierCost || 0);
             const packagingCost = Number(booking.expenses?.packagingCost || 0);
             const riderCost = Number(booking.expenses?.riderCost || 0);
+            const labourCost = Number(booking.expenses?.labourCost || 0);
+            const commissionAmount = Number(booking.expenses?.commissionAmount || 0);
             const otherCost = Number(booking.expenses?.otherCost || 0);
-            const totalDirect = courierCost + packagingCost + riderCost + otherCost;
-            const netProfit = revenue - totalDirect;
-            const margin = revenue > 0 ? ((netProfit / revenue) * 100).toFixed(1) : 0;
+
+            const totalDirect = courierCost + packagingCost + riderCost + labourCost + commissionAmount + otherCost;
+            const netProfit = activeRevenue - totalDirect;
+            const margin = activeRevenue > 0 ? ((netProfit / activeRevenue) * 100).toFixed(1) : 0;
             const isProfit = netProfit >= 0;
 
             return (
               <div className="space-y-4 text-xs">
                 {/* Cost Breakdown Grid */}
-                <div className="grid grid-cols-2 gap-3 p-3 bg-gray-50 dark:bg-white/5 rounded-xl">
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 p-3.5 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-100 dark:border-white/5">
                   <div>
-                    <span className="text-gray-500 dark:text-gray-400 font-medium">Customer Billed:</span>
-                    <p className="font-bold text-sm text-gray-900 dark:text-white font-mono">
-                      ₹{revenue.toLocaleString("en-IN")}
+                    <span className="text-gray-500 dark:text-gray-400 font-medium block">
+                      {cardGstMode === "without_gst" ? "Net Rev (Excl. Tax):" : "Customer Billed:"}
+                    </span>
+                    <p className="font-bold text-sm text-gray-900 dark:text-white font-mono mt-0.5">
+                      ₹{activeRevenue.toLocaleString("en-IN")}
                     </p>
+                    <span className="text-[10px] text-gray-400 font-mono">
+                      {cardGstMode === "without_gst" ? `Gross: ₹${grossBilled}` : `Tax: ₹${taxAmount}`}
+                    </span>
                   </div>
+
                   <div>
-                    <span className="text-gray-500 dark:text-gray-400 font-medium">Carrier Freight (DTDC/3PL):</span>
-                    <p className="font-bold text-sm text-amber-600 dark:text-amber-400 font-mono">
+                    <span className="text-gray-500 dark:text-gray-400 font-medium block">Carrier Freight:</span>
+                    <p className="font-bold text-sm text-amber-600 dark:text-amber-400 font-mono mt-0.5">
                       ₹{courierCost.toLocaleString("en-IN")}
                     </p>
+                    <span className="text-[10px] text-gray-400">DTDC / 3PL</span>
                   </div>
+
                   <div>
-                    <span className="text-gray-500 dark:text-gray-400 font-medium">Packaging Material:</span>
-                    <p className="font-bold text-sm text-gray-700 dark:text-gray-300 font-mono">
+                    <span className="text-gray-500 dark:text-gray-400 font-medium block">Packaging:</span>
+                    <p className="font-bold text-sm text-gray-700 dark:text-gray-300 font-mono mt-0.5">
                       ₹{packagingCost.toLocaleString("en-IN")}
                     </p>
+                    <span className="text-[10px] text-gray-400">Boxes & material</span>
                   </div>
+
                   <div>
-                    <span className="text-gray-500 dark:text-gray-400 font-medium">Rider Payout / Fuel:</span>
-                    <p className="font-bold text-sm text-gray-700 dark:text-gray-300 font-mono">
+                    <span className="text-gray-500 dark:text-gray-400 font-medium block">Rider / Fuel:</span>
+                    <p className="font-bold text-sm text-gray-700 dark:text-gray-300 font-mono mt-0.5">
                       ₹{riderCost.toLocaleString("en-IN")}
                     </p>
+                    <span className="text-[10px] text-gray-400">Pickup & drop</span>
+                  </div>
+
+                  <div>
+                    <span className="text-gray-500 dark:text-gray-400 font-medium block">Labour Cost:</span>
+                    <p className="font-bold text-sm text-indigo-600 dark:text-indigo-400 font-mono mt-0.5">
+                      ₹{labourCost.toLocaleString("en-IN")}
+                    </p>
+                    <span className="text-[10px] text-gray-400 truncate block" title={booking.expenses?.labourRemarks || ""}>
+                      {booking.expenses?.labourCount ? `${booking.expenses.labourCount} lab` : "Loading / helper"}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-gray-500 dark:text-gray-400 font-medium block">Commission:</span>
+                    <p className="font-bold text-sm text-purple-600 dark:text-purple-400 font-mono mt-0.5">
+                      ₹{commissionAmount.toLocaleString("en-IN")}
+                    </p>
+                    <span className="text-[10px] text-gray-400 truncate block" title={booking.expenses?.commissionPayee || ""}>
+                      {booking.expenses?.commissionPayee || "Broker / referral"}
+                    </span>
                   </div>
                 </div>
+
+                {/* Shifting / Labour Details Pills if present */}
+                {(labourCost > 0 || commissionAmount > 0 || otherCost > 0) && (
+                  <div className="flex flex-wrap items-center gap-2 p-2.5 bg-blue-50/50 dark:bg-blue-950/20 rounded-lg border border-blue-100 dark:border-blue-900/30 text-[11px]">
+                    <span className="font-bold text-blue-700 dark:text-blue-300">Cost Details:</span>
+                    {labourCost > 0 && (
+                      <span className="px-2 py-0.5 rounded bg-white dark:bg-[#111] text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-white/10 font-mono">
+                        👷 {booking.expenses?.labourCount ? `${booking.expenses.labourCount} Labourers` : "Labour"}
+                        {booking.expenses?.labourRatePerPerson ? ` @ ₹${booking.expenses.labourRatePerPerson}/person` : ""}
+                        {booking.expenses?.labourRemarks ? ` (${booking.expenses.labourRemarks})` : ""}
+                      </span>
+                    )}
+                    {commissionAmount > 0 && (
+                      <span className="px-2 py-0.5 rounded bg-white dark:bg-[#111] text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800/40 font-mono">
+                        🤝 Commission: ₹{commissionAmount} {booking.expenses?.commissionPayee ? `to ${booking.expenses.commissionPayee}` : ""}
+                      </span>
+                    )}
+                    {otherCost > 0 && (
+                      <span className="px-2 py-0.5 rounded bg-white dark:bg-[#111] text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-white/10 font-mono">
+                        Other: ₹{otherCost}
+                      </span>
+                    )}
+                  </div>
+                )}
 
                 {/* Net Profit Banner */}
                 <div
@@ -2420,10 +2537,10 @@ const BookingDetail = () => {
                     )}
                     <div>
                       <span className="font-black text-xs uppercase tracking-wider block">
-                        Order Net Profit
+                        Order Net Profit ({cardGstMode === "without_gst" ? "Net Without GST" : "Gross With GST"})
                       </span>
                       <span className="text-[11px] text-gray-500 dark:text-gray-400">
-                        Total Direct Outflow: ₹{totalDirect.toLocaleString("en-IN")}
+                        Total Direct Outflow: ₹{totalDirect.toLocaleString("en-IN")} • Revenue Basis: ₹{activeRevenue.toLocaleString("en-IN")}
                       </span>
                     </div>
                   </div>
@@ -3415,11 +3532,13 @@ const BookingDetail = () => {
       {/* 💰 Direct Shipment Costs Modal */}
       {costModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-[#1A1A1A] rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 max-w-md w-full overflow-hidden">
-            <div className="p-5 border-b border-gray-100 dark:border-white/10 flex items-center justify-between">
+          <div className="bg-white dark:bg-[#1A1A1A] rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 max-w-lg w-full max-h-[92vh] flex flex-col overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 border-b border-gray-100 dark:border-white/10 flex items-center justify-between shrink-0">
               <div>
-                <h3 className="text-base font-bold text-gray-900 dark:text-white">
-                  Direct Shipment Costs
+                <h3 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Wallet className="w-4 h-4 text-emerald-600" />
+                  <span>Direct Shipment Costs & Margins</span>
                 </h3>
                 <p className="text-xs text-gray-500 font-mono">
                   {booking.bookingId} — Billed: ₹{Number(booking.pricing?.totalAmount || booking.totalAmount || 0).toLocaleString("en-IN")}
@@ -3427,136 +3546,396 @@ const BookingDetail = () => {
               </div>
               <button
                 onClick={() => setCostModalOpen(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10"
               >
                 <XCircle className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveCosts} className="p-6 space-y-4">
+            <form onSubmit={handleSaveCosts} className="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs">
+              {/* Quick Scenario Preset Chips */}
               <div>
-                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase mb-1">
-                  Courier Carrier Freight Cost (₹)
-                </label>
-                <input
-                  type="number"
-                  step="any"
-                  min="0"
-                  placeholder="e.g. 350 (Paid to DTDC/Delhivery)"
-                  value={costFormData.courierCost}
-                  onChange={(e) => setCostFormData({ ...costFormData, courierCost: e.target.value })}
-                  className="w-full px-3.5 py-2.5 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-xl text-xs font-bold font-mono outline-none focus:ring-2 focus:ring-emerald-500"
-                />
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                    Quick Scenario Preset:
+                  </label>
+                  <span className="text-[10px] text-gray-400">Tailors inputs to order type</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCostPreset("courier")}
+                    className={`py-1.5 px-2 rounded-xl border text-center font-bold transition-all ${
+                      costPreset === "courier"
+                        ? "bg-emerald-50 border-emerald-500 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 shadow-xs"
+                        : "border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5"
+                    }`}
+                  >
+                    📦 Courier Parcel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCostPreset("shifting")}
+                    className={`py-1.5 px-2 rounded-xl border text-center font-bold transition-all ${
+                      costPreset === "shifting"
+                        ? "bg-blue-50 border-blue-500 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300 shadow-xs"
+                        : "border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5"
+                    }`}
+                  >
+                    🚛 Shifting / Movers
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCostPreset("all")}
+                    className={`py-1.5 px-2 rounded-xl border text-center font-bold transition-all ${
+                      costPreset === "all"
+                        ? "bg-purple-50 border-purple-500 text-purple-800 dark:bg-purple-950/40 dark:text-purple-300 shadow-xs"
+                        : "border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5"
+                    }`}
+                  >
+                    ✨ All Cost Fields
+                  </button>
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              {/* GST Margin Calculation Mode Toggle */}
+              <div className="p-3 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-100 dark:border-white/5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-gray-700 dark:text-gray-300">
+                    Margin Calculation Mode:
+                  </span>
+                  <span className="text-[10px] text-gray-400">
+                    Gross vs. True Net (Excl. 18% GST)
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCostFormData({ ...costFormData, taxCalculationMode: "with_gst" })}
+                    className={`py-2 px-3 rounded-lg border text-left font-bold transition-all ${
+                      costFormData.taxCalculationMode === "with_gst"
+                        ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                        : "bg-white dark:bg-[#111] border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    <div className="text-[11px]">With GST (Gross)</div>
+                    <div className="text-[10px] opacity-80 font-normal">Revenue = Total Billed Amount</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCostFormData({ ...costFormData, taxCalculationMode: "without_gst" })}
+                    className={`py-2 px-3 rounded-lg border text-left font-bold transition-all ${
+                      costFormData.taxCalculationMode === "without_gst"
+                        ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                        : "bg-white dark:bg-[#111] border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    <div className="text-[11px]">Without GST (Net)</div>
+                    <div className="text-[10px] opacity-80 font-normal">Deducts GST before cost margin</div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Standard Courier Freight & Packaging */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {(costPreset === "all" || costPreset === "courier") && (
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 dark:text-gray-300 uppercase mb-1">
+                      Carrier Freight Cost (₹)
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      placeholder="Paid to DTDC/Delhivery"
+                      value={costFormData.courierCost}
+                      onChange={(e) => setCostFormData({ ...costFormData, courierCost: e.target.value })}
+                      className="w-full px-3 py-2 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-xl font-bold font-mono outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                )}
+
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase mb-1">
-                    Packaging Cost (₹)
+                  <label className="block text-[11px] font-bold text-gray-700 dark:text-gray-300 uppercase mb-1">
+                    Packaging Material Cost (₹)
                   </label>
                   <input
                     type="number"
                     step="any"
                     min="0"
-                    placeholder="e.g. 40 (Boxes, tape)"
+                    placeholder="Boxes, bubble wrap, tape"
                     value={costFormData.packagingCost}
                     onChange={(e) => setCostFormData({ ...costFormData, packagingCost: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-xl text-xs font-bold font-mono outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase mb-1">
-                    Rider Payout / Fuel (₹)
-                  </label>
-                  <input
-                    type="number"
-                    step="any"
-                    min="0"
-                    placeholder="e.g. 30"
-                    value={costFormData.riderCost}
-                    onChange={(e) => setCostFormData({ ...costFormData, riderCost: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-xl text-xs font-bold font-mono outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-xl font-bold font-mono outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
               </div>
 
+              {/* Rider / Vehicle / Fuel */}
               <div>
-                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase mb-1">
-                  Other Direct Costs (₹)
+                <label className="block text-[11px] font-bold text-gray-700 dark:text-gray-300 uppercase mb-1">
+                  Rider Payout / Fuel / Tempo Cost (₹)
                 </label>
                 <input
                   type="number"
                   step="any"
                   min="0"
-                  placeholder="e.g. Loading/unloading charges"
-                  value={costFormData.otherCost}
-                  onChange={(e) => setCostFormData({ ...costFormData, otherCost: e.target.value })}
-                  className="w-full px-3.5 py-2.5 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-xl text-xs font-bold font-mono outline-none focus:ring-2 focus:ring-emerald-500"
+                  placeholder="e.g. 50 (Rider) or 1200 (Tata Ace / Tempo / Fuel)"
+                  value={costFormData.riderCost}
+                  onChange={(e) => setCostFormData({ ...costFormData, riderCost: e.target.value })}
+                  className="w-full px-3 py-2 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-xl font-bold font-mono outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase mb-1">
-                  Cost Notes / Audit Remarks
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Docket AWB K50003... DTDC invoice"
-                  value={costFormData.notes}
-                  onChange={(e) => setCostFormData({ ...costFormData, notes: e.target.value })}
-                  className="w-full px-3.5 py-2.5 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-emerald-500"
-                />
+              {/* 👷 Labour Charges (Crucial for shifting/relocation) */}
+              {(costPreset === "all" || costPreset === "shifting") && (
+                <div className="p-3.5 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-xl border border-indigo-100 dark:border-indigo-900/30 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-indigo-900 dark:text-indigo-300 flex items-center gap-1.5">
+                      <span>👷 Labour / Helper Charges</span>
+                    </span>
+                    <span className="text-[10px] text-indigo-500">How many labourers & rate</span>
+                  </div>
+
+                  {/* Labour Calculator Row */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-600 dark:text-gray-400 uppercase mb-1">
+                        Labourers (Count)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="e.g. 3"
+                        value={costFormData.labourCount}
+                        onChange={(e) => {
+                          const count = e.target.value;
+                          const rate = costFormData.labourRatePerPerson;
+                          const newCost = (count && rate) ? (Number(count) * Number(rate)).toString() : costFormData.labourCost;
+                          setCostFormData({
+                            ...costFormData,
+                            labourCount: count,
+                            labourCost: newCost
+                          });
+                        }}
+                        className="w-full px-2.5 py-1.5 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-lg font-bold font-mono outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-600 dark:text-gray-400 uppercase mb-1">
+                        Rate / Person (₹)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="e.g. 500"
+                        value={costFormData.labourRatePerPerson}
+                        onChange={(e) => {
+                          const rate = e.target.value;
+                          const count = costFormData.labourCount;
+                          const newCost = (count && rate) ? (Number(count) * Number(rate)).toString() : costFormData.labourCost;
+                          setCostFormData({
+                            ...costFormData,
+                            labourRatePerPerson: rate,
+                            labourCost: newCost
+                          });
+                        }}
+                        className="w-full px-2.5 py-1.5 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-lg font-bold font-mono outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-indigo-700 dark:text-indigo-300 uppercase mb-1">
+                        Total Labour (₹)
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        min="0"
+                        placeholder="Total ₹"
+                        value={costFormData.labourCost}
+                        onChange={(e) => setCostFormData({ ...costFormData, labourCost: e.target.value })}
+                        className="w-full px-2.5 py-1.5 bg-white dark:bg-[#111111] text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700 rounded-lg font-black font-mono outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 dark:text-gray-400 uppercase mb-1">
+                      Which Labour / Work Details / Remarks
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Ramesh, Suresh, Mohan (3rd floor heavy furniture lifting)"
+                      value={costFormData.labourRemarks}
+                      onChange={(e) => setCostFormData({ ...costFormData, labourRemarks: e.target.value })}
+                      className="w-full px-3 py-1.5 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* 🤝 Commission / Broker / Referral Payout */}
+              {(costPreset === "all" || costPreset === "shifting") && (
+                <div className="p-3.5 bg-purple-50/50 dark:bg-purple-950/20 rounded-xl border border-purple-100 dark:border-purple-900/30 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-purple-900 dark:text-purple-300 flex items-center gap-1.5">
+                      <span>🤝 Commission / Referral Payout</span>
+                    </span>
+                    <span className="text-[10px] text-purple-500">Amount & Who to pay</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-bold text-purple-800 dark:text-purple-300 uppercase mb-1">
+                        Commission Amount (₹)
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        min="0"
+                        placeholder="e.g. 500"
+                        value={costFormData.commissionAmount}
+                        onChange={(e) => setCostFormData({ ...costFormData, commissionAmount: e.target.value })}
+                        className="w-full px-3 py-1.5 bg-white dark:bg-[#111111] text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-700 rounded-lg font-black font-mono outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-600 dark:text-gray-400 uppercase mb-1">
+                        Who to Pay (Name / Payee)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Agent Anand / Broker Rohan"
+                        value={costFormData.commissionPayee}
+                        onChange={(e) => setCostFormData({ ...costFormData, commissionPayee: e.target.value })}
+                        className="w-full px-3 py-1.5 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-lg font-medium outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Other Direct Costs & Audit Notes */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-700 dark:text-gray-300 uppercase mb-1">
+                    Other Direct Costs (₹)
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    placeholder="e.g. Toll, parking, crane"
+                    value={costFormData.otherCost}
+                    onChange={(e) => setCostFormData({ ...costFormData, otherCost: e.target.value })}
+                    className="w-full px-3 py-2 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-xl font-bold font-mono outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-700 dark:text-gray-300 uppercase mb-1">
+                    Cost Notes / Remarks
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. DTDC invoice #502"
+                    value={costFormData.notes}
+                    onChange={(e) => setCostFormData({ ...costFormData, notes: e.target.value })}
+                    className="w-full px-3 py-2 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
               </div>
 
-              {/* Instant Calculated Margin Preview */}
+              {/* Live Dual Margin Preview */}
               {(() => {
-                const revenue = Number(booking.pricing?.totalAmount || booking.totalAmount || 0);
+                const grossBilled = Number(booking.pricing?.totalAmount || booking.totalAmount || 0);
+                const taxAmount = Number(booking.pricing?.tax || 0) || Math.round(grossBilled - (grossBilled / 1.18));
+                const netRevenue = Math.max(0, grossBilled - taxAmount);
+
                 const courier = parseFloat(costFormData.courierCost) || 0;
                 const pack = parseFloat(costFormData.packagingCost) || 0;
                 const rider = parseFloat(costFormData.riderCost) || 0;
+                const labour = parseFloat(costFormData.labourCost) || 0;
+                const commission = parseFloat(costFormData.commissionAmount) || 0;
                 const other = parseFloat(costFormData.otherCost) || 0;
-                const totalCost = courier + pack + rider + other;
-                const profit = revenue - totalCost;
-                const margin = revenue > 0 ? ((profit / revenue) * 100).toFixed(1) : 0;
-                const isProfitable = profit >= 0;
+                const totalDirect = courier + pack + rider + labour + commission + other;
+
+                const profitWithGst = grossBilled - totalDirect;
+                const marginWithGst = grossBilled > 0 ? ((profitWithGst / grossBilled) * 100).toFixed(1) : 0;
+
+                const profitWithoutGst = netRevenue - totalDirect;
+                const marginWithoutGst = netRevenue > 0 ? ((profitWithoutGst / netRevenue) * 100).toFixed(1) : 0;
+
+                const isWithMode = costFormData.taxCalculationMode === "with_gst";
+                const activeProfit = isWithMode ? profitWithGst : profitWithoutGst;
 
                 return (
-                  <div
-                    className={`p-3.5 rounded-xl border flex items-center justify-between text-xs font-bold ${
-                      isProfitable
-                        ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/40 text-emerald-900 dark:text-emerald-200"
-                        : "bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800/40 text-rose-900 dark:text-rose-200"
-                    }`}
-                  >
-                    <div>
-                      <span>Estimated Order Profit:</span>
-                      <div className="text-base font-mono font-black mt-0.5">
-                        ₹{profit.toLocaleString("en-IN")}
-                      </div>
+                  <div className="p-3.5 rounded-xl border bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 space-y-2">
+                    <div className="flex items-center justify-between text-[11px] font-bold">
+                      <span className="text-gray-500">Live Calculated Margins:</span>
+                      <span className="font-mono text-rose-500">Total Outflow: ₹{totalDirect.toLocaleString("en-IN")}</span>
                     </div>
-                    <div className="text-right">
-                      <span>Margin:</span>
-                      <div className="text-base font-mono font-black mt-0.5">
-                        {margin}%
+
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      {/* Gross with GST */}
+                      <div
+                        className={`p-2.5 rounded-lg border transition-all ${
+                          isWithMode
+                            ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 ring-1 ring-emerald-500"
+                            : "bg-white dark:bg-[#111] border-gray-200 dark:border-white/10 opacity-70"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between text-[10px] font-bold uppercase text-gray-500">
+                          <span>With GST</span>
+                          {isWithMode && <span className="text-emerald-600 font-black">Active</span>}
+                        </div>
+                        <div className="text-sm font-black font-mono mt-0.5 text-gray-900 dark:text-white">
+                          ₹{profitWithGst.toLocaleString("en-IN")}
+                        </div>
+                        <div className="text-[10px] font-medium text-gray-400">
+                          {marginWithGst}% on ₹{grossBilled.toLocaleString("en-IN")}
+                        </div>
+                      </div>
+
+                      {/* True Net without GST */}
+                      <div
+                        className={`p-2.5 rounded-lg border transition-all ${
+                          !isWithMode
+                            ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 ring-1 ring-emerald-500"
+                            : "bg-white dark:bg-[#111] border-gray-200 dark:border-white/10 opacity-70"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between text-[10px] font-bold uppercase text-gray-500">
+                          <span>Without GST</span>
+                          {!isWithMode && <span className="text-emerald-600 font-black">Active</span>}
+                        </div>
+                        <div className="text-sm font-black font-mono mt-0.5 text-gray-900 dark:text-white">
+                          ₹{profitWithoutGst.toLocaleString("en-IN")}
+                        </div>
+                        <div className="text-[10px] font-medium text-gray-400">
+                          {marginWithoutGst}% on ₹{netRevenue.toLocaleString("en-IN")}
+                        </div>
                       </div>
                     </div>
                   </div>
                 );
               })()}
 
-              <div className="pt-2 flex items-center justify-end gap-2">
+              <div className="pt-2 flex items-center justify-end gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => setCostModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl border border-gray-300 dark:border-white/10 text-xs font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5"
+                  className="px-4 py-2 rounded-xl border border-gray-300 dark:border-white/10 text-xs font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={savingCost}
-                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-200 dark:shadow-none transition-all flex items-center gap-1.5"
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-200 dark:shadow-none transition-all flex items-center gap-1.5"
                 >
                   {savingCost && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                   <span>Save Shipment Costs</span>

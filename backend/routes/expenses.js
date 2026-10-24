@@ -113,6 +113,12 @@ router.get("/pnl-analytics", authMiddleware, async (req, res) => {
             riderCost: {
               $sum: { $ifNull: ["$expenses.riderCost", 0] }
             },
+            labourCost: {
+              $sum: { $ifNull: ["$expenses.labourCost", 0] }
+            },
+            commissionAmount: {
+              $sum: { $ifNull: ["$expenses.commissionAmount", 0] }
+            },
             otherCost: {
               $sum: { $ifNull: ["$expenses.otherCost", 0] }
             },
@@ -122,6 +128,8 @@ router.get("/pnl-analytics", authMiddleware, async (req, res) => {
                   { $ifNull: ["$expenses.courierCost", 0] },
                   { $ifNull: ["$expenses.packagingCost", 0] },
                   { $ifNull: ["$expenses.riderCost", 0] },
+                  { $ifNull: ["$expenses.labourCost", 0] },
+                  { $ifNull: ["$expenses.commissionAmount", 0] },
                   { $ifNull: ["$expenses.otherCost", 0] }
                 ]
               }
@@ -183,6 +191,8 @@ router.get("/pnl-analytics", authMiddleware, async (req, res) => {
                   { $ifNull: ["$expenses.courierCost", 0] },
                   { $ifNull: ["$expenses.packagingCost", 0] },
                   { $ifNull: ["$expenses.riderCost", 0] },
+                  { $ifNull: ["$expenses.labourCost", 0] },
+                  { $ifNull: ["$expenses.commissionAmount", 0] },
                   { $ifNull: ["$expenses.otherCost", 0] }
                 ]
               }
@@ -214,6 +224,8 @@ router.get("/pnl-analytics", authMiddleware, async (req, res) => {
       courierCost: 0,
       packagingCost: 0,
       riderCost: 0,
+      labourCost: 0,
+      commissionAmount: 0,
       otherCost: 0,
       totalDirectCosts: 0
     };
@@ -308,6 +320,22 @@ router.get("/pnl-analytics", authMiddleware, async (req, res) => {
         isDirectShipment: true
       });
     }
+    if (bStats.labourCost > 0) {
+      fullCategoryBreakdown.push({
+        name: "Labour Costs (Shifting/Handling)",
+        amount: Math.round(bStats.labourCost),
+        count: bStats.totalBookings,
+        isDirectShipment: true
+      });
+    }
+    if (bStats.commissionAmount > 0) {
+      fullCategoryBreakdown.push({
+        name: "Commissions / Referral Payouts",
+        amount: Math.round(bStats.commissionAmount),
+        count: bStats.totalBookings,
+        isDirectShipment: true
+      });
+    }
 
     fullCategoryBreakdown.sort((a, b) => b.amount - a.amount);
 
@@ -324,6 +352,8 @@ router.get("/pnl-analytics", authMiddleware, async (req, res) => {
           courierCost: Math.round(bStats.courierCost),
           packagingCost: Math.round(bStats.packagingCost),
           riderCost: Math.round(bStats.riderCost),
+          labourCost: Math.round(bStats.labourCost || 0),
+          commissionAmount: Math.round(bStats.commissionAmount || 0),
           otherCost: Math.round(bStats.otherCost),
           total: totalDirectCosts
         },

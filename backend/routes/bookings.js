@@ -3246,13 +3246,31 @@ router.put("/:id/mark-checked", authMiddleware, async (req, res) => {
 router.put("/:id/expenses", authMiddleware, async (req, res) => {
   try {
     const bookingId = req.params.id;
-    const { courierCost = 0, packagingCost = 0, riderCost = 0, otherCost = 0, notes = "" } = req.body;
+    const { 
+      courierCost = 0, 
+      packagingCost = 0, 
+      riderCost = 0, 
+      labourCost = 0,
+      labourCount = 0,
+      labourRatePerPerson = 0,
+      labourRemarks = "",
+      commissionAmount = 0,
+      commissionPayee = "",
+      otherCost = 0, 
+      taxCalculationMode = "with_gst",
+      notes = "" 
+    } = req.body;
 
     const numCourier = Math.max(0, parseFloat(courierCost) || 0);
     const numPackaging = Math.max(0, parseFloat(packagingCost) || 0);
     const numRider = Math.max(0, parseFloat(riderCost) || 0);
+    const numLabour = Math.max(0, parseFloat(labourCost) || 0);
+    const numLabourCount = Math.max(0, parseInt(labourCount) || 0);
+    const numLabourRate = Math.max(0, parseFloat(labourRatePerPerson) || 0);
+    const numCommission = Math.max(0, parseFloat(commissionAmount) || 0);
     const numOther = Math.max(0, parseFloat(otherCost) || 0);
-    const totalExpenses = numCourier + numPackaging + numRider + numOther;
+
+    const totalExpenses = numCourier + numPackaging + numRider + numLabour + numCommission + numOther;
 
     const userName = req.admin ? req.admin.username : (req.user ? req.user.name : "Staff");
     const userId = req.admin ? req.admin._id : (req.user ? req.user._id : null);
@@ -3266,9 +3284,16 @@ router.put("/:id/expenses", authMiddleware, async (req, res) => {
       courierCost: numCourier,
       packagingCost: numPackaging,
       riderCost: numRider,
+      labourCost: numLabour,
+      labourCount: numLabourCount,
+      labourRatePerPerson: numLabourRate,
+      labourRemarks: (labourRemarks || "").trim(),
+      commissionAmount: numCommission,
+      commissionPayee: (commissionPayee || "").trim(),
       otherCost: numOther,
       totalExpenses,
-      notes: notes.trim(),
+      taxCalculationMode: taxCalculationMode === "without_gst" ? "without_gst" : "with_gst",
+      notes: (notes || "").trim(),
       updatedAt: new Date(),
       updatedBy: userId,
       updatedByName: userName
@@ -3276,16 +3301,30 @@ router.put("/:id/expenses", authMiddleware, async (req, res) => {
 
     await booking.save();
 
-    const revenue = Number(booking.pricing?.totalAmount || booking.totalAmount || 0);
-    const netProfit = revenue - totalExpenses;
-    const marginPercent = revenue > 0 ? Number(((netProfit / revenue) * 100).toFixed(2)) : 0;
+    const revenueWithTax = Number(booking.pricing?.totalAmount || booking.totalAmount || 0);
+    const taxAmount = Number(booking.pricing?.tax || 0) || Math.round(revenueWithTax - (revenueWithTax / 1.18));
+    const revenueWithoutTax = Math.max(0, revenueWithTax - taxAmount);
+
+    const netProfitWithGst = revenueWithTax - totalExpenses;
+    const marginWithGst = revenueWithTax > 0 ? Number(((netProfitWithGst / revenueWithTax) * 100).toFixed(2)) : 0;
+
+    const netProfitWithoutGst = revenueWithoutTax - totalExpenses;
+    const marginWithoutGst = revenueWithoutTax > 0 ? Number(((netProfitWithoutGst / revenueWithoutTax) * 100).toFixed(2)) : 0;
+
+    const isWithoutGst = booking.expenses.taxCalculationMode === "without_gst";
+    const netProfit = isWithoutGst ? netProfitWithoutGst : netProfitWithGst;
+    const marginPercent = isWithoutGst ? marginWithoutGst : marginWithGst;
 
     res.json({
       success: true,
       message: "Shipment expenses updated successfully",
       expenses: booking.expenses,
       netProfit,
-      marginPercent
+      marginPercent,
+      netProfitWithGst,
+      marginWithGst,
+      netProfitWithoutGst,
+      marginWithoutGst
     });
   } catch (error) {
     console.error("Error updating shipment expenses:", error);

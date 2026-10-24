@@ -180,13 +180,22 @@ const SalesReport = () => {
   });
 
   const [shipmentModalOpen, setShipmentModalOpen] = useState(false);
+  const [shipmentPreset, setShipmentPreset] = useState("all");
+  const [shipmentTableGstMode, setShipmentTableGstMode] = useState("with_gst");
   const [editingShipment, setEditingShipment] = useState(null);
   const [submittingShipment, setSubmittingShipment] = useState(false);
   const [shipmentFormData, setShipmentFormData] = useState({
     courierCost: "",
     packagingCost: "",
     riderCost: "",
+    labourCost: "",
+    labourCount: "",
+    labourRatePerPerson: "",
+    labourRemarks: "",
+    commissionAmount: "",
+    commissionPayee: "",
     otherCost: "",
+    taxCalculationMode: "with_gst",
     notes: ""
   });
 
@@ -504,13 +513,25 @@ const SalesReport = () => {
   // Shipment Direct Cost Handlers
   const handleOpenEditShipment = (b) => {
     setEditingShipment(b);
+    const savedMode = b.expenses?.taxCalculationMode || "with_gst";
     setShipmentFormData({
-      courierCost: b.expenses?.courierCost || "",
-      packagingCost: b.expenses?.packagingCost || "",
-      riderCost: b.expenses?.riderCost || "",
-      otherCost: b.expenses?.otherCost || "",
-      notes: b.expenses?.notes || ""
+      courierCost: b.expenses?.courierCost ?? "",
+      packagingCost: b.expenses?.packagingCost ?? "",
+      riderCost: b.expenses?.riderCost ?? "",
+      labourCost: b.expenses?.labourCost ?? "",
+      labourCount: b.expenses?.labourCount ?? "",
+      labourRatePerPerson: b.expenses?.labourRatePerPerson ?? "",
+      labourRemarks: b.expenses?.labourRemarks ?? "",
+      commissionAmount: b.expenses?.commissionAmount ?? "",
+      commissionPayee: b.expenses?.commissionPayee ?? "",
+      otherCost: b.expenses?.otherCost ?? "",
+      taxCalculationMode: savedMode,
+      notes: b.expenses?.notes ?? ""
     });
+    setShipmentPreset(
+      (b.expenses?.labourCost > 0 || b.expenses?.commissionAmount > 0) ? "shifting" :
+      (b.expenses?.courierCost > 0) ? "courier" : "all"
+    );
     setShipmentModalOpen(true);
   };
 
@@ -1712,8 +1733,8 @@ const SalesReport = () => {
       {/* TAB 4: SHIPMENT MARGINS (ORDER LEVEL DIRECT SHIPMENT COSTS) */}
       {activeTab === "shipments" && (
         <div className="space-y-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-[#1A1A1A] p-3 rounded-xl border border-gray-200 dark:border-white/10 flex items-center justify-between gap-3">
-            <div className="relative flex-1 max-w-md">
+          <div className="bg-white dark:bg-[#1A1A1A] p-3 rounded-xl border border-gray-200 dark:border-white/10 flex flex-wrap items-center justify-between gap-3">
+            <div className="relative flex-1 min-w-[220px] max-w-md">
               <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
@@ -1726,9 +1747,38 @@ const SalesReport = () => {
                 className="w-full pl-9 pr-3 py-1.5 bg-gray-50 dark:bg-[#111111] text-xs font-medium rounded-lg border border-gray-200 dark:border-white/10 outline-none focus:ring-2 focus:ring-emerald-500"
               />
             </div>
-            <span className="text-xs text-gray-400 font-mono">
-              Total {shipmentTotal} orders
-            </span>
+
+            <div className="flex items-center gap-3">
+              {/* With / Without GST Table Toggle */}
+              <div className="inline-flex items-center bg-gray-100 dark:bg-[#111] p-0.5 rounded-lg border border-gray-200 dark:border-white/10 text-[11px] font-bold">
+                <button
+                  type="button"
+                  onClick={() => setShipmentTableGstMode("with_gst")}
+                  className={`px-2.5 py-1 rounded-md transition-all ${
+                    shipmentTableGstMode === "with_gst"
+                      ? "bg-white dark:bg-emerald-600 text-gray-900 dark:text-white shadow-xs font-black"
+                      : "text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
+                  }`}
+                >
+                  With GST (Gross)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShipmentTableGstMode("without_gst")}
+                  className={`px-2.5 py-1 rounded-md transition-all ${
+                    shipmentTableGstMode === "without_gst"
+                      ? "bg-white dark:bg-emerald-600 text-gray-900 dark:text-white shadow-xs font-black"
+                      : "text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
+                  }`}
+                >
+                  Without GST (Net Excl. Tax)
+                </button>
+              </div>
+
+              <span className="text-xs text-gray-400 font-mono">
+                Total {shipmentTotal} orders
+              </span>
+            </div>
           </div>
 
           <div className="bg-white dark:bg-[#1A1A1A] rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 overflow-hidden">
@@ -1738,10 +1788,14 @@ const SalesReport = () => {
                   <tr>
                     <th className="px-4 py-3 text-left font-bold text-gray-500 uppercase tracking-wider">Booking ID</th>
                     <th className="px-4 py-3 text-left font-bold text-gray-500 uppercase tracking-wider">Customer</th>
-                    <th className="px-4 py-3 text-right font-bold text-gray-500 uppercase tracking-wider">Billed (₹)</th>
+                    <th className="px-4 py-3 text-right font-bold text-gray-500 uppercase tracking-wider">
+                      {shipmentTableGstMode === "without_gst" ? "Net Rev (₹)" : "Billed (₹)"}
+                    </th>
                     <th className="px-4 py-3 text-right font-bold text-gray-500 uppercase tracking-wider">Courier Freight (₹)</th>
                     <th className="px-4 py-3 text-right font-bold text-gray-500 uppercase tracking-wider">Packaging (₹)</th>
-                    <th className="px-4 py-3 text-right font-bold text-gray-500 uppercase tracking-wider">Rider (₹)</th>
+                    <th className="px-4 py-3 text-right font-bold text-gray-500 uppercase tracking-wider">Rider / Fuel (₹)</th>
+                    <th className="px-4 py-3 text-right font-bold text-indigo-500 uppercase tracking-wider">Labour (₹)</th>
+                    <th className="px-4 py-3 text-right font-bold text-purple-500 uppercase tracking-wider">Commission (₹)</th>
                     <th className="px-4 py-3 text-right font-bold text-gray-500 uppercase tracking-wider">Total Direct (₹)</th>
                     <th className="px-4 py-3 text-right font-bold text-emerald-600 uppercase tracking-wider">Order Net Profit</th>
                     <th className="px-4 py-3 text-center font-bold text-gray-500 uppercase tracking-wider">Margin %</th>
@@ -1751,23 +1805,37 @@ const SalesReport = () => {
                 <tbody className="divide-y divide-gray-100 dark:divide-white/5">
                   {loadingShipments ? (
                     <tr>
-                      <td colSpan="10" className="px-6 py-8 text-center text-gray-400">
+                      <td colSpan="12" className="px-6 py-8 text-center text-gray-400">
                         <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-emerald-600" />
                         <span>Loading orders...</span>
                       </td>
                     </tr>
                   ) : shipments.length === 0 ? (
                     <tr>
-                      <td colSpan="10" className="px-6 py-8 text-center text-gray-400">
+                      <td colSpan="12" className="px-6 py-8 text-center text-gray-400">
                         No orders found for this search.
                       </td>
                     </tr>
                   ) : (
                     shipments.map((item) => {
-                      const billed = Number(item.pricing?.totalAmount || item.totalAmount || 0);
-                      const directCost = item.expenses?.totalExpenses || 0;
-                      const orderProfit = billed - directCost;
-                      const margin = billed > 0 ? ((orderProfit / billed) * 100).toFixed(1) : 0;
+                      const grossBilled = Number(item.pricing?.totalAmount || item.totalAmount || 0);
+                      const taxAmount = Number(item.pricing?.tax || 0) || Math.round(grossBilled - (grossBilled / 1.18));
+                      const netRevenue = Math.max(0, grossBilled - taxAmount);
+                      const activeRevenue = shipmentTableGstMode === "without_gst" ? netRevenue : grossBilled;
+
+                      const courier = Number(item.expenses?.courierCost || 0);
+                      const packaging = Number(item.expenses?.packagingCost || 0);
+                      const rider = Number(item.expenses?.riderCost || 0);
+                      const labour = Number(item.expenses?.labourCost || 0);
+                      const commission = Number(item.expenses?.commissionAmount || 0);
+                      const other = Number(item.expenses?.otherCost || 0);
+
+                      const directCost = item.expenses?.totalExpenses !== undefined
+                        ? Number(item.expenses.totalExpenses)
+                        : (courier + packaging + rider + labour + commission + other);
+
+                      const orderProfit = activeRevenue - directCost;
+                      const margin = activeRevenue > 0 ? ((orderProfit / activeRevenue) * 100).toFixed(1) : 0;
                       const hasCost = directCost > 0;
 
                       return (
@@ -1789,16 +1857,45 @@ const SalesReport = () => {
                             {item.senderDetails?.name || "—"}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap text-right font-bold font-mono text-gray-900 dark:text-white">
-                            ₹{billed.toLocaleString("en-IN")}
+                            <div>₹{activeRevenue.toLocaleString("en-IN")}</div>
+                            {shipmentTableGstMode === "without_gst" && (
+                              <div className="text-[10px] text-gray-400 font-normal">Gross ₹{grossBilled}</div>
+                            )}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap text-right font-mono text-gray-600 dark:text-gray-400">
-                            ₹{item.expenses?.courierCost || 0}
+                            ₹{courier}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap text-right font-mono text-gray-600 dark:text-gray-400">
-                            ₹{item.expenses?.packagingCost || 0}
+                            ₹{packaging}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap text-right font-mono text-gray-600 dark:text-gray-400">
-                            ₹{item.expenses?.riderCost || 0}
+                            ₹{rider}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-right font-mono text-gray-600 dark:text-gray-400">
+                            {labour > 0 ? (
+                              <div>
+                                <span className="font-bold text-indigo-600 dark:text-indigo-400">₹{labour}</span>
+                                {item.expenses?.labourCount && (
+                                  <span className="block text-[9px] text-gray-400">{item.expenses.labourCount} lab</span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-gray-300 dark:text-gray-600">₹0</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-right font-mono text-gray-600 dark:text-gray-400">
+                            {commission > 0 ? (
+                              <div>
+                                <span className="font-bold text-purple-600 dark:text-purple-400">₹{commission}</span>
+                                {item.expenses?.commissionPayee && (
+                                  <span className="block text-[9px] text-gray-400 truncate max-w-[80px] ml-auto" title={item.expenses.commissionPayee}>
+                                    {item.expenses.commissionPayee}
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-gray-300 dark:text-gray-600">₹0</span>
+                            )}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap text-right font-bold font-mono text-rose-500">
                             ₹{directCost.toLocaleString("en-IN")}
@@ -2041,11 +2138,12 @@ const SalesReport = () => {
       {/* 7. EDIT SHIPMENT COSTS MODAL */}
       {shipmentModalOpen && editingShipment && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white dark:bg-[#1A1A1A] rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 max-w-md w-full overflow-hidden">
-            <div className="p-5 border-b border-gray-100 dark:border-white/10 flex items-center justify-between">
+          <div className="bg-white dark:bg-[#1A1A1A] rounded-2xl shadow-2xl border border-gray-100 dark:border-white/10 max-w-lg w-full max-h-[92vh] flex flex-col overflow-hidden">
+            <div className="p-4 sm:p-5 border-b border-gray-100 dark:border-white/10 flex items-center justify-between shrink-0">
               <div>
-                <h3 className="text-base font-bold text-gray-900 dark:text-white">
-                  Direct Shipment Costs
+                <h3 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <Wallet className="w-4 h-4 text-emerald-600" />
+                  <span>Direct Shipment Costs & Margins</span>
                 </h3>
                 <p className="text-xs text-gray-500 font-mono">
                   {editingShipment.bookingId} — Billed: ₹
@@ -2054,136 +2152,395 @@ const SalesReport = () => {
               </div>
               <button
                 onClick={() => setShipmentModalOpen(false)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSaveShipmentCost} className="p-6 space-y-4">
+            <form onSubmit={handleSaveShipmentCost} className="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs">
+              {/* Quick Scenario Preset Chips */}
               <div>
-                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase mb-1">
-                  Courier Carrier Freight Cost (₹)
-                </label>
-                <input
-                  type="number"
-                  step="any"
-                  min="0"
-                  placeholder="e.g. 350 (Paid to DTDC/Delhivery)"
-                  value={shipmentFormData.courierCost}
-                  onChange={(e) => setShipmentFormData({ ...shipmentFormData, courierCost: e.target.value })}
-                  className="w-full px-3.5 py-2.5 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-xl text-xs font-bold font-mono outline-none focus:ring-2 focus:ring-emerald-500"
-                />
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-[11px] font-bold text-gray-500 uppercase tracking-wider">
+                    Quick Scenario Preset:
+                  </label>
+                  <span className="text-[10px] text-gray-400">Tailors inputs to order type</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShipmentPreset("courier")}
+                    className={`py-1.5 px-2 rounded-xl border text-center font-bold transition-all ${
+                      shipmentPreset === "courier"
+                        ? "bg-emerald-50 border-emerald-500 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 shadow-xs"
+                        : "border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5"
+                    }`}
+                  >
+                    📦 Courier Parcel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShipmentPreset("shifting")}
+                    className={`py-1.5 px-2 rounded-xl border text-center font-bold transition-all ${
+                      shipmentPreset === "shifting"
+                        ? "bg-blue-50 border-blue-500 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300 shadow-xs"
+                        : "border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5"
+                    }`}
+                  >
+                    🚛 Shifting / Movers
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShipmentPreset("all")}
+                    className={`py-1.5 px-2 rounded-xl border text-center font-bold transition-all ${
+                      shipmentPreset === "all"
+                        ? "bg-purple-50 border-purple-500 text-purple-800 dark:bg-purple-950/40 dark:text-purple-300 shadow-xs"
+                        : "border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5"
+                    }`}
+                  >
+                    ✨ All Cost Fields
+                  </button>
+                </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              {/* GST Margin Calculation Mode Toggle */}
+              <div className="p-3 bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-100 dark:border-white/5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-gray-700 dark:text-gray-300">
+                    Margin Calculation Mode:
+                  </span>
+                  <span className="text-[10px] text-gray-400">
+                    Gross vs. True Net (Excl. 18% GST)
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShipmentFormData({ ...shipmentFormData, taxCalculationMode: "with_gst" })}
+                    className={`py-2 px-3 rounded-lg border text-left font-bold transition-all ${
+                      shipmentFormData.taxCalculationMode === "with_gst"
+                        ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                        : "bg-white dark:bg-[#111] border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    <div className="text-[11px]">With GST (Gross)</div>
+                    <div className="text-[10px] opacity-80 font-normal">Revenue = Total Billed Amount</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShipmentFormData({ ...shipmentFormData, taxCalculationMode: "without_gst" })}
+                    className={`py-2 px-3 rounded-lg border text-left font-bold transition-all ${
+                      shipmentFormData.taxCalculationMode === "without_gst"
+                        ? "bg-emerald-600 text-white border-emerald-600 shadow-xs"
+                        : "bg-white dark:bg-[#111] border-gray-200 dark:border-white/10 text-gray-700 dark:text-gray-300 hover:bg-gray-50"
+                    }`}
+                  >
+                    <div className="text-[11px]">Without GST (Net)</div>
+                    <div className="text-[10px] opacity-80 font-normal">Deducts GST before cost margin</div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Standard Courier Freight & Packaging */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {(shipmentPreset === "all" || shipmentPreset === "courier") && (
+                  <div>
+                    <label className="block text-[11px] font-bold text-gray-700 dark:text-gray-300 uppercase mb-1">
+                      Carrier Freight Cost (₹)
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      placeholder="Paid to DTDC/Delhivery"
+                      value={shipmentFormData.courierCost}
+                      onChange={(e) => setShipmentFormData({ ...shipmentFormData, courierCost: e.target.value })}
+                      className="w-full px-3 py-2 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-xl font-bold font-mono outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                )}
+
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase mb-1">
-                    Packaging Cost (₹)
+                  <label className="block text-[11px] font-bold text-gray-700 dark:text-gray-300 uppercase mb-1">
+                    Packaging Material Cost (₹)
                   </label>
                   <input
                     type="number"
                     step="any"
                     min="0"
-                    placeholder="e.g. 40 (Boxes, tape)"
+                    placeholder="Boxes, bubble wrap, tape"
                     value={shipmentFormData.packagingCost}
                     onChange={(e) => setShipmentFormData({ ...shipmentFormData, packagingCost: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-xl text-xs font-bold font-mono outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase mb-1">
-                    Rider Payout / Fuel (₹)
-                  </label>
-                  <input
-                    type="number"
-                    step="any"
-                    min="0"
-                    placeholder="e.g. 30"
-                    value={shipmentFormData.riderCost}
-                    onChange={(e) => setShipmentFormData({ ...shipmentFormData, riderCost: e.target.value })}
-                    className="w-full px-3.5 py-2.5 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-xl text-xs font-bold font-mono outline-none focus:ring-2 focus:ring-emerald-500"
+                    className="w-full px-3 py-2 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-xl font-bold font-mono outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
               </div>
 
+              {/* Rider / Vehicle / Fuel */}
               <div>
-                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase mb-1">
-                  Other Direct Costs (₹)
+                <label className="block text-[11px] font-bold text-gray-700 dark:text-gray-300 uppercase mb-1">
+                  Rider Payout / Fuel / Tempo Cost (₹)
                 </label>
                 <input
                   type="number"
                   step="any"
                   min="0"
-                  placeholder="e.g. Loading / handling charges"
-                  value={shipmentFormData.otherCost}
-                  onChange={(e) => setShipmentFormData({ ...shipmentFormData, otherCost: e.target.value })}
-                  className="w-full px-3.5 py-2.5 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-xl text-xs font-bold font-mono outline-none focus:ring-2 focus:ring-emerald-500"
+                  placeholder="e.g. 50 (Rider) or 1200 (Tata Ace / Tempo / Fuel)"
+                  value={shipmentFormData.riderCost}
+                  onChange={(e) => setShipmentFormData({ ...shipmentFormData, riderCost: e.target.value })}
+                  className="w-full px-3 py-2 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-xl font-bold font-mono outline-none focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase mb-1">
-                  Cost Notes / Audit Remarks
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Docket AWB K50003... DTDC invoice"
-                  value={shipmentFormData.notes}
-                  onChange={(e) => setShipmentFormData({ ...shipmentFormData, notes: e.target.value })}
-                  className="w-full px-3.5 py-2.5 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-xl text-xs font-medium outline-none focus:ring-2 focus:ring-emerald-500"
-                />
+              {/* 👷 Labour Charges (Crucial for shifting/relocation) */}
+              {(shipmentPreset === "all" || shipmentPreset === "shifting") && (
+                <div className="p-3.5 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-xl border border-indigo-100 dark:border-indigo-900/30 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-indigo-900 dark:text-indigo-300 flex items-center gap-1.5">
+                      <span>👷 Labour / Helper Charges</span>
+                    </span>
+                    <span className="text-[10px] text-indigo-500">How many labourers & rate</span>
+                  </div>
+
+                  {/* Labour Calculator Row */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-600 dark:text-gray-400 uppercase mb-1">
+                        Labourers (Count)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="e.g. 3"
+                        value={shipmentFormData.labourCount}
+                        onChange={(e) => {
+                          const count = e.target.value;
+                          const rate = shipmentFormData.labourRatePerPerson;
+                          const newCost = (count && rate) ? (Number(count) * Number(rate)).toString() : shipmentFormData.labourCost;
+                          setShipmentFormData({
+                            ...shipmentFormData,
+                            labourCount: count,
+                            labourCost: newCost
+                          });
+                        }}
+                        className="w-full px-2.5 py-1.5 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-lg font-bold font-mono outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-600 dark:text-gray-400 uppercase mb-1">
+                        Rate / Person (₹)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        placeholder="e.g. 500"
+                        value={shipmentFormData.labourRatePerPerson}
+                        onChange={(e) => {
+                          const rate = e.target.value;
+                          const count = shipmentFormData.labourCount;
+                          const newCost = (count && rate) ? (Number(count) * Number(rate)).toString() : shipmentFormData.labourCost;
+                          setShipmentFormData({
+                            ...shipmentFormData,
+                            labourRatePerPerson: rate,
+                            labourCost: newCost
+                          });
+                        }}
+                        className="w-full px-2.5 py-1.5 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-lg font-bold font-mono outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-indigo-700 dark:text-indigo-300 uppercase mb-1">
+                        Total Labour (₹)
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        min="0"
+                        placeholder="Total ₹"
+                        value={shipmentFormData.labourCost}
+                        onChange={(e) => setShipmentFormData({ ...shipmentFormData, labourCost: e.target.value })}
+                        className="w-full px-2.5 py-1.5 bg-white dark:bg-[#111111] text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-700 rounded-lg font-black font-mono outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 dark:text-gray-400 uppercase mb-1">
+                      Which Labour / Work Details / Remarks
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Ramesh, Suresh, Mohan (3rd floor heavy furniture lifting)"
+                      value={shipmentFormData.labourRemarks}
+                      onChange={(e) => setShipmentFormData({ ...shipmentFormData, labourRemarks: e.target.value })}
+                      className="w-full px-3 py-1.5 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* 🤝 Commission / Broker / Referral Payout */}
+              {(shipmentPreset === "all" || shipmentPreset === "shifting") && (
+                <div className="p-3.5 bg-purple-50/50 dark:bg-purple-950/20 rounded-xl border border-purple-100 dark:border-purple-900/30 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-purple-900 dark:text-purple-300 flex items-center gap-1.5">
+                      <span>🤝 Commission / Referral Payout</span>
+                    </span>
+                    <span className="text-[10px] text-purple-500">Amount & Who to pay</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-bold text-purple-800 dark:text-purple-300 uppercase mb-1">
+                        Commission Amount (₹)
+                      </label>
+                      <input
+                        type="number"
+                        step="any"
+                        min="0"
+                        placeholder="e.g. 500"
+                        value={shipmentFormData.commissionAmount}
+                        onChange={(e) => setShipmentFormData({ ...shipmentFormData, commissionAmount: e.target.value })}
+                        className="w-full px-3 py-1.5 bg-white dark:bg-[#111111] text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-700 rounded-lg font-black font-mono outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-600 dark:text-gray-400 uppercase mb-1">
+                        Who to Pay (Name / Payee)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Agent Anand / Broker Rohan"
+                        value={shipmentFormData.commissionPayee}
+                        onChange={(e) => setShipmentFormData({ ...shipmentFormData, commissionPayee: e.target.value })}
+                        className="w-full px-3 py-1.5 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-lg font-medium outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Other Direct Costs & Audit Notes */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-700 dark:text-gray-300 uppercase mb-1">
+                    Other Direct Costs (₹)
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    placeholder="e.g. Toll, parking, crane"
+                    value={shipmentFormData.otherCost}
+                    onChange={(e) => setShipmentFormData({ ...shipmentFormData, otherCost: e.target.value })}
+                    className="w-full px-3 py-2 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-xl font-bold font-mono outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-gray-700 dark:text-gray-300 uppercase mb-1">
+                    Cost Notes / Remarks
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. DTDC invoice #502"
+                    value={shipmentFormData.notes}
+                    onChange={(e) => setShipmentFormData({ ...shipmentFormData, notes: e.target.value })}
+                    className="w-full px-3 py-2 bg-white dark:bg-[#111111] text-gray-900 dark:text-white border border-gray-300 dark:border-white/10 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500"
+                  />
+                </div>
               </div>
 
-              {/* Instant Calculated Margin Preview */}
+              {/* Live Dual Margin Preview */}
               {(() => {
-                const billed = Number(editingShipment.pricing?.totalAmount || editingShipment.totalAmount || 0);
+                const grossBilled = Number(editingShipment.pricing?.totalAmount || editingShipment.totalAmount || 0);
+                const taxAmount = Number(editingShipment.pricing?.tax || 0) || Math.round(grossBilled - (grossBilled / 1.18));
+                const netRevenue = Math.max(0, grossBilled - taxAmount);
+
                 const courier = parseFloat(shipmentFormData.courierCost) || 0;
                 const pack = parseFloat(shipmentFormData.packagingCost) || 0;
                 const rider = parseFloat(shipmentFormData.riderCost) || 0;
+                const labour = parseFloat(shipmentFormData.labourCost) || 0;
+                const commission = parseFloat(shipmentFormData.commissionAmount) || 0;
                 const other = parseFloat(shipmentFormData.otherCost) || 0;
-                const totalCost = courier + pack + rider + other;
-                const profit = billed - totalCost;
-                const margin = billed > 0 ? ((profit / billed) * 100).toFixed(1) : 0;
-                const isProfitable = profit >= 0;
+                const totalDirect = courier + pack + rider + labour + commission + other;
+
+                const profitWithGst = grossBilled - totalDirect;
+                const marginWithGst = grossBilled > 0 ? ((profitWithGst / grossBilled) * 100).toFixed(1) : 0;
+
+                const profitWithoutGst = netRevenue - totalDirect;
+                const marginWithoutGst = netRevenue > 0 ? ((profitWithoutGst / netRevenue) * 100).toFixed(1) : 0;
+
+                const isWithMode = shipmentFormData.taxCalculationMode === "with_gst";
 
                 return (
-                  <div
-                    className={`p-3.5 rounded-xl border flex items-center justify-between text-xs font-bold ${
-                      isProfitable
-                        ? "bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/40 text-emerald-900 dark:text-emerald-200"
-                        : "bg-rose-50 dark:bg-rose-950/30 border-rose-200 dark:border-rose-800/40 text-rose-900 dark:text-rose-200"
-                    }`}
-                  >
-                    <div>
-                      <span>Estimated Order Profit:</span>
-                      <div className="text-base font-mono font-black mt-0.5">
-                        ₹{profit.toLocaleString("en-IN")}
-                      </div>
+                  <div className="p-3.5 rounded-xl border bg-gray-50 dark:bg-white/5 border-gray-200 dark:border-white/10 space-y-2">
+                    <div className="flex items-center justify-between text-[11px] font-bold">
+                      <span className="text-gray-500">Live Calculated Margins:</span>
+                      <span className="font-mono text-rose-500">Total Outflow: ₹{totalDirect.toLocaleString("en-IN")}</span>
                     </div>
-                    <div className="text-right">
-                      <span>Margin:</span>
-                      <div className="text-base font-mono font-black mt-0.5">
-                        {margin}%
+
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      {/* Gross with GST */}
+                      <div
+                        className={`p-2.5 rounded-lg border transition-all ${
+                          isWithMode
+                            ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 ring-1 ring-emerald-500"
+                            : "bg-white dark:bg-[#111] border-gray-200 dark:border-white/10 opacity-70"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between text-[10px] font-bold uppercase text-gray-500">
+                          <span>With GST</span>
+                          {isWithMode && <span className="text-emerald-600 font-black">Active</span>}
+                        </div>
+                        <div className="text-sm font-black font-mono mt-0.5 text-gray-900 dark:text-white">
+                          ₹{profitWithGst.toLocaleString("en-IN")}
+                        </div>
+                        <div className="text-[10px] font-medium text-gray-400">
+                          {marginWithGst}% on ₹{grossBilled.toLocaleString("en-IN")}
+                        </div>
+                      </div>
+
+                      {/* True Net without GST */}
+                      <div
+                        className={`p-2.5 rounded-lg border transition-all ${
+                          !isWithMode
+                            ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 ring-1 ring-emerald-500"
+                            : "bg-white dark:bg-[#111] border-gray-200 dark:border-white/10 opacity-70"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between text-[10px] font-bold uppercase text-gray-500">
+                          <span>Without GST</span>
+                          {!isWithMode && <span className="text-emerald-600 font-black">Active</span>}
+                        </div>
+                        <div className="text-sm font-black font-mono mt-0.5 text-gray-900 dark:text-white">
+                          ₹{profitWithoutGst.toLocaleString("en-IN")}
+                        </div>
+                        <div className="text-[10px] font-medium text-gray-400">
+                          {marginWithoutGst}% on ₹{netRevenue.toLocaleString("en-IN")}
+                        </div>
                       </div>
                     </div>
                   </div>
                 );
               })()}
 
-              <div className="pt-2 flex items-center justify-end gap-2">
+              <div className="pt-2 flex items-center justify-end gap-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => setShipmentModalOpen(false)}
-                  className="px-4 py-2.5 rounded-xl border border-gray-300 dark:border-white/10 text-xs font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5"
+                  className="px-4 py-2 rounded-xl border border-gray-300 dark:border-white/10 text-xs font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/5"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={submittingShipment}
-                  className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-200 dark:shadow-none transition-all flex items-center gap-1.5"
+                  className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-md shadow-emerald-200 dark:shadow-none transition-all flex items-center gap-1.5"
                 >
                   {submittingShipment && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                   <span>Save Shipment Costs</span>
