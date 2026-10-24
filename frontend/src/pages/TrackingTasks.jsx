@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import toast from 'react-hot-toast';
@@ -14,6 +15,9 @@ import {
 import IncentiveTasksTab from '../components/IncentiveTasksTab';
 
 const TrackingTasks = () => {
+  const [searchParams] = useSearchParams();
+  const [assignRoleFilter, setAssignRoleFilter] = useState("all");
+  const [taskRoleFilter, setTaskRoleFilter] = useState("all");
   const [tasks, setTasks] = useState([]);
   const [users, setUsers] = useState([]);
   const [unassignedBookings, setUnassignedBookings] = useState([]);
@@ -52,6 +56,14 @@ const TrackingTasks = () => {
   const { user } = useAuth();
   const isAdmin = user && (!user.role || user.role === 'admin');
   const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
+
+  useEffect(() => {
+    const urlUserId = searchParams.get("userId");
+    if (urlUserId) {
+      setSelectedUser(urlUserId);
+      setActiveTab("admin_assign");
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (isAdmin) {
@@ -399,20 +411,41 @@ const TrackingTasks = () => {
 
         {/* Task Filters (Only show on tasks lists) */}
         {(activeTab === 'my_tasks' || activeTab === 'admin_tasks') && (
-          <div className="flex gap-2">
-            {['today', 'upcoming', 'missed', 'all'].map(filter => (
-              <button
-                key={filter}
-                onClick={() => setTaskFilter(filter)}
-                className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors uppercase tracking-wider ${
-                  taskFilter === filter 
-                    ? (filter === 'missed' ? 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400' : 'bg-primary-100 dark:bg-primary-500/20 text-primary-700 dark:text-primary-400') 
-                    : 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
-                }`}
-              >
-                {filter}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex gap-2">
+              {['today', 'upcoming', 'missed', 'all'].map(filter => (
+                <button
+                  key={filter}
+                  onClick={() => setTaskFilter(filter)}
+                  className={`px-4 py-2 rounded-lg text-xs font-bold transition-colors uppercase tracking-wider ${
+                    taskFilter === filter 
+                      ? (filter === 'missed' ? 'bg-red-100 dark:bg-red-500/20 text-red-700 dark:text-red-400' : 'bg-primary-100 dark:bg-primary-500/20 text-primary-700 dark:text-primary-400') 
+                      : 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
+                  }`}
+                >
+                  {filter}
+                </button>
+              ))}
+            </div>
+
+            {activeTab === 'admin_tasks' && (
+              <div className="flex items-center gap-1.5 pl-2 border-l border-gray-200 dark:border-white/10">
+                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Role:</span>
+                {['all', 'agent', 'staff', 'rider'].map(rf => (
+                  <button
+                    key={rf}
+                    onClick={() => setTaskRoleFilter(rf)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold capitalize transition-colors ${
+                      taskRoleFilter === rf
+                        ? 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300'
+                        : 'bg-gray-100 dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10'
+                    }`}
+                  >
+                    {rf === 'all' ? 'All Roles' : `${rf}s`}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -503,7 +536,7 @@ const TrackingTasks = () => {
                       className="w-full px-4 py-2.5 bg-gray-50 dark:bg-[#1A1A1A] border-none rounded-xl focus:ring-2 focus:ring-primary-500 text-sm font-bold dark:text-white"
                     >
                       <option value="tracking">Tracking Status Updates</option>
-                      <option value="general">General Task</option>
+                      <option value="general">General Task (Agent / Staff)</option>
                     </select>
                   </div>
 
@@ -589,18 +622,56 @@ const TrackingTasks = () => {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-gray-500 mb-1 uppercase">Assign To</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="block text-xs font-bold text-gray-500 uppercase">Assign To</label>
+                      <div className="flex gap-1">
+                        {["all", "agent", "staff", "rider"].map(r => (
+                          <button
+                            key={r}
+                            type="button"
+                            onClick={() => setAssignRoleFilter(r)}
+                            className={`px-2 py-0.5 text-[10px] font-bold rounded capitalize transition-all ${
+                              assignRoleFilter === r
+                                ? "bg-primary-600 text-white"
+                                : "bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/20"
+                            }`}
+                          >
+                            {r === "all" ? "All" : `${r}s`}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                     <select 
                       value={selectedUser}
                       onChange={(e) => setSelectedUser(e.target.value)}
-                      className="w-full px-4 py-2.5 bg-gray-50 dark:bg-[#1A1A1A] border-none rounded-xl focus:ring-2 focus:ring-primary-500 text-sm dark:text-white"
+                      className="w-full px-4 py-2.5 bg-gray-50 dark:bg-[#1A1A1A] border-none rounded-xl focus:ring-2 focus:ring-primary-500 text-sm dark:text-white font-medium"
                     >
-                      <option value="">Select a staff member...</option>
-                      {users
-                        .filter(u => u.role === 'staff')
-                        .map(u => (
-                          <option key={u._id} value={u._id}>{u.name} (@{u.username})</option>
-                      ))}
+                      <option value="">Select an Agent or Staff Member...</option>
+                      {assignRoleFilter === "all" ? (
+                        <>
+                          <optgroup label="Agents">
+                            {users.filter(u => u.role === "agent").map(u => (
+                              <option key={u._id} value={u._id}>[Agent] {u.name} (@{u.username})</option>
+                            ))}
+                          </optgroup>
+                          <optgroup label="Staff Members">
+                            {users.filter(u => u.role === "staff").map(u => (
+                              <option key={u._id} value={u._id}>[Staff] {u.name} (@{u.username})</option>
+                            ))}
+                          </optgroup>
+                          <optgroup label="Riders">
+                            {users.filter(u => u.role === "rider").map(u => (
+                              <option key={u._id} value={u._id}>[Rider] {u.name} (@{u.username})</option>
+                            ))}
+                          </optgroup>
+                        </>
+                      ) : (
+                        users
+                          .filter(u => u.role === assignRoleFilter)
+                          .map(u => (
+                            <option key={u._id} value={u._id}>[{u.role?.toUpperCase()}] {u.name} (@{u.username})</option>
+                          ))
+                      )}
                     </select>
                   </div>
 
@@ -687,6 +758,9 @@ const TrackingTasks = () => {
                 return task.is_incentive;
               }
               if (activeTab === 'my_tasks' && task.is_incentive) return false;
+              if (activeTab === 'admin_tasks' && taskRoleFilter !== 'all') {
+                if (task.assignedTo?.role !== taskRoleFilter) return false;
+              }
 
               if (taskFilter === 'all') return true;
               
@@ -743,6 +817,15 @@ const TrackingTasks = () => {
                         </div>
                         <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1 mb-1">
                           <Users className="h-3 w-3" /> Assigned to: <span className="font-semibold dark:text-gray-200">{task.assignedTo?.name}</span>
+                          {task.assignedTo?.role && (
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase ${
+                              task.assignedTo.role === 'agent' ? 'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300' :
+                              task.assignedTo.role === 'staff' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300' :
+                              'bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-gray-300'
+                            }`}>
+                              {task.assignedTo.role}
+                            </span>
+                          )}
                         </p>
                         {task.dueDate && (
                           <p className={`text-[10px] font-semibold flex items-center gap-1 ${new Date(task.dueDate) < new Date() && task.status !== 'completed' ? 'text-red-500' : 'text-gray-400'}`}>

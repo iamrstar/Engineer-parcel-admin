@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useNavigate } from "react-router-dom"
 import axios from "axios"
 import toast from "react-hot-toast"
 import {
@@ -17,10 +18,12 @@ import {
     Phone,
     Mail,
     Eye,
-    EyeOff
+    EyeOff,
+    ClipboardList
 } from "lucide-react"
 
 const UserManagement = () => {
+    const navigate = useNavigate()
     const [users, setUsers] = useState([])
     const [performanceStats, setPerformanceStats] = useState([])
     const [loading, setLoading] = useState(true)
@@ -304,17 +307,18 @@ const UserManagement = () => {
                                             </span>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            {user.role === 'staff' ? (() => {
+                                            {(() => {
                                                 const stats = performanceStats.find(s => s._id === user._id)
-                                                return (
-                                                    <div className="flex flex-col">
-                                                        <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full w-fit mb-1">{stats ? stats.tasksCompleted : 0} Tasks Done</span>
-                                                        <span className="text-[10px] text-gray-500">{stats ? stats.bookingsProcessed : 0} Bookings</span>
-                                                    </div>
-                                                )
-                                            })() : (
-                                                <span className="text-xs text-gray-400 italic">N/A</span>
-                                            )}
+                                                if (user.role === 'staff' || user.role === 'agent' || stats) {
+                                                    return (
+                                                        <div className="flex flex-col">
+                                                            <span className="text-xs font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full w-fit mb-1">{stats ? stats.tasksCompleted : 0} Tasks Done</span>
+                                                            <span className="text-[10px] text-gray-500">{stats ? stats.bookingsProcessed : 0} Bookings</span>
+                                                        </div>
+                                                    )
+                                                }
+                                                return <span className="text-xs text-gray-400 italic">N/A</span>
+                                            })()}
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <button
@@ -330,6 +334,13 @@ const UserManagement = () => {
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                             <div className="flex items-center gap-3">
+                                                <button
+                                                    onClick={() => navigate(`/tracking-tasks?userId=${user._id}`)}
+                                                    className="p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-all"
+                                                    title="Assign Task"
+                                                >
+                                                    <ClipboardList className="h-4 w-4" />
+                                                </button>
                                                 <button
                                                     onClick={() => handleViewCredentials(user)}
                                                     className="p-2 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all"

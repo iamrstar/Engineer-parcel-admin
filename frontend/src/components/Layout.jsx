@@ -359,7 +359,7 @@ const Layout = ({ children }) => {
     { name: "Coupons", href: "/coupons", icon: Ticket },
     { name: "Create Order", href: "/manual-booking", icon: Ticket },
     { name: "Tasks", href: "/tasks", icon: CheckSquare, badge: tasksCount },
-    { name: "Staff Tasks", href: "/tracking-tasks", icon: ClipboardList, badge: unacceptedIncentivesCount },
+    { name: isAdmin ? "Tasks Management" : "Staff Tasks", href: "/tracking-tasks", icon: ClipboardList, badge: unacceptedIncentivesCount },
     { name: "Attendance", href: "/attendance", icon: UserCheck },
     { name: "Attendance Report", href: "/attendance-report", icon: FileText },
     { name: "User Management", href: "/user-management", icon: Users },
@@ -373,7 +373,7 @@ const Layout = ({ children }) => {
 
   const defaultStaffAllowed = [
     "Dashboard", "Booking", "E-Docket", "Pincodes", "Create Order", 
-    "Corporate Partners", "Partner Management", "Staff Tasks", "Manage Queries", 
+    "Corporate Partners", "Partner Management", "Staff Tasks", "Tasks Management", "Manage Queries", 
     "Courier Dockets", "Docket Management", "Leads", "Performance"
   ];
   
@@ -390,7 +390,7 @@ const Layout = ({ children }) => {
         return defaultStaffAllowed.includes(item.name);
       }).map(item => {
         if (item.name === "Manage Queries") return { ...item, name: "My Queries" }
-        if (item.name === "Staff Tasks") return { ...item, name: "My Tasks" }
+        if (item.name === "Staff Tasks" || item.name === "Tasks Management") return { ...item, name: "My Tasks" }
         return item
       });
 
