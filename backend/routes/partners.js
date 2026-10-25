@@ -7,6 +7,43 @@ const adminAuth = require("../middleware/adminAuth");
 const Booking = require("../models/Booking");
 const VendorPayment = require("../models/VendorPayment");
 
+// Helper function to parse IST-aware date ranges (UTC+05:30)
+function getFilterDateRange(query) {
+    const { month, startDate, endDate, filterType } = query;
+    if (filterType === 'all') {
+        return null;
+    }
+
+    // Custom date range
+    if (startDate && endDate) {
+        const start = new Date(`${startDate}T00:00:00.000+05:30`);
+        const end = new Date(`${endDate}T23:59:59.999+05:30`);
+        if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+            return { start, end, type: 'custom', startDate, endDate };
+        }
+    } else if (startDate && !endDate) {
+        const start = new Date(`${startDate}T00:00:00.000+05:30`);
+        const end = new Date(`${startDate}T23:59:59.999+05:30`);
+        if (!isNaN(start.getTime())) {
+            return { start, end, type: 'custom', startDate, endDate: startDate };
+        }
+    }
+
+    // Month filter (format: YYYY-MM)
+    if (month && /^\d{4}-\d{2}$/.test(month)) {
+        const [year, m] = month.split('-').map(Number);
+        const start = new Date(`${month}-01T00:00:00.000+05:30`);
+        const lastDay = new Date(year, m, 0).getDate();
+        const lastDayStr = String(lastDay).padStart(2, '0');
+        const end = new Date(`${month}-${lastDayStr}T23:59:59.999+05:30`);
+        if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+            return { start, end, type: 'month', month };
+        }
+    }
+
+    return null;
+}
+
 // GET all vendors
 router.get("/", adminAuth, async (req, res) => {
     try {
@@ -145,29 +182,23 @@ router.get("/:id/orders", adminAuth, async (req, res) => {
         const vendor = await Vendor.findById(req.params.id);
         if (!vendor) return res.status(404).json({ message: "Vendor not found" });
 
-        const { month } = req.query; // Format: YYYY-MM
-        const query = { 
-            vendorId: vendor.partnerId,
-            isVendorBooking: true 
+        const partnerIds = [vendor.partnerId, vendor.vendorId, String(vendor._id)].filter(Boolean);
+        const query = {
+            $or: [
+                { partnerId: { $in: partnerIds } },
+                { vendorId: { $in: partnerIds } }
+            ]
         };
 
-        if (month) {
-            const startDate = new Date(`${month}-01T00:00:00.000Z`);
-            // Create a date for the 1st of the next month
-            const year = parseInt(month.split('-')[0]);
-            const nextMonth = parseInt(month.split('-')[1]) === 12 ? 1 : parseInt(month.split('-')[1]) + 1;
-            const nextYear = parseInt(month.split('-')[1]) === 12 ? year + 1 : year;
-            const endDate = new Date(`${nextYear}-${String(nextMonth).padStart(2, '0')}-01T00:00:00.000Z`);
-            
+        const range = getFilterDateRange(req.query);
+        if (range) {
             query.createdAt = {
-                $gte: startDate,
-                $lt: endDate
+                $gte: range.start,
+                $lte: range.end
             };
         }
 
-        // Find bookings where vendorId matches the vendor's vendorId (VEND001 etc)
         const bookings = await Booking.find(query).sort({ createdAt: -1 });
-        
         res.json(bookings);
     } catch (err) {
         res.status(500).json({ message: err.message });
@@ -286,31 +317,45 @@ router.delete("/order/:orderId/history/:historyId", adminAuth, async (req, res) 
     }
 });
 
-// GET financial summary for a vendor (Monthly/Total)
+// GET financial summary for a vendor (Monthly/Custom/Total)
 router.get("/:id/finances", adminAuth, async (req, res) => {
     try {
         const vendor = await Vendor.findById(req.params.id);
         if (!vendor) return res.status(404).json({ message: "Vendor not found" });
 
-        const { month } = req.query; // Format: YYYY-MM
+        const partnerIds = [vendor.partnerId, vendor.vendorId, String(vendor._id)].filter(Boolean);
+        const bookingQuery = {
+            $or: [
+                { partnerId: { $in: partnerIds } },
+                { vendorId: { $in: partnerIds } }
+            ]
+        };
 
-        const bookingQuery = { vendorId: vendor.partnerId, isVendorBooking: true };
-        const paymentQuery = { vendorId: vendor.partnerId };
+        const paymentQuery = {
+            $or: [
+                { vendorId: { $in: partnerIds } },
+                { partnerId: { $in: partnerIds } }
+            ]
+        };
 
-        if (month) {
-            const startDate = new Date(`${month}-01T00:00:00.000Z`);
-            const year = parseInt(month.split('-')[0]);
-            const nextMonth = parseInt(month.split('-')[1]) === 12 ? 1 : parseInt(month.split('-')[1]) + 1;
-            const nextYear = parseInt(month.split('-')[1]) === 12 ? year + 1 : year;
-            const endDate = new Date(`${nextYear}-${String(nextMonth).padStart(2, '0')}-01T00:00:00.000Z`);
-            
+        const range = getFilterDateRange(req.query);
+        if (range) {
             bookingQuery.createdAt = {
-                $gte: startDate,
-                $lt: endDate
+                $gte: range.start,
+                $lte: range.end
             };
-            
-            // For VendorPayment, we already store a exact "month" string e.g. "2026-03"
-            paymentQuery.month = month;
+
+            if (range.type === 'month') {
+                paymentQuery.$or = [
+                    { month: range.month },
+                    { paymentDate: { $gte: range.start, $lte: range.end } }
+                ];
+            } else if (range.type === 'custom') {
+                paymentQuery.paymentDate = {
+                    $gte: range.start,
+                    $lte: range.end
+                };
+            }
         }
 
         const bookings = await Booking.find(bookingQuery);
@@ -320,12 +365,42 @@ router.get("/:id/finances", adminAuth, async (req, res) => {
         const totalPaidOnOrders = bookings.reduce((sum, b) => sum + (b.vendorPaidAmount || 0), 0);
         const totalBulkPayments = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
 
+        // All-Time Summary for reference
+        const allTimeBookings = await Booking.find({
+            $or: [
+                { partnerId: { $in: partnerIds } },
+                { vendorId: { $in: partnerIds } }
+            ]
+        });
+        const allTimePayments = await VendorPayment.find({
+            $or: [
+                { vendorId: { $in: partnerIds } },
+                { partnerId: { $in: partnerIds } }
+            ]
+        });
+
+        const allTimeTotalDue = allTimeBookings.reduce((sum, b) => sum + (b.pricing?.totalAmount || 0), 0);
+        const allTimePaidOnOrders = allTimeBookings.reduce((sum, b) => sum + (b.vendorPaidAmount || 0), 0);
+        const allTimeBulkPayments = allTimePayments.reduce((sum, p) => sum + (p.amount || 0), 0);
+
         res.json({
             totalDue,
             totalPaidOnOrders,
             totalBulkPayments,
             netBalance: totalDue - (totalPaidOnOrders + totalBulkPayments),
-            bookingCount: bookings.length
+            bookingCount: bookings.length,
+            filterRange: range ? {
+                start: range.start,
+                end: range.end,
+                type: range.type,
+                label: range.type === 'month' ? range.month : `${range.startDate} to ${range.endDate}`
+            } : { type: 'all', label: 'All Time' },
+            allTime: {
+                totalDue: allTimeTotalDue,
+                totalPaid: allTimePaidOnOrders + allTimeBulkPayments,
+                netBalance: allTimeTotalDue - (allTimePaidOnOrders + allTimeBulkPayments),
+                bookingCount: allTimeBookings.length
+            }
         });
     } catch (err) {
         res.status(500).json({ message: err.message });

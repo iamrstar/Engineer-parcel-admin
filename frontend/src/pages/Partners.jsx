@@ -28,14 +28,84 @@ import {
   AlertCircle,
   Clock,
   ChevronRight,
+  ChevronLeft,
   ArrowLeft,
   Package,
   Check,
   XCircle,
   FileText,
   Key,
+  Calendar,
+  Download,
+  RotateCcw,
+  Filter,
+  Printer,
+  Share2,
+  Copy,
+  Send,
+  Receipt,
   Link as LinkIcon
 } from "lucide-react"
+import * as XLSX from "xlsx"
+import jsPDF from "jspdf"
+import html2canvas from "html2canvas"
+
+const COMPANY_PROFILES = {
+  SRQ: {
+    key: "SRQ",
+    name: "SRQ ENGINEERS PARCEL AND HAUL PRIVATE LIMITED",
+    shortName: "Engineers Parcel",
+    tagline: "Complete Logistics & Express Courier Solutions",
+    address: "IIT (ISM) Dhanbad, Sardar Patel Nagar, Dhanbad - 826004, Jharkhand, India",
+    phone: "+91 9708815717 / 9525801506",
+    email: "info@engineersparcel.in",
+    website: "www.engineersparcel.in",
+    cin: "U63090JH2023PTC020726",
+    gstin: "20AAHCS7825E1ZY",
+    bank: "UCO Bank",
+    accountName: "SRQ ENGINEERS PARCEL AND HAUL PVT LTD",
+    accountNo: "01910210001448",
+    accountType: "Current Account (CAA)",
+    ifsc: "UCBA0000191",
+    branch: "Hirapur, Dhanbad",
+    upi: "engineersparcel@uco"
+  },
+  ENGGPARCEL: {
+    key: "ENGGPARCEL",
+    name: "ENGGPARCEL SERVICES LLP",
+    shortName: "EnggParcel Services",
+    tagline: "Premier Express Courier & Cargo Solutions",
+    address: "IIT (ISM) Dhanbad - 826004, Jharkhand, India",
+    phone: "+91 9708815717 / 9525801506",
+    email: "info@engineersparcel.in",
+    website: "www.engineersparcel.in",
+    cin: "AAZ-3942",
+    gstin: "20AAQFE4312Q1ZX",
+    bank: "ICICI Bank",
+    accountName: "ENGGPARCEL SERVICES LLP",
+    accountNo: "196005001234",
+    accountType: "Current Account",
+    ifsc: "ICIC0000196",
+    branch: "Dhanbad Branch",
+    upi: "enggparcel@icici"
+  }
+};
+
+const numberToWordsIndian = (num) => {
+  if (!num || isNaN(num) || num <= 0) return "Zero Rupees Only";
+  const a = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+  const b = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+  const convert = (n) => {
+    if (n < 20) return a[n];
+    if (n < 100) return b[Math.floor(n / 10)] + (n % 10 !== 0 ? " " + a[n % 10] : "");
+    if (n < 1000) return a[Math.floor(n / 100)] + " Hundred" + (n % 100 !== 0 ? " and " + convert(n % 100) : "");
+    if (n < 100000) return convert(Math.floor(n / 1000)) + " Thousand" + (n % 1000 !== 0 ? " " + convert(n % 1000) : "");
+    if (n < 10000000) return convert(Math.floor(n / 100000)) + " Lakh" + (n % 100000 !== 0 ? " " + convert(n % 100000) : "");
+    return convert(Math.floor(n / 10000000)) + " Crore" + (n % 10000000 !== 0 ? " " + convert(n % 10000000) : "");
+  };
+  const rounded = Math.round(Number(num));
+  return `Rupees ${convert(rounded)} Only`;
+};
 
 const getTimeAgo = (date) => {
   const seconds = Math.floor((new Date() - new Date(date)) / 1000);
@@ -139,7 +209,7 @@ const Vendors = () => {
   const [pincodeLoading, setPincodeLoading] = useState(false)
   const [pincodeSuccess, setPincodeSuccess] = useState(false)
 
-  // Finance States
+  // Finance States & Date Filtering
   const [selectedVendorForFinance, setSelectedVendorForFinance] = useState(null)
   const [vendorOrders, setVendorOrders] = useState([])
   const [vendorPayments, setVendorPayments] = useState([])
@@ -147,9 +217,20 @@ const Vendors = () => {
   const [financeLoading, setFinanceLoading] = useState(false)
   const [activeTab, setActiveTab] = useState('orders') // 'orders' or 'settlements'
   
+  // Date filter: 'month', 'custom', 'all'
+  const [dateFilterType, setDateFilterType] = useState("month")
   const [financeMonth, setFinanceMonth] = useState(() => {
     const today = new Date();
     return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`;
+  })
+  const [customStartDate, setCustomStartDate] = useState(() => {
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    return `${firstDay.getFullYear()}-${String(firstDay.getMonth() + 1).padStart(2, '0')}-01`;
+  })
+  const [customEndDate, setCustomEndDate] = useState(() => {
+    const today = new Date();
+    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   })
 
   // Edit Order Payment Modal
@@ -179,6 +260,20 @@ const Vendors = () => {
   const [pdfModalOpen, setPdfModalOpen] = useState(false)
   const [pdfBooking, setPdfBooking] = useState(null)
   const [pdfOptions, setPdfOptions] = useState({ receipt: true, label: true, declaration: true })
+
+  // Partner Invoice Modal States
+  const [partnerInvoiceModalOpen, setPartnerInvoiceModalOpen] = useState(false)
+  const [isGeneratingInvoicePdf, setIsGeneratingInvoicePdf] = useState(false)
+  const [selectedInvoiceOrderIds, setSelectedInvoiceOrderIds] = useState([])
+  const [invoiceConfig, setInvoiceConfig] = useState({
+    invoiceNumber: "",
+    invoiceDate: new Date().toISOString().substring(0, 10),
+    dueDate: new Date(Date.now() + 15 * 86400000).toISOString().substring(0, 10),
+    companyKey: "SRQ",
+    gstType: "inclusive",
+    deductPayments: true,
+    notes: "Payment due within 15 days from invoice date. Subject to Dhanbad jurisdiction."
+  })
 
   // Form State
   const [formData, setFormData] = useState({
@@ -250,31 +345,322 @@ const Vendors = () => {
     }
   }
 
-  const fetchVendorFinances = async (vendor, monthParam = financeMonth) => {
+  const buildDateQueryParams = (override = {}) => {
+    const type = override.dateFilterType !== undefined ? override.dateFilterType : dateFilterType;
+    if (type === "all") return "?filterType=all";
+    if (type === "custom") {
+      const s = override.customStartDate !== undefined ? override.customStartDate : customStartDate;
+      const e = override.customEndDate !== undefined ? override.customEndDate : customEndDate;
+      if (s && e) return `?filterType=custom&startDate=${s}&endDate=${e}`;
+      if (s) return `?filterType=custom&startDate=${s}&endDate=${s}`;
+    }
+    const m = override.financeMonth !== undefined ? override.financeMonth : financeMonth;
+    return m ? `?filterType=month&month=${m}` : "?filterType=all";
+  };
+
+  const fetchVendorFinances = async (vendor = selectedVendorForFinance, overrideFilter = null) => {
+    const targetVendor = vendor || selectedVendorForFinance;
+    if (!targetVendor) return;
     try {
-      setFinanceLoading(true)
-      const token = localStorage.getItem("adminToken") || localStorage.getItem("token")
-      const headers = { Authorization: `Bearer ${token}` }
+      setFinanceLoading(true);
+      const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
+      const headers = { Authorization: `Bearer ${token}` };
       
-      const queryParams = monthParam ? `?month=${monthParam}` : '';
+      const queryParams = buildDateQueryParams(overrideFilter || {});
 
       const [ordersRes, paymentsRes, summaryRes] = await Promise.all([
-        axios.get(`${import.meta.env.VITE_API_URL}/api/partners/${vendor._id}/orders${queryParams}`, { headers }),
-        axios.get(`${import.meta.env.VITE_API_URL}/api/vendor-payments/${vendor.partnerId}${queryParams}`, { headers }),
-        axios.get(`${import.meta.env.VITE_API_URL}/api/partners/${vendor._id}/finances${queryParams}`, { headers })
-      ])
+        axios.get(`${import.meta.env.VITE_API_URL}/api/partners/${targetVendor._id}/orders${queryParams}`, { headers }),
+        axios.get(`${import.meta.env.VITE_API_URL}/api/vendor-payments/${targetVendor.partnerId}${queryParams}`, { headers }),
+        axios.get(`${import.meta.env.VITE_API_URL}/api/partners/${targetVendor._id}/finances${queryParams}`, { headers })
+      ]);
 
-      setVendorOrders(ordersRes.data)
-      setVendorPayments(paymentsRes.data)
-      setFinanceSummary(summaryRes.data)
-      setSelectedVendorForFinance(vendor)
+      setVendorOrders(ordersRes.data || []);
+      setVendorPayments(paymentsRes.data || []);
+      setFinanceSummary(summaryRes.data || null);
+      setSelectedVendorForFinance(targetVendor);
     } catch (error) {
-      toast.error("Failed to fetch financial data")
-      console.error(error)
+      toast.error("Failed to fetch financial data");
+      console.error(error);
     } finally {
-      setFinanceLoading(false)
+      setFinanceLoading(false);
     }
-  }
+  };
+
+  const handlePrevMonth = () => {
+    const cur = financeMonth || new Date().toISOString().substring(0, 7);
+    const [y, m] = cur.split("-").map(Number);
+    const prevDate = new Date(y, m - 2, 1);
+    const newMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, "0")}`;
+    setFinanceMonth(newMonth);
+    setDateFilterType("month");
+    fetchVendorFinances(selectedVendorForFinance, { dateFilterType: "month", financeMonth: newMonth });
+  };
+
+  const handleNextMonth = () => {
+    const cur = financeMonth || new Date().toISOString().substring(0, 7);
+    const [y, m] = cur.split("-").map(Number);
+    const nextDate = new Date(y, m, 1);
+    const newMonth = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, "0")}`;
+    setFinanceMonth(newMonth);
+    setDateFilterType("month");
+    fetchVendorFinances(selectedVendorForFinance, { dateFilterType: "month", financeMonth: newMonth });
+  };
+
+  const handleSetCurrentMonth = () => {
+    const today = new Date();
+    const curMonth = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+    setFinanceMonth(curMonth);
+    setDateFilterType("month");
+    fetchVendorFinances(selectedVendorForFinance, { dateFilterType: "month", financeMonth: curMonth });
+  };
+
+  const handleSetQuickPreset = (preset) => {
+    const today = new Date();
+    const formatDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    let s = "";
+    let e = formatDate(today);
+
+    if (preset === "today") {
+      s = e;
+    } else if (preset === "yesterday") {
+      const y = new Date();
+      y.setDate(y.getDate() - 1);
+      s = formatDate(y);
+      e = s;
+    } else if (preset === "last7") {
+      const d = new Date();
+      d.setDate(d.getDate() - 6);
+      s = formatDate(d);
+    } else if (preset === "thisMonth") {
+      const first = new Date(today.getFullYear(), today.getMonth(), 1);
+      s = formatDate(first);
+    } else if (preset === "lastMonth") {
+      const first = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+      const last = new Date(today.getFullYear(), today.getMonth(), 0);
+      s = formatDate(first);
+      e = formatDate(last);
+    } else if (preset === "last30") {
+      const d = new Date();
+      d.setDate(d.getDate() - 29);
+      s = formatDate(d);
+    }
+
+    setCustomStartDate(s);
+    setCustomEndDate(e);
+    setDateFilterType("custom");
+    fetchVendorFinances(selectedVendorForFinance, {
+      dateFilterType: "custom",
+      customStartDate: s,
+      customEndDate: e
+    });
+  };
+
+  const handleApplyCustomRange = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    if (!customStartDate) {
+      toast.error("Please enter a start date");
+      return;
+    }
+    const end = customEndDate || customStartDate;
+    setDateFilterType("custom");
+    fetchVendorFinances(selectedVendorForFinance, {
+      dateFilterType: "custom",
+      customStartDate,
+      customEndDate: end
+    });
+  };
+
+  const handleSetAllTime = () => {
+    setDateFilterType("all");
+    fetchVendorFinances(selectedVendorForFinance, { dateFilterType: "all" });
+  };
+
+  const formatMonthName = (monthStr) => {
+    if (!monthStr || !monthStr.includes("-")) return monthStr || "";
+    const [y, m] = monthStr.split("-").map(Number);
+    const date = new Date(y, m - 1, 1);
+    return date.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+  };
+
+  const handleExportPartnerOrders = () => {
+    if (vendorOrders.length === 0) {
+      toast.error("No orders to export for this period");
+      return;
+    }
+    const exportData = vendorOrders.map((order, idx) => ({
+      "S.No": idx + 1,
+      "Order / Tracking ID": order.trackingId || order.bookingId,
+      "Booking Date": new Date(order.createdAt).toLocaleDateString("en-IN"),
+      "Sender Name": order.senderDetails?.name || "",
+      "Sender City": order.senderDetails?.city || "",
+      "Receiver Name": order.receiverDetails?.name || "",
+      "Receiver City": order.receiverDetails?.city || "",
+      "Total Amount (Rs)": order.pricing?.totalAmount || 0,
+      "Paid Amount (Rs)": order.vendorPaidAmount || 0,
+      "Due Balance (Rs)": Math.max(0, (order.pricing?.totalAmount || 0) - (order.vendorPaidAmount || 0)),
+      "Payment Status": order.vendorPaymentStatus || "Pending",
+      "Shipment Status": order.status || ""
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Orders");
+    const partnerNameSafe = (selectedVendorForFinance?.name || "Partner").replace(/[^a-zA-Z0-9]/g, "_");
+    const periodLabel = dateFilterType === 'month' ? financeMonth : dateFilterType === 'custom' ? `${customStartDate}_to_${customEndDate}` : 'All_Time';
+    XLSX.writeFile(workbook, `${partnerNameSafe}_Orders_${periodLabel}.xlsx`);
+    toast.success("Excel report exported!");
+  };
+
+  const handleOpenPartnerInvoiceModal = () => {
+    if (!selectedVendorForFinance) return;
+    if (vendorOrders.length === 0) {
+      toast.error("No orders found for the active filter to generate an invoice.");
+      return;
+    }
+    const today = new Date();
+    const curYear = today.getFullYear();
+    const fy = today.getMonth() >= 2 ? `${String(curYear).slice(2)}-${String(curYear + 1).slice(2)}` : `${String(curYear - 1).slice(2)}-${String(curYear).slice(2)}`;
+    const monthNum = String(today.getMonth() + 1).padStart(2, '0');
+    const partnerCode = selectedVendorForFinance.partnerId || 'PAT';
+    const randomSeq = String(Math.floor(100 + Math.random() * 900));
+    const invNo = `INV/${fy}/${partnerCode}-${monthNum}${randomSeq}`;
+
+    setInvoiceConfig({
+      invoiceNumber: invNo,
+      invoiceDate: today.toISOString().substring(0, 10),
+      dueDate: new Date(Date.now() + 15 * 86400000).toISOString().substring(0, 10),
+      companyKey: "SRQ",
+      gstType: selectedVendorForFinance.gstNumber ? "inclusive" : "exempt",
+      deductPayments: true,
+      notes: "Payment due within 15 days from invoice date. Subject to Dhanbad jurisdiction."
+    });
+    setSelectedInvoiceOrderIds(vendorOrders.map(o => o._id));
+    setPartnerInvoiceModalOpen(true);
+  };
+
+  const handleOpenSingleOrderInvoice = (order) => {
+    if (!selectedVendorForFinance || !order) return;
+    const today = new Date();
+    const curYear = today.getFullYear();
+    const fy = today.getMonth() >= 2 ? `${String(curYear).slice(2)}-${String(curYear + 1).slice(2)}` : `${String(curYear - 1).slice(2)}-${String(curYear).slice(2)}`;
+    const tid = order.trackingId || order.bookingId || 'ORD';
+    const invNo = `INV/${fy}/${tid}`;
+
+    setInvoiceConfig({
+      invoiceNumber: invNo,
+      invoiceDate: today.toISOString().substring(0, 10),
+      dueDate: new Date(Date.now() + 15 * 86400000).toISOString().substring(0, 10),
+      companyKey: "SRQ",
+      gstType: selectedVendorForFinance.gstNumber ? "inclusive" : "exempt",
+      deductPayments: true,
+      notes: "Payment due within 15 days from invoice date. Subject to Dhanbad jurisdiction."
+    });
+    setSelectedInvoiceOrderIds([order._id]);
+    setPartnerInvoiceModalOpen(true);
+  };
+
+  const handlePrintInvoice = () => {
+    window.print();
+  };
+
+  const handleDownloadInvoicePDF = async () => {
+    const element = document.getElementById("partner-invoice-printable");
+    if (!element) {
+      toast.error("Invoice printable view not found");
+      return;
+    }
+    try {
+      setIsGeneratingInvoicePdf(true);
+      toast.loading("Generating High-Resolution Invoice PDF...", { id: "partner-inv-pdf" });
+
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: "#ffffff"
+      });
+
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF("p", "mm", "a4");
+      const imgWidth = 210; // A4 mm
+      const pageHeight = 297; // A4 mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      const cleanNum = invoiceConfig.invoiceNumber.replace(/[\/\\?%*:|"<>]/g, "-");
+      const filename = `Invoice_${selectedVendorForFinance?.partnerId || "PARTNER"}_${cleanNum}.pdf`;
+      pdf.save(filename);
+      toast.success("Invoice PDF downloaded successfully!", { id: "partner-inv-pdf" });
+    } catch (err) {
+      console.error("PDF generation failed:", err);
+      toast.error("Error creating PDF, launching print view...", { id: "partner-inv-pdf" });
+      window.print();
+    } finally {
+      setIsGeneratingInvoicePdf(false);
+    }
+  };
+
+  const handleSendWhatsApp = (finalPayableAmount, invoicePeriodLabel, selectedOrdersCount) => {
+    if (!selectedVendorForFinance) return;
+    const phone = (selectedVendorForFinance.phone || "").replace(/\D/g, "");
+    const formattedPhone = phone.length === 10 ? `91${phone}` : phone;
+    const company = COMPANY_PROFILES[invoiceConfig.companyKey] || COMPANY_PROFILES.SRQ;
+
+    const message = `*INVOICE: ${invoiceConfig.invoiceNumber}*
+*To:* ${selectedVendorForFinance.name} (${selectedVendorForFinance.partnerId})
+*Billing Period:* ${invoicePeriodLabel}
+*Invoice Date:* ${invoiceConfig.invoiceDate}
+*Payment Due Date:* ${invoiceConfig.dueDate}
+*Total Consignments:* ${selectedOrdersCount}
+*Total Net Payable:* Rs. ${finalPayableAmount.toLocaleString('en-IN')} (${numberToWordsIndian(finalPayableAmount)})
+
+*Bank Payment Transfer Details:*
+*Account Name:* ${company.accountName}
+*Bank:* ${company.bank}
+*A/c No:* ${company.accountNo}
+*IFSC:* ${company.ifsc}
+*Branch:* ${company.branch}
+*UPI ID:* ${company.upi}
+
+Kindly review the invoice and process payment before ${invoiceConfig.dueDate}.
+Thank you for partnering with Engineers Parcel!`;
+
+    window.open(`https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`, "_blank");
+  };
+
+  const handleCopyInvoiceSummary = (finalPayableAmount, invoicePeriodLabel, selectedOrdersCount) => {
+    if (!selectedVendorForFinance) return;
+    const company = COMPANY_PROFILES[invoiceConfig.companyKey] || COMPANY_PROFILES.SRQ;
+    const text = `INVOICE: ${invoiceConfig.invoiceNumber}
+To: ${selectedVendorForFinance.name} (${selectedVendorForFinance.partnerId})
+Billing Period: ${invoicePeriodLabel}
+Date: ${invoiceConfig.invoiceDate}
+Due Date: ${invoiceConfig.dueDate}
+Total Consignments: ${selectedOrdersCount}
+Total Net Payable: Rs. ${finalPayableAmount.toLocaleString('en-IN')} (${numberToWordsIndian(finalPayableAmount)})
+
+Bank Details:
+Company: ${company.name}
+Bank: ${company.bank}
+A/c No: ${company.accountNo}
+IFSC: ${company.ifsc}
+Branch: ${company.branch}
+UPI ID: ${company.upi}`;
+
+    navigator.clipboard.writeText(text);
+    toast.success("Invoice summary copied to clipboard!");
+  };
 
   const handleUpdateOrderPayment = async (e) => {
     e.preventDefault()
@@ -309,7 +695,7 @@ const Vendors = () => {
       )
       toast.success("Payment history updated")
       
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/partners/${selectedVendorForFinance._id}/orders${financeMonth ? `?month=${financeMonth}` : ''}`, { 
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/partners/${selectedVendorForFinance._id}/orders${buildDateQueryParams()}`, { 
         headers: { Authorization: `Bearer ${token}` } 
       });
       setVendorOrders(res.data)
@@ -319,7 +705,7 @@ const Vendors = () => {
          setOrderPaymentData(prev => ({...prev, vendorPaidAmount: updatedOrder.vendorPaidAmount}));
       }
       
-      fetchVendorFinances(selectedVendorForFinance, financeMonth);
+      fetchVendorFinances(selectedVendorForFinance);
       setEditingHistoryId(null);
     } catch (error) {
       toast.error("Failed to update history")
@@ -336,7 +722,7 @@ const Vendors = () => {
       )
       toast.success("Payment history deleted")
       
-      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/partners/${selectedVendorForFinance._id}/orders${financeMonth ? `?month=${financeMonth}` : ''}`, { 
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/partners/${selectedVendorForFinance._id}/orders${buildDateQueryParams()}`, { 
         headers: { Authorization: `Bearer ${token}` } 
       });
       setVendorOrders(res.data)
@@ -346,7 +732,7 @@ const Vendors = () => {
          setOrderPaymentData(prev => ({...prev, vendorPaidAmount: updatedOrder.vendorPaidAmount}));
       }
       
-      fetchVendorFinances(selectedVendorForFinance, financeMonth);
+      fetchVendorFinances(selectedVendorForFinance);
     } catch (error) {
       toast.error("Failed to delete history")
     }
@@ -815,44 +1201,294 @@ const Vendors = () => {
       {selectedVendorForFinance && (
         <div className="fixed inset-0 z-[70] bg-gray-50 dark:bg-[#111111] flex flex-col animate-in slide-in-from-right duration-300">
           {/* Local Header */}
-          <div className="bg-white dark:bg-[#1A1A1A] border-b border-gray-200 dark:border-white/10 px-6 py-4 flex items-center justify-between shadow-sm">
+          <div className="bg-white dark:bg-[#1A1A1A] border-b border-gray-200 dark:border-white/10 px-6 py-4 flex flex-wrap items-center justify-between gap-4 shadow-sm">
             <div className="flex items-center gap-4">
               <button 
                 onClick={() => setSelectedVendorForFinance(null)}
-                className="p-2 hover:bg-gray-100 dark:bg-[#111111] rounded-full transition-all"
+                className="p-2 hover:bg-gray-100 dark:hover:bg-white/10 rounded-full transition-all"
+                title="Back to Partners"
               >
                 <ArrowLeft className="h-6 w-6 text-gray-600 dark:text-gray-400" />
               </button>
               <div>
-                <h2 className="text-xl font-bold text-gray-900 dark:text-white">{selectedVendorForFinance.name}</h2>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <p className="text-xs text-orange-600 font-mono font-bold tracking-tight">PARTNER FINANCE DASHBOARD • {selectedVendorForFinance.partnerId}</p>
+                <div className="flex items-center gap-3">
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-white">{selectedVendorForFinance.name}</h2>
+                  <span className="text-xs px-2.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-950/60 text-orange-700 dark:text-orange-400 font-mono font-bold border border-orange-200 dark:border-orange-900">
+                    {selectedVendorForFinance.partnerId}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 mt-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Partner Financial & Order Ledger</p>
                   {selectedVendorForFinance.gstNumber && (
                     <span className="text-[10px] font-mono font-bold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800">
                       GST: {selectedVendorForFinance.gstNumber}
                     </span>
                   )}
+                  {selectedVendorForFinance.phone && (
+                    <span className="text-[10px] text-gray-400 font-mono">
+                      • {selectedVendorForFinance.phone}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
-            <div className="flex items-center gap-3">
-              <input 
-                type="month" 
-                value={financeMonth}
-                onChange={(e) => {
-                  setFinanceMonth(e.target.value);
-                  fetchVendorFinances(selectedVendorForFinance, e.target.value);
-                }}
-                className="px-4 py-2 bg-gray-50 dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-xl text-sm font-bold text-gray-700 dark:text-gray-300 focus:ring-2 focus:ring-orange-500 outline-none cursor-pointer"
-                title="Filter by Month"
-              />
+
+            <div className="flex items-center gap-2 sm:gap-3">
+              <button
+                onClick={handleExportPartnerOrders}
+                disabled={vendorOrders.length === 0}
+                className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:hover:bg-emerald-600 text-white rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
+                title="Export filtered orders to Excel"
+              >
+                <Download className="h-4 w-4" />
+                <span>Export Excel</span>
+                {vendorOrders.length > 0 && (
+                  <span className="bg-emerald-700 px-1.5 py-0.5 text-[10px] rounded-md font-mono">
+                    {vendorOrders.length}
+                  </span>
+                )}
+              </button>
+
+              <button
+                onClick={handleOpenPartnerInvoiceModal}
+                disabled={vendorOrders.length === 0}
+                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:hover:bg-indigo-600 text-white rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 transition-all shadow-sm"
+                title="Generate official Partner Invoice with Company Logo"
+              >
+                <FileText className="h-4 w-4" />
+                <span>Make Invoice</span>
+                {vendorOrders.length > 0 && (
+                  <span className="bg-indigo-700 px-1.5 py-0.5 text-[10px] rounded-md font-mono">
+                    {vendorOrders.length}
+                  </span>
+                )}
+              </button>
+
               <button 
                 onClick={() => setIsSettlementModalOpen(true)}
-                className="bg-orange-600 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 hover:bg-orange-700 transition-all shadow-lg shadow-orange-100"
+                className="bg-orange-600 text-white px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 hover:bg-orange-700 transition-all shadow-lg shadow-orange-100 dark:shadow-none"
               >
                 <DollarSign className="h-4 w-4" /> Record Settlement
               </button>
-              <button onClick={() => setSelectedVendorForFinance(null)} className="text-gray-400 hover:text-gray-600 dark:text-gray-400"><X className="h-6 w-6" /></button>
+
+              <button 
+                onClick={() => setSelectedVendorForFinance(null)} 
+                className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-white rounded-full hover:bg-gray-100 dark:hover:bg-white/10 transition-all"
+                title="Close"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+          </div>
+
+          {/* Date Filter & Control Bar */}
+          <div className="bg-white dark:bg-[#1A1A1A] border-b border-gray-200 dark:border-white/10 px-6 py-3">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+              {/* Filter Mode Selector Pills */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-bold text-gray-400 uppercase tracking-wider mr-1 flex items-center gap-1.5">
+                  <Filter className="h-3.5 w-3.5" /> Filter By:
+                </span>
+                <div className="inline-flex p-1 bg-gray-100 dark:bg-white/5 rounded-2xl border border-gray-200 dark:border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDateFilterType("month");
+                      fetchVendorFinances(selectedVendorForFinance, { dateFilterType: "month" });
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                      dateFilterType === "month"
+                        ? "bg-orange-600 text-white shadow-sm"
+                        : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                    }`}
+                  >
+                    <Calendar className="h-3.5 w-3.5" />
+                    Month by Month
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDateFilterType("custom");
+                      if (customStartDate) {
+                        fetchVendorFinances(selectedVendorForFinance, { dateFilterType: "custom" });
+                      }
+                    }}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                      dateFilterType === "custom"
+                        ? "bg-orange-600 text-white shadow-sm"
+                        : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                    }`}
+                  >
+                    <Calendar className="h-3.5 w-3.5" />
+                    Custom Range
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSetAllTime}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                      dateFilterType === "all"
+                        ? "bg-orange-600 text-white shadow-sm"
+                        : "text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
+                    }`}
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    All Time
+                  </button>
+                </div>
+              </div>
+
+              {/* Mode-Specific Controls */}
+              {dateFilterType === "month" && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center bg-gray-50 dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-2xl p-1 shadow-sm">
+                    <button
+                      type="button"
+                      onClick={handlePrevMonth}
+                      className="p-1.5 hover:bg-white dark:hover:bg-white/10 rounded-xl text-gray-600 dark:text-gray-300 transition-all flex items-center gap-1 text-xs font-semibold px-2.5"
+                      title="Previous Month"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                      <span className="hidden sm:inline">Prev</span>
+                    </button>
+
+                    <div className="relative flex items-center px-2">
+                      <span className="text-xs font-black text-gray-800 dark:text-gray-200 px-2 min-w-[130px] text-center cursor-pointer">
+                        {formatMonthName(financeMonth)}
+                      </span>
+                      <input
+                        type="month"
+                        value={financeMonth}
+                        onChange={(e) => {
+                          setFinanceMonth(e.target.value);
+                          setDateFilterType("month");
+                          fetchVendorFinances(selectedVendorForFinance, {
+                            dateFilterType: "month",
+                            financeMonth: e.target.value,
+                          });
+                        }}
+                        className="opacity-0 absolute inset-0 cursor-pointer w-full h-full"
+                        title="Pick Month"
+                      />
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleNextMonth}
+                      className="p-1.5 hover:bg-white dark:hover:bg-white/10 rounded-xl text-gray-600 dark:text-gray-300 transition-all flex items-center gap-1 text-xs font-semibold px-2.5"
+                      title="Next Month"
+                    >
+                      <span className="hidden sm:inline">Next</span>
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleSetCurrentMonth}
+                    className="px-3 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-200 rounded-xl text-xs font-bold transition-all"
+                  >
+                    This Month
+                  </button>
+                </div>
+              )}
+
+              {dateFilterType === "custom" && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex items-center gap-1.5 bg-gray-50 dark:bg-[#111111] border border-gray-200 dark:border-white/10 rounded-2xl px-3 py-1.5 shadow-sm">
+                    <span className="text-[11px] font-bold text-gray-400">From:</span>
+                    <input
+                      type="date"
+                      value={customStartDate}
+                      onChange={(e) => setCustomStartDate(e.target.value)}
+                      className="bg-transparent text-xs font-bold text-gray-800 dark:text-gray-200 outline-none cursor-pointer"
+                    />
+                    <span className="text-[11px] font-bold text-gray-400 mx-1">To:</span>
+                    <input
+                      type="date"
+                      value={customEndDate}
+                      onChange={(e) => setCustomEndDate(e.target.value)}
+                      className="bg-transparent text-xs font-bold text-gray-800 dark:text-gray-200 outline-none cursor-pointer"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={handleApplyCustomRange}
+                    className="px-3.5 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1"
+                  >
+                    <Filter className="h-3.5 w-3.5" />
+                    Apply
+                  </button>
+                </div>
+              )}
+
+              {dateFilterType === "all" && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-white/5 px-3 py-1.5 rounded-xl border border-gray-200 dark:border-white/10">
+                    Showing all records across all time
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleSetCurrentMonth}
+                    className="text-xs text-orange-600 hover:underline font-bold"
+                  >
+                    Reset to This Month
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Quick Presets row when Custom Range is active */}
+            {dateFilterType === "custom" && (
+              <div className="flex items-center gap-1.5 flex-wrap mt-2.5 pt-2 border-t border-gray-100 dark:border-white/5">
+                <span className="text-[11px] font-bold text-gray-400 mr-1">Quick Presets:</span>
+                {[
+                  { id: "today", label: "Today" },
+                  { id: "yesterday", label: "Yesterday" },
+                  { id: "last7", label: "Last 7 Days" },
+                  { id: "thisMonth", label: "This Month" },
+                  { id: "lastMonth", label: "Last Month" },
+                  { id: "last30", label: "Last 30 Days" },
+                ].map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => handleSetQuickPreset(preset.id)}
+                    className="px-2.5 py-1 text-[11px] font-semibold bg-gray-100 dark:bg-white/5 hover:bg-orange-50 hover:text-orange-600 dark:hover:bg-orange-950/40 dark:hover:text-orange-400 text-gray-600 dark:text-gray-400 rounded-lg transition-all border border-transparent hover:border-orange-200 dark:hover:border-orange-800"
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Active Period / Filter Indicator Banner */}
+          <div className="bg-orange-50/70 dark:bg-orange-950/20 border-b border-orange-100 dark:border-orange-900/30 px-6 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse" />
+              <span className="font-bold text-orange-950 dark:text-orange-200">
+                Period:
+              </span>
+              <span className="text-orange-900 dark:text-orange-300 font-medium">
+                {dateFilterType === "month" && `${formatMonthName(financeMonth)} (Full Calendar Month)`}
+                {dateFilterType === "custom" && (
+                  customStartDate
+                    ? `${customStartDate} to ${customEndDate || customStartDate}`
+                    : "Custom Range (Select dates above and click Apply)"
+                )}
+                {dateFilterType === "all" && "All Time (Complete Partner History)"}
+              </span>
+              {financeLoading && (
+                <span className="text-orange-600 font-semibold text-[11px] ml-2 animate-pulse">
+                  Updating records...
+                </span>
+              )}
+            </div>
+            <div className="text-[11px] text-orange-800 dark:text-orange-400 font-mono">
+              Showing <b>{vendorOrders.length}</b> orders &bull; <b>{vendorPayments.length}</b> settlements
             </div>
           </div>
 
@@ -860,37 +1496,72 @@ const Vendors = () => {
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-white dark:bg-[#1A1A1A] p-5 rounded-3xl border border-gray-100 shadow-sm">
-                <div className="flex justify-between items-start mb-2">
-                  <div className="p-2 bg-orange-50 rounded-xl text-orange-600"><TrendingUp className="h-5 w-5" /></div>
-                  <span className="text-[10px] font-bold text-orange-600 uppercase tracking-widest bg-orange-50 px-2 py-0.5 rounded">Total Due</span>
+              <div className="bg-white dark:bg-[#1A1A1A] p-5 rounded-3xl border border-gray-100 dark:border-white/10 shadow-sm flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="p-2 bg-orange-50 dark:bg-orange-950/50 rounded-xl text-orange-600"><TrendingUp className="h-5 w-5" /></div>
+                    <span className="text-[10px] font-bold text-orange-600 uppercase tracking-widest bg-orange-50 dark:bg-orange-950/50 px-2 py-0.5 rounded">Total Due (Period)</span>
+                  </div>
+                  <div className="text-2xl font-black text-gray-900 dark:text-white">₹{(financeSummary?.totalDue || 0).toLocaleString('en-IN')}</div>
+                  <p className="text-[10px] text-gray-400 mt-1 font-bold italic">Across {financeSummary?.bookingCount || 0} orders in this period</p>
                 </div>
-                <div className="text-2xl font-black text-gray-900 dark:text-white">₹{(financeSummary?.totalDue || 0).toLocaleString('en-IN')}</div>
-                <p className="text-[10px] text-gray-400 mt-1 font-bold italic">Cumulative across {financeSummary?.bookingCount || 0} orders</p>
+                {financeSummary?.allTime && (
+                  <div className="mt-3 pt-2.5 border-t border-gray-100 dark:border-white/5 flex items-center justify-between text-[11px]">
+                    <span className="text-gray-400">All-Time Due:</span>
+                    <span className="font-bold text-gray-700 dark:text-gray-300">₹{(financeSummary.allTime.totalDue || 0).toLocaleString('en-IN')}</span>
+                  </div>
+                )}
               </div>
-              <div className="bg-white dark:bg-[#1A1A1A] p-5 rounded-3xl border border-gray-100 shadow-sm">
-                <div className="flex justify-between items-start mb-2">
-                  <div className="p-2 bg-green-50 rounded-xl text-green-600"><CheckCircle2 className="h-5 w-5" /></div>
-                  <span className="text-[10px] font-bold text-green-600 uppercase tracking-widest bg-green-50 px-2 py-0.5 rounded">Total Paid</span>
+
+              <div className="bg-white dark:bg-[#1A1A1A] p-5 rounded-3xl border border-gray-100 dark:border-white/10 shadow-sm flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="p-2 bg-green-50 dark:bg-green-950/50 rounded-xl text-green-600"><CheckCircle2 className="h-5 w-5" /></div>
+                    <span className="text-[10px] font-bold text-green-600 uppercase tracking-widest bg-green-50 dark:bg-green-950/50 px-2 py-0.5 rounded">Total Paid (Period)</span>
+                  </div>
+                  <div className="text-2xl font-black text-gray-900 dark:text-white">₹{((financeSummary?.totalPaidOnOrders || 0) + (financeSummary?.totalBulkPayments || 0)).toLocaleString('en-IN')}</div>
+                  <p className="text-[10px] text-gray-400 mt-1 font-bold italic">Orders: ₹{(financeSummary?.totalPaidOnOrders || 0).toLocaleString('en-IN')} | Bulk: ₹{(financeSummary?.totalBulkPayments || 0).toLocaleString('en-IN')}</p>
                 </div>
-                <div className="text-2xl font-black text-gray-900 dark:text-white">₹{((financeSummary?.totalPaidOnOrders || 0) + (financeSummary?.totalBulkPayments || 0)).toLocaleString('en-IN')}</div>
-                <p className="text-[10px] text-gray-400 mt-1 font-bold italic">Orders: ₹{financeSummary?.totalPaidOnOrders} | Bulk: ₹{financeSummary?.totalBulkPayments}</p>
+                {financeSummary?.allTime && (
+                  <div className="mt-3 pt-2.5 border-t border-gray-100 dark:border-white/5 flex items-center justify-between text-[11px]">
+                    <span className="text-gray-400">All-Time Paid:</span>
+                    <span className="font-bold text-green-600">₹{(financeSummary.allTime.totalPaidCombined || 0).toLocaleString('en-IN')}</span>
+                  </div>
+                )}
               </div>
-              <div className="bg-white dark:bg-[#1A1A1A] p-5 rounded-3xl border border-gray-100 shadow-sm border-l-4 border-l-red-500">
-                <div className="flex justify-between items-start mb-2">
-                  <div className="p-2 bg-red-50 rounded-xl text-red-600"><AlertCircle className="h-5 w-5" /></div>
-                  <span className="text-[10px] font-bold text-red-600 uppercase tracking-widest bg-red-50 px-2 py-0.5 rounded">Net Balance</span>
+
+              <div className="bg-white dark:bg-[#1A1A1A] p-5 rounded-3xl border border-gray-100 dark:border-white/10 shadow-sm border-l-4 border-l-red-500 flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="p-2 bg-red-50 dark:bg-red-950/50 rounded-xl text-red-600"><AlertCircle className="h-5 w-5" /></div>
+                    <span className="text-[10px] font-bold text-red-600 uppercase tracking-widest bg-red-50 dark:bg-red-950/50 px-2 py-0.5 rounded">Net Balance (Period)</span>
+                  </div>
+                  <div className="text-2xl font-black text-red-600">₹{(financeSummary?.netBalance || 0).toLocaleString('en-IN')}</div>
+                  <p className="text-[10px] text-gray-400 mt-1 font-bold italic underline">Period pending balance</p>
                 </div>
-                <div className="text-2xl font-black text-red-600">₹{(financeSummary?.netBalance || 0).toLocaleString('en-IN')}</div>
-                <p className="text-[10px] text-gray-400 mt-1 font-bold italic underline">Outstandings to be collected</p>
+                {financeSummary?.allTime && (
+                  <div className="mt-3 pt-2.5 border-t border-gray-100 dark:border-white/5 flex items-center justify-between text-[11px]">
+                    <span className="text-gray-400">All-Time Balance:</span>
+                    <span className="font-bold text-red-600">₹{(financeSummary.allTime.netBalance || 0).toLocaleString('en-IN')}</span>
+                  </div>
+                )}
               </div>
-              <div className="bg-white dark:bg-[#1A1A1A] p-5 rounded-3xl border border-gray-100 shadow-sm">
-                <div className="flex justify-between items-start mb-2">
-                  <div className="p-2 bg-blue-50 rounded-xl text-blue-600"><ClipboardList className="h-5 w-5" /></div>
-                  <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest bg-blue-50 px-2 py-0.5 rounded">Orders</span>
+
+              <div className="bg-white dark:bg-[#1A1A1A] p-5 rounded-3xl border border-gray-100 dark:border-white/10 shadow-sm flex flex-col justify-between">
+                <div>
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="p-2 bg-blue-50 dark:bg-blue-950/50 rounded-xl text-blue-600"><ClipboardList className="h-5 w-5" /></div>
+                    <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest bg-blue-50 dark:bg-blue-950/50 px-2 py-0.5 rounded">Orders (Period)</span>
+                  </div>
+                  <div className="text-2xl font-black text-gray-900 dark:text-white">{financeSummary?.bookingCount || 0}</div>
+                  <p className="text-[10px] text-gray-400 mt-1 font-bold italic">Bookings in selected period</p>
                 </div>
-                <div className="text-2xl font-black text-gray-900 dark:text-white">{financeSummary?.bookingCount || 0}</div>
-                <p className="text-[10px] text-gray-400 mt-1 font-bold italic">Total vendor bookings</p>
+                {financeSummary?.allTime && (
+                  <div className="mt-3 pt-2.5 border-t border-gray-100 dark:border-white/5 flex items-center justify-between text-[11px]">
+                    <span className="text-gray-400">All-Time Bookings:</span>
+                    <span className="font-bold text-gray-700 dark:text-gray-300">{financeSummary.allTime.bookingCount || 0}</span>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -971,6 +1642,13 @@ const Vendors = () => {
                                 >
                                   <FileText className="h-3 w-3" /> PDF
                                 </button>
+                                <button
+                                  onClick={() => handleOpenSingleOrderInvoice(order)}
+                                  className="p-1.5 px-3 bg-indigo-50 text-indigo-700 text-[10px] font-bold rounded-lg hover:bg-indigo-100 transition-all flex items-center gap-1.5 border border-indigo-200"
+                                  title="Generate official invoice for this order"
+                                >
+                                  <Receipt className="h-3 w-3" /> Invoice
+                                </button>
                                 <button 
                                   onClick={() => {
                                     setEditingOrder(order);
@@ -989,6 +1667,13 @@ const Vendors = () => {
                             </td>
                           </tr>
                         ))}
+                        {vendorOrders.length === 0 && (
+                          <tr>
+                            <td colSpan="8" className="py-20 text-center text-gray-400 italic">
+                              No orders found for the selected {dateFilterType === 'month' ? 'month' : dateFilterType === 'custom' ? 'date range' : 'time period'}.
+                            </td>
+                          </tr>
+                        )}
                       </tbody>
                     </table>
                   </div>
@@ -1388,6 +2073,569 @@ const Vendors = () => {
               </div>
             </div>
           )}
+
+          {/* Corporate Partner Invoice Modal */}
+          {partnerInvoiceModalOpen && selectedVendorForFinance && (() => {
+            const activeCompany = COMPANY_PROFILES[invoiceConfig.companyKey] || COMPANY_PROFILES.SRQ;
+            const selectedInvoiceOrders = vendorOrders.filter(o => selectedInvoiceOrderIds.includes(o._id));
+            const rawOrdersTotal = selectedInvoiceOrders.reduce((sum, o) => sum + (o.pricing?.totalAmount || 0), 0);
+            const totalPaidOnSelected = selectedInvoiceOrders.reduce((sum, o) => sum + (o.vendorPaidAmount || 0), 0);
+
+            let taxableAmount = 0;
+            let cgstAmount = 0;
+            let sgstAmount = 0;
+            let gstTotal = 0;
+            let grossInvoiceTotal = 0;
+
+            if (invoiceConfig.gstType === "inclusive") {
+              taxableAmount = Math.round((rawOrdersTotal / 1.18) * 100) / 100;
+              gstTotal = Math.round((rawOrdersTotal - taxableAmount) * 100) / 100;
+              cgstAmount = Math.round((gstTotal / 2) * 100) / 100;
+              sgstAmount = Math.round((gstTotal / 2) * 100) / 100;
+              grossInvoiceTotal = rawOrdersTotal;
+            } else if (invoiceConfig.gstType === "extra18") {
+              taxableAmount = rawOrdersTotal;
+              cgstAmount = Math.round((taxableAmount * 0.09) * 100) / 100;
+              sgstAmount = Math.round((taxableAmount * 0.09) * 100) / 100;
+              gstTotal = cgstAmount + sgstAmount;
+              grossInvoiceTotal = taxableAmount + gstTotal;
+            } else {
+              taxableAmount = rawOrdersTotal;
+              cgstAmount = 0;
+              sgstAmount = 0;
+              gstTotal = 0;
+              grossInvoiceTotal = rawOrdersTotal;
+            }
+
+            const deductions = invoiceConfig.deductPayments ? totalPaidOnSelected : 0;
+            const finalPayableAmount = Math.max(0, grossInvoiceTotal - deductions);
+
+            const invoicePeriodLabel = dateFilterType === 'month' 
+              ? formatMonthName(financeMonth)
+              : dateFilterType === 'custom' && customStartDate
+                ? `${customStartDate} to ${customEndDate || customStartDate}`
+                : 'All Lifetime Records';
+
+            const toggleOrderSelection = (id) => {
+              if (selectedInvoiceOrderIds.includes(id)) {
+                setSelectedInvoiceOrderIds(selectedInvoiceOrderIds.filter(x => x !== id));
+              } else {
+                setSelectedInvoiceOrderIds([...selectedInvoiceOrderIds, id]);
+              }
+            };
+
+            const toggleSelectAllOrders = () => {
+              if (selectedInvoiceOrderIds.length === vendorOrders.length) {
+                setSelectedInvoiceOrderIds([]);
+              } else {
+                setSelectedInvoiceOrderIds(vendorOrders.map(o => o._id));
+              }
+            };
+
+            return (
+              <div className="fixed inset-0 z-[85] bg-black/75 backdrop-blur-sm flex flex-col justify-between overflow-hidden animate-in fade-in duration-200">
+                <style>{`
+                  @media print {
+                    body * {
+                      visibility: hidden !important;
+                    }
+                    #partner-invoice-printable, #partner-invoice-printable * {
+                      visibility: visible !important;
+                    }
+                    #partner-invoice-printable {
+                      position: fixed !important;
+                      left: 0 !important;
+                      top: 0 !important;
+                      width: 100% !important;
+                      max-width: 100% !important;
+                      margin: 0 !important;
+                      padding: 10mm 15mm !important;
+                      border: none !important;
+                      box-shadow: none !important;
+                      background: white !important;
+                      color: black !important;
+                      z-index: 999999 !important;
+                    }
+                    .no-print {
+                      display: none !important;
+                    }
+                  }
+                `}</style>
+
+                {/* Top Control Header Bar */}
+                <div className="bg-white dark:bg-[#1A1A1A] border-b border-gray-200 dark:border-white/10 px-6 py-3 flex flex-wrap items-center justify-between gap-3 shadow-md z-20 no-print">
+                  <div className="flex items-center gap-3">
+                    <img
+                      src="/logo.png"
+                      alt="Engineers Parcel Logo"
+                      className="h-8 w-auto object-contain shrink-0"
+                    />
+                    <div>
+                      <h3 className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                        <span>Invoice Generator</span>
+                        <span className="text-xs bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full font-mono">
+                          {selectedVendorForFinance.partnerId}
+                        </span>
+                      </h3>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Official Partner Billing &bull; Ready to print, download or send
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={handlePrintInvoice}
+                      className="px-3.5 py-2 bg-gray-900 hover:bg-black text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm"
+                      title="Print invoice or save as PDF via system dialog"
+                    >
+                      <Printer className="h-4 w-4" />
+                      <span>Print / PDF</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={handleDownloadInvoicePDF}
+                      disabled={isGeneratingInvoicePdf || selectedInvoiceOrders.length === 0}
+                      className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm"
+                      title="Download PDF directly"
+                    >
+                      <Download className="h-4 w-4" />
+                      <span>{isGeneratingInvoicePdf ? "Generating..." : "Download PDF"}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleSendWhatsApp(finalPayableAmount, invoicePeriodLabel, selectedInvoiceOrders.length)}
+                      disabled={selectedInvoiceOrders.length === 0}
+                      className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-sm"
+                      title="Send invoice details to partner via WhatsApp"
+                    >
+                      <Send className="h-4 w-4" />
+                      <span>Send WhatsApp</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleCopyInvoiceSummary(finalPayableAmount, invoicePeriodLabel, selectedInvoiceOrders.length)}
+                      className="px-3 py-2 bg-gray-100 hover:bg-gray-200 dark:bg-white/10 dark:hover:bg-white/15 text-gray-700 dark:text-gray-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+                      title="Copy invoice summary to clipboard"
+                    >
+                      <Copy className="h-4 w-4" />
+                      <span className="hidden sm:inline">Copy Text</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPartnerInvoiceModalOpen(false)}
+                      className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-white rounded-full hover:bg-gray-100 dark:hover:bg-white/10 transition-all ml-1"
+                      title="Close Modal"
+                    >
+                      <X className="h-6 w-6" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Main Body: Settings Sidepanel + Live Paper Sheet */}
+                <div className="flex-1 overflow-hidden flex flex-col lg:flex-row">
+                  {/* Left Controls Drawer */}
+                  <div className="w-full lg:w-80 xl:w-96 bg-gray-50 dark:bg-[#161616] border-r border-gray-200 dark:border-white/10 p-5 overflow-y-auto space-y-4 no-print text-xs">
+                    <div>
+                      <label className="block font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1.5">
+                        Issuing Company & Bank
+                      </label>
+                      <select
+                        value={invoiceConfig.companyKey}
+                        onChange={(e) => setInvoiceConfig({ ...invoiceConfig, companyKey: e.target.value })}
+                        className="w-full px-3 py-2 bg-white dark:bg-[#222222] border border-gray-200 dark:border-white/10 rounded-xl font-bold text-gray-800 dark:text-gray-200 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                      >
+                        <option value="SRQ">SRQ ENGINEERS PARCEL (UCO Bank)</option>
+                        <option value="ENGGPARCEL">ENGGPARCEL SERVICES (ICICI Bank)</option>
+                      </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1.5">
+                          Invoice No.
+                        </label>
+                        <input
+                          type="text"
+                          value={invoiceConfig.invoiceNumber}
+                          onChange={(e) => setInvoiceConfig({ ...invoiceConfig, invoiceNumber: e.target.value })}
+                          className="w-full px-3 py-2 bg-white dark:bg-[#222222] border border-gray-200 dark:border-white/10 rounded-xl font-mono font-bold text-gray-800 dark:text-gray-200 outline-none focus:ring-2 focus:ring-indigo-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1.5">
+                          Invoice Date
+                        </label>
+                        <input
+                          type="date"
+                          value={invoiceConfig.invoiceDate}
+                          onChange={(e) => setInvoiceConfig({ ...invoiceConfig, invoiceDate: e.target.value })}
+                          className="w-full px-3 py-2 bg-white dark:bg-[#222222] border border-gray-200 dark:border-white/10 rounded-xl font-bold text-gray-800 dark:text-gray-200 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1.5">
+                          Due Date
+                        </label>
+                        <input
+                          type="date"
+                          value={invoiceConfig.dueDate}
+                          onChange={(e) => setInvoiceConfig({ ...invoiceConfig, dueDate: e.target.value })}
+                          className="w-full px-3 py-2 bg-white dark:bg-[#222222] border border-gray-200 dark:border-white/10 rounded-xl font-bold text-gray-800 dark:text-gray-200 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1.5">
+                          GST Mode
+                        </label>
+                        <select
+                          value={invoiceConfig.gstType}
+                          onChange={(e) => setInvoiceConfig({ ...invoiceConfig, gstType: e.target.value })}
+                          className="w-full px-3 py-2 bg-white dark:bg-[#222222] border border-gray-200 dark:border-white/10 rounded-xl font-bold text-gray-800 dark:text-gray-200 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                        >
+                          <option value="inclusive">GST 18% Included</option>
+                          <option value="extra18">+18% GST Extra</option>
+                          <option value="exempt">Bill of Supply (Zero)</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-white dark:bg-[#222222] rounded-xl border border-gray-200 dark:border-white/10">
+                      <label className="flex items-center gap-2 cursor-pointer font-bold text-gray-800 dark:text-gray-200">
+                        <input
+                          type="checkbox"
+                          checked={invoiceConfig.deductPayments}
+                          onChange={(e) => setInvoiceConfig({ ...invoiceConfig, deductPayments: e.target.checked })}
+                          className="h-4 w-4 text-indigo-600 rounded"
+                        />
+                        <span>Deduct Paid Advances (₹{totalPaidOnSelected.toLocaleString('en-IN')})</span>
+                      </label>
+                      <p className="text-[11px] text-gray-400 mt-1 ml-6">
+                        Subtract payments already collected from net payable
+                      </p>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                          Consignments ({selectedInvoiceOrderIds.length}/{vendorOrders.length})
+                        </label>
+                        <button
+                          type="button"
+                          onClick={toggleSelectAllOrders}
+                          className="text-xs text-indigo-600 dark:text-indigo-400 font-bold hover:underline"
+                        >
+                          {selectedInvoiceOrderIds.length === vendorOrders.length ? "Deselect All" : "Select All"}
+                        </button>
+                      </div>
+                      <div className="max-h-44 overflow-y-auto space-y-1 bg-white dark:bg-[#222222] p-2 rounded-xl border border-gray-200 dark:border-white/10 divide-y divide-gray-100 dark:divide-white/5">
+                        {vendorOrders.map((order) => (
+                          <label
+                            key={order._id}
+                            className="flex items-center justify-between py-1.5 px-2 hover:bg-gray-50 dark:hover:bg-white/5 rounded cursor-pointer text-xs"
+                          >
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={selectedInvoiceOrderIds.includes(order._id)}
+                                onChange={() => toggleOrderSelection(order._id)}
+                                className="h-3.5 w-3.5 text-indigo-600 rounded cursor-pointer"
+                              />
+                              <span className="font-mono font-bold text-gray-800 dark:text-gray-200">
+                                {order.trackingId || order.bookingId}
+                              </span>
+                            </div>
+                            <span className="font-bold text-gray-900 dark:text-white">
+                              ₹{(order.pricing?.totalAmount || 0).toLocaleString('en-IN')}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider mb-1.5">
+                        Terms & Notes
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={invoiceConfig.notes}
+                        onChange={(e) => setInvoiceConfig({ ...invoiceConfig, notes: e.target.value })}
+                        className="w-full px-3 py-2 bg-white dark:bg-[#222222] border border-gray-200 dark:border-white/10 rounded-xl text-gray-800 dark:text-gray-200 outline-none focus:ring-2 focus:ring-indigo-500 text-xs"
+                        placeholder="Invoice notes..."
+                      />
+                    </div>
+                  </div>
+
+                  {/* Right Live A4 Sheet Preview Canvas */}
+                  <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-gray-200 dark:bg-[#0d0d0d] flex justify-center">
+                    <div
+                      id="partner-invoice-printable"
+                      className="bg-white text-gray-900 shadow-2xl rounded-2xl w-full max-w-[850px] p-8 md:p-10 border border-gray-300 my-auto"
+                      style={{ minHeight: "1050px" }}
+                    >
+                      {/* Company Header with Logo */}
+                      <div className="flex flex-col sm:flex-row justify-between items-start gap-5 pb-6 border-b-2 border-orange-500">
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                          <img
+                            src="/logo.png"
+                            alt="Engineers Parcel"
+                            className="h-14 sm:h-16 w-auto max-w-[240px] object-contain shrink-0"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                            }}
+                          />
+                          <div className="border-t sm:border-t-0 sm:border-l border-gray-200 pt-2 sm:pt-0 sm:pl-4">
+                            <h1 className="text-base font-black text-gray-950 uppercase tracking-tight leading-snug">
+                              {activeCompany.name}
+                            </h1>
+                            <p className="text-xs font-bold text-orange-600 tracking-wide mt-0.5">
+                              {activeCompany.tagline}
+                            </p>
+                            <p className="text-[11px] text-gray-600 mt-1 max-w-sm">
+                              {activeCompany.address}
+                            </p>
+                            <div className="text-[11px] text-gray-600 mt-0.5 flex flex-wrap gap-x-3">
+                              <span>Phone: <b>{activeCompany.phone}</b></span>
+                              <span>Email: <b>{activeCompany.email}</b></span>
+                            </div>
+                            <div className="text-[11px] text-gray-600 mt-0.5 flex flex-wrap gap-x-3">
+                              <span>GSTIN: <b className="font-mono text-gray-900">{activeCompany.gstin}</b></span>
+                              <span>CIN: <b className="font-mono text-gray-900">{activeCompany.cin}</b></span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="sm:text-right shrink-0 mt-2 sm:mt-0">
+                          <span className="inline-block px-3.5 py-1 bg-orange-600 text-white font-black text-xs uppercase tracking-widest rounded-lg shadow-sm">
+                            {invoiceConfig.gstType === "exempt" ? "BILL OF SUPPLY" : "TAX INVOICE"}
+                          </span>
+                          <div className="mt-3 text-xs space-y-1">
+                            <p className="text-gray-500">Invoice No: <span className="font-mono font-bold text-gray-900">{invoiceConfig.invoiceNumber}</span></p>
+                            <p className="text-gray-500">Date: <span className="font-bold text-gray-900">{new Date(invoiceConfig.invoiceDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span></p>
+                            <p className="text-gray-500">Period: <span className="font-bold text-orange-700">{invoicePeriodLabel}</span></p>
+                            <p className="text-gray-500">Due Date: <span className="font-bold text-red-600">{new Date(invoiceConfig.dueDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span></p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Billed To Partner & Summary Grid */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 my-6 text-xs">
+                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                          <p className="text-[10px] font-black uppercase tracking-wider text-gray-400 mb-1">
+                            Billed To (Corporate Partner)
+                          </p>
+                          <h2 className="text-base font-black text-gray-950">
+                            {selectedVendorForFinance.name}
+                          </h2>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[11px] font-mono font-bold text-orange-700 bg-orange-100 px-2 py-0.5 rounded">
+                              {selectedVendorForFinance.partnerId}
+                            </span>
+                            {selectedVendorForFinance.gstNumber ? (
+                              <span className="text-[11px] font-mono font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded">
+                                GSTIN: {selectedVendorForFinance.gstNumber}
+                              </span>
+                            ) : (
+                              <span className="text-[11px] text-gray-500 italic">Unregistered Partner</span>
+                            )}
+                          </div>
+                          <p className="text-gray-700 mt-2 leading-relaxed">
+                            {[selectedVendorForFinance.address, selectedVendorForFinance.address2, selectedVendorForFinance.city, selectedVendorForFinance.state].filter(Boolean).join(", ")}
+                            {selectedVendorForFinance.pincode ? ` - ${selectedVendorForFinance.pincode}` : ""}
+                          </p>
+                          <div className="mt-2 text-gray-600 flex flex-wrap gap-x-3">
+                            {selectedVendorForFinance.phone && <span>Phone: <b>{selectedVendorForFinance.phone}</b></span>}
+                            {selectedVendorForFinance.email && <span>Email: <b>{selectedVendorForFinance.email}</b></span>}
+                          </div>
+                        </div>
+
+                        <div className="bg-gray-50 p-4 rounded-xl border border-gray-200 flex flex-col justify-between">
+                          <div>
+                            <p className="text-[10px] font-black uppercase tracking-wider text-gray-400 mb-1">
+                              Payment Summary
+                            </p>
+                            <div className="flex justify-between items-center py-1 border-b border-gray-200">
+                              <span className="text-gray-600">Selected Consignments:</span>
+                              <span className="font-bold text-gray-900">{selectedInvoiceOrders.length} bookings</span>
+                            </div>
+                            <div className="flex justify-between items-center py-1 border-b border-gray-200">
+                              <span className="text-gray-600">Payment Status:</span>
+                              <span className={`font-bold uppercase ${finalPayableAmount === 0 ? "text-green-600" : "text-red-600"}`}>
+                                {finalPayableAmount === 0 ? "Paid in Full" : "Pending Payment"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center py-1">
+                              <span className="text-gray-600">Place of Supply:</span>
+                              <span className="font-bold text-gray-900">Jharkhand (State Code: 20)</span>
+                            </div>
+                          </div>
+                          <div className="mt-3 pt-2 border-t-2 border-dashed border-gray-300 flex justify-between items-center">
+                            <span className="font-bold text-gray-700">Total Amount Due:</span>
+                            <span className="text-xl font-black text-gray-900">
+                              ₹{finalPayableAmount.toLocaleString('en-IN')}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Itemized Consignments Table */}
+                      <div className="mb-6 overflow-hidden rounded-xl border border-gray-200">
+                        <table className="w-full text-left text-xs border-collapse">
+                          <thead className="bg-gray-100 text-gray-700 font-bold border-b border-gray-200">
+                            <tr>
+                              <th className="py-2.5 px-3 text-center w-10">#</th>
+                              <th className="py-2.5 px-3">Date</th>
+                              <th className="py-2.5 px-3">Docket / Tracking ID</th>
+                              <th className="py-2.5 px-3">Route (Origin ➔ Destination)</th>
+                              <th className="py-2.5 px-3 text-center">Service / Weight</th>
+                              <th className="py-2.5 px-3 text-right">Amount (₹)</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-200">
+                            {selectedInvoiceOrders.map((order, idx) => (
+                              <tr key={order._id} className={idx % 2 === 0 ? "bg-white" : "bg-gray-50/50"}>
+                                <td className="py-2 px-3 text-center text-gray-400 font-mono">{idx + 1}</td>
+                                <td className="py-2 px-3 text-gray-600 whitespace-nowrap">
+                                  {new Date(order.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                </td>
+                                <td className="py-2 px-3 font-mono font-bold text-gray-900">
+                                  {order.trackingId || order.bookingId}
+                                </td>
+                                <td className="py-2 px-3 text-gray-700 font-medium">
+                                  {order.senderDetails?.city || "Origin"} ➔ {order.receiverDetails?.city || "Destination"}
+                                </td>
+                                <td className="py-2 px-3 text-center text-gray-600">
+                                  {order.serviceType || "Standard"} &bull; {order.pricing?.totalWeight || order.weight || 1} kg
+                                </td>
+                                <td className="py-2 px-3 text-right font-black text-gray-900">
+                                  ₹{(order.pricing?.totalAmount || 0).toLocaleString('en-IN')}
+                                </td>
+                              </tr>
+                            ))}
+                            {selectedInvoiceOrders.length === 0 && (
+                              <tr>
+                                <td colSpan="6" className="py-8 text-center text-gray-400 italic">
+                                  No consignments selected for this invoice.
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+
+                      {/* Calculations & Totals Breakdown */}
+                      <div className="flex flex-col sm:flex-row justify-between items-start gap-6 my-6 text-xs">
+                        {/* Bank Transfer Details Box */}
+                        <div className="w-full sm:w-1/2 p-4 rounded-xl bg-gray-50 border border-gray-200 space-y-1.5">
+                          <p className="text-[10px] font-black uppercase tracking-wider text-orange-700">
+                            Bank Transfer & Payment Details
+                          </p>
+                          <div className="text-gray-800 space-y-1">
+                            <p>Account Name: <b>{activeCompany.accountName}</b></p>
+                            <p>Bank: <b>{activeCompany.bank}</b> ({activeCompany.accountType})</p>
+                            <p>Account No: <b className="font-mono text-gray-900 text-sm tracking-wide">{activeCompany.accountNo}</b></p>
+                            <p>IFSC Code: <b className="font-mono text-gray-900">{activeCompany.ifsc}</b></p>
+                            <p>Branch: <b>{activeCompany.branch}</b></p>
+                            <p>UPI ID: <b className="font-mono text-gray-900">{activeCompany.upi}</b></p>
+                          </div>
+                        </div>
+
+                        {/* Totals Table */}
+                        <div className="w-full sm:w-1/2 space-y-2">
+                          <div className="space-y-1.5 text-right">
+                            <div className="flex justify-between text-gray-600">
+                              <span>Freight Charges / Taxable Value:</span>
+                              <span className="font-bold text-gray-900">₹{taxableAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                            </div>
+
+                            {cgstAmount > 0 && (
+                              <div className="flex justify-between text-gray-600">
+                                <span>CGST (9%):</span>
+                                <span className="font-bold text-gray-900">₹{cgstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                              </div>
+                            )}
+
+                            {sgstAmount > 0 && (
+                              <div className="flex justify-between text-gray-600">
+                                <span>SGST (9%):</span>
+                                <span className="font-bold text-gray-900">₹{sgstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                              </div>
+                            )}
+
+                            <div className="flex justify-between text-gray-800 font-bold pt-1 border-t border-gray-200">
+                              <span>Gross Invoice Total:</span>
+                              <span>₹{grossInvoiceTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                            </div>
+
+                            {deductions > 0 && (
+                              <div className="flex justify-between text-green-700 font-bold">
+                                <span>Less Payments / Advance Received:</span>
+                                <span>-₹{deductions.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                              </div>
+                            )}
+
+                            <div className="flex justify-between items-center text-sm font-black text-gray-950 p-2.5 bg-orange-50 rounded-xl border border-orange-200 mt-2">
+                              <span>Net Amount Payable:</span>
+                              <span className="text-lg text-orange-950">
+                                ₹{finalPayableAmount.toLocaleString('en-IN')}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="p-2.5 bg-gray-50 rounded-lg border border-gray-200 text-left">
+                            <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">
+                              Amount in Words:
+                            </span>
+                            <span className="font-bold text-gray-800 italic">
+                              {numberToWordsIndian(finalPayableAmount)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Terms & Authorized Signatory Footer */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-6 border-t border-gray-200 text-xs">
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-wider text-gray-400 mb-1">
+                            Terms & Conditions:
+                          </p>
+                          <p className="text-[11px] text-gray-600 leading-relaxed">
+                            {invoiceConfig.notes || "1. Payment is due upon receipt or as per agreed credit terms. 2. Subject to Dhanbad jurisdiction only. 3. Delay in payments may attract interest as per applicable laws."}
+                          </p>
+                        </div>
+
+                        <div className="text-right flex flex-col justify-between items-end">
+                          <p className="text-[11px] font-bold text-gray-800">
+                            For {activeCompany.name}
+                          </p>
+                          <div className="h-12 w-36 border border-dashed border-gray-300 rounded flex items-center justify-center my-2 text-[10px] text-gray-400 font-mono">
+                            [ Official Stamp / Seal ]
+                          </div>
+                          <p className="text-xs font-black text-gray-900 border-t border-gray-300 pt-1 w-40 text-center">
+                            Authorized Signatory
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Small Bottom Disclaimer */}
+                      <div className="mt-8 pt-3 border-t border-gray-100 text-center text-[10px] text-gray-400">
+                        This is an electronically generated invoice issued by Engineers Parcel. For billing assistance, contact info@engineersparcel.in
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>
