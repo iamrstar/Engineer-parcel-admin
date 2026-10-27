@@ -1975,14 +1975,26 @@ router.get("/stats/recent-rider-activity", authMiddleware, async (req, res) => {
 
 router.get("/:id", authMiddleware, async (req, res) => {
   try {
-    let query = {};
-
-    // Check if ID is a valid MongoDB ObjectId
-    if (mongoose.Types.ObjectId.isValid(req.params.id)) {
-      query = { _id: req.params.id };
+    const rawId = String(req.params.id || "").trim();
+    let query;
+    if (mongoose.Types.ObjectId.isValid(rawId)) {
+      query = {
+        $or: [
+          { _id: rawId },
+          { bookingId: rawId },
+          { trackingId: rawId },
+          { vendorTrackingId: rawId }
+        ]
+      };
     } else {
-      // Otherwise, treat as human-readable bookingId
-      query = { bookingId: req.params.id };
+      const regex = new RegExp(`^${rawId}$`, "i");
+      query = {
+        $or: [
+          { bookingId: regex },
+          { trackingId: regex },
+          { vendorTrackingId: regex }
+        ]
+      };
     }
 
     const booking = await Booking.findOne(query)

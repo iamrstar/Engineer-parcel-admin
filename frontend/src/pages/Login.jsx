@@ -57,12 +57,16 @@ const Login = () => {
         {/* Top Accent Line */}
         <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-orange-600 via-orange-500 to-amber-500"></div>
 
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center p-4 bg-orange-50 dark:bg-orange-500/10 rounded-2xl mb-5 shadow-inner border border-orange-100 dark:border-orange-500/20">
-            <Package className="h-10 w-10 text-orange-600 dark:text-orange-500" strokeWidth={2} />
+        <div className="text-center mb-8 flex flex-col items-center">
+          <div className="bg-white px-6 py-3.5 rounded-2xl shadow-md border border-gray-100 dark:border-white/10 inline-flex items-center justify-center mb-4 transition-transform duration-300 hover:scale-105">
+            <img
+              src="/logo-cropped.png?v=6"
+              alt="Engineers Parcel"
+              className="h-12 sm:h-14 w-auto max-w-[260px] object-contain"
+            />
           </div>
-          <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">EngineersParcel</h1>
-          <p className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mt-2">Log in to Dashboard</p>
+          <h1 className="text-2xl font-black text-gray-900 dark:text-white tracking-tight">Admin Portal</h1>
+          <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mt-1">Sign in to your dashboard</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">

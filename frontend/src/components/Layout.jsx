@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useAuth } from "../contexts/AuthContext"
 import axios from "axios"
 import toast from "react-hot-toast"
-import { Package, LayoutDashboard, FileText, MapPin, Ticket, LogOut, Menu, X, BarChart, Bell, Users, Building, CheckSquare, ClipboardList, UserCheck, MessageCircle, CheckCircle, Moon, Sun, Gift, Trophy } from "lucide-react"
+import { Package, LayoutDashboard, FileText, MapPin, Ticket, LogOut, Menu, X, BarChart, Bell, Users, Building, CheckSquare, ClipboardList, UserCheck, MessageCircle, CheckCircle, Moon, Sun, Gift, Trophy, Receipt, Calculator } from "lucide-react"
 import { socket } from "../utils/socket"
 import { Activity as ActivityIcon } from "lucide-react"
 import { useTheme } from "../contexts/ThemeContext"
@@ -364,6 +364,8 @@ const Layout = ({ children }) => {
     { name: "Attendance Report", href: "/attendance-report", icon: FileText },
     { name: "User Management", href: "/user-management", icon: Users },
     { name: "Corporate Partners", href: "/partners", icon: Building },
+    { name: "Invoice Builder", href: "/invoice-builder", icon: Receipt },
+    { name: "Quotation Builder", href: "/quotation-builder", icon: Calculator },
     { name: "Courier Dockets", href: "/docket-management", icon: ClipboardList },
     { name: "Manage Queries", href: "/queries", icon: MessageCircle },
     { name: "Leads", href: "/leads", icon: Users },
@@ -373,7 +375,7 @@ const Layout = ({ children }) => {
 
   const defaultStaffAllowed = [
     "Dashboard", "Booking", "E-Docket", "Pincodes", "Create Order", 
-    "Corporate Partners", "Partner Management", "Staff Tasks", "Tasks Management", "Manage Queries", 
+    "Corporate Partners", "Partner Management", "Invoice Builder", "Quotation Builder", "Staff Tasks", "Tasks Management", "Manage Queries", 
     "Courier Dockets", "Docket Management", "Leads", "Performance"
   ];
   
@@ -408,15 +410,18 @@ const Layout = ({ children }) => {
       <div className={`fixed inset-0 z-50 lg:hidden ${sidebarOpen ? "block" : "hidden"}`}>
         <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm transition-opacity" onClick={() => setSidebarOpen(false)} />
         <div className="fixed inset-y-0 left-0 flex w-64 flex-col bg-white shadow-2xl transform transition-transform duration-300">
-          <div className="flex h-16 items-center justify-between px-6 border-b border-gray-100">
-            <div className="flex items-center">
-              <div className="p-2 bg-gradient-to-br from-primary-600 to-primary-500 rounded-xl shadow-lg shadow-primary-500/30">
-                <Package className="h-6 w-6 text-white" />
+          <div className="flex h-16 items-center justify-between px-3 border-b border-gray-100 dark:border-white/10 bg-white dark:bg-[#0A0A0A] transition-colors duration-300">
+            <Link to="/dashboard" onClick={() => setSidebarOpen(false)} className="flex items-center group">
+              <div className="bg-white px-2 py-1 rounded-xl shadow-sm border border-gray-200/90 dark:border-white/10 flex items-center justify-center h-12 w-48 overflow-hidden">
+                <img
+                  src="/logo-cropped.png?v=6"
+                  alt="Engineers Parcel"
+                  className="h-full w-full object-contain scale-110 transition-transform duration-300 group-hover:scale-120"
+                />
               </div>
-              <span className="ml-3 text-xl font-black bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600 tracking-tight">EngineersParcel</span>
-            </div>
-            <button onClick={() => setSidebarOpen(false)} className="p-2 rounded-full hover:bg-gray-100 transition-colors">
-              <X className="h-6 w-6 text-gray-500" />
+            </Link>
+            <button onClick={() => setSidebarOpen(false)} className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 text-gray-500 dark:text-gray-400 transition-colors">
+              <X className="h-6 w-6" />
             </button>
           </div>
           <nav className="flex-1 px-3 py-2 space-y-0.5 overflow-y-auto custom-scrollbar">
@@ -461,11 +466,16 @@ const Layout = ({ children }) => {
       {/* Desktop sidebar */}
       <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col z-40">
         <div className="flex flex-col h-full bg-white dark:bg-[#0A0A0A] border-r border-gray-100 dark:border-white/10 shadow-[4px_0_24px_rgba(0,0,0,0.02)] transition-colors duration-300">
-          <div className="flex h-16 items-center px-6 border-b border-gray-100/80 dark:border-white/10 bg-white dark:bg-[#0A0A0A] transition-colors duration-300">
-            <div className="p-2 bg-gradient-to-br from-primary-600 to-primary-500 rounded-xl shadow-lg shadow-primary-500/30">
-              <Package className="h-6 w-6 text-white" />
-            </div>
-            <span className="ml-3 text-xl font-black bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600 dark:from-white dark:to-gray-300 tracking-tight">EngineersParcel</span>
+          <div className="flex h-16 items-center px-3 border-b border-gray-100/80 dark:border-white/10 bg-white dark:bg-[#0A0A0A] transition-colors duration-300">
+            <Link to="/dashboard" className="flex items-center w-full group">
+              <div className="bg-white px-2 py-1 rounded-xl shadow-sm border border-gray-200/90 dark:border-white/10 flex items-center justify-center w-full h-12 overflow-hidden">
+                <img
+                  src="/logo-cropped.png?v=6"
+                  alt="Engineers Parcel"
+                  className="h-full w-full object-contain scale-110 transition-transform duration-300 group-hover:scale-120"
+                />
+              </div>
+            </Link>
           </div>
           <nav className="flex-1 px-3 py-2 space-y-0.5 overflow-y-auto custom-scrollbar">
             {navigation.map((item) => {
@@ -628,7 +638,7 @@ const Layout = ({ children }) => {
         </div>
 
         {/* Page content */}
-        <main className="flex-1 py-8 relative">
+        <main className={`flex-1 relative ${location.pathname === "/invoice-builder" || location.pathname === "/quotation-builder" ? "" : "py-8"}`}>
           
           {/* Subtle background gradient blob for the whole app */}
           <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none -z-10">
@@ -636,9 +646,13 @@ const Layout = ({ children }) => {
             <div className="absolute top-40 left-1/4 w-72 h-72 bg-blue-200 rounded-full mix-blend-multiply filter blur-[128px] opacity-20"></div>
           </div>
 
-          <div className="px-4 sm:px-6 lg:px-8 max-w-[1600px] mx-auto">
-            {children}
-          </div>
+          {location.pathname === "/invoice-builder" || location.pathname === "/quotation-builder" ? (
+            children
+          ) : (
+            <div className="px-4 sm:px-6 lg:px-8 max-w-[1600px] mx-auto">
+              {children}
+            </div>
+          )}
         </main>
       </div>
     </div>

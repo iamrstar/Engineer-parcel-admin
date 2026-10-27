@@ -39,17 +39,21 @@ const PartnerPortalLogin = () => {
         <div className="absolute bottom-1/4 left-1/3 w-72 h-72 bg-orange-600 rounded-full mix-blend-multiply filter blur-3xl opacity-70 animate-blob animation-delay-4000"></div>
       </div>
 
-      <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
-        <div className="flex justify-center">
-          <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-white font-bold text-3xl shadow-2xl shadow-orange-500/30">
-            <Building className="h-8 w-8 text-white" />
+      <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10 text-center">
+        <div className="flex justify-center mb-4">
+          <div className="bg-white px-6 py-3 rounded-2xl shadow-md border border-gray-100 dark:border-white/10 inline-flex items-center justify-center transition-transform duration-300 hover:scale-105">
+            <img
+              src="/logo-cropped.png?v=6"
+              alt="Engineers Parcel"
+              className="h-10 sm:h-12 w-auto max-w-[240px] object-contain"
+            />
           </div>
         </div>
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900 dark:text-white tracking-tight">
+        <h2 className="text-center text-2xl font-extrabold text-gray-900 dark:text-white tracking-tight">
           Partner Portal
         </h2>
-        <p className="mt-2 text-center text-sm text-gray-600 dark:text-gray-400 font-medium">
-          Welcome back! Please enter your credentials.
+        <p className="mt-1.5 text-center text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
+          Welcome back! Please enter your credentials
         </p>
       </div>
 
