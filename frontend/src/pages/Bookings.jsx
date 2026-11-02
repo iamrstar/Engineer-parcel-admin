@@ -351,6 +351,7 @@ const Bookings = () => {
   })
   const [verificationSummary, setVerificationSummary] = useState({
     checkedCount: 0,
+    newCount: 0,
     day1Count: 0,
     day2Count: 0,
     day3Count: 0,
@@ -988,6 +989,7 @@ const Bookings = () => {
               title="Filter by Verification Attention (Unchecked 1 day, 2 days, 3+ days)"
             >
               <option value="all">All Verification</option>
+              <option value="new">🆕 New (&lt; 24h) ({verificationSummary.newCount || 0})</option>
               <option value="day3_plus">🚨 3+ Days Overdue ({verificationSummary.day3Count || 0})</option>
               <option value="day2">⚠️ 2 Days Unchecked ({verificationSummary.day2Count || 0})</option>
               <option value="day1">⚠️ 1 Day Unchecked ({verificationSummary.day1Count || 0})</option>
@@ -1274,6 +1276,28 @@ const Bookings = () => {
               attentionFilter === "checked" ? "bg-white/20 text-white" : "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300"
             }`}>
               {verificationSummary.checkedCount || 0}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setAttentionFilter(attentionFilter === "new" ? "all" : "new")
+              setCurrentPage(1)
+            }}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border flex items-center gap-1.5 cursor-pointer ${
+              attentionFilter === "new"
+                ? "bg-blue-600 text-white border-blue-600 shadow-sm ring-2 ring-blue-500/20"
+                : "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/30 hover:bg-blue-500/20"
+            }`}
+            title="Filter new shipments created within last 24 hours"
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>🆕 New (&lt; 24h)</span>
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+              attentionFilter === "new" ? "bg-white/20 text-white" : "bg-blue-500/20 text-blue-700 dark:text-blue-300"
+            }`}>
+              {verificationSummary.newCount || 0}
             </span>
           </button>
         </div>

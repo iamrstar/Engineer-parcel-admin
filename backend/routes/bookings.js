@@ -998,7 +998,7 @@ router.get("/", authMiddleware, async (req, res) => {
               $cond: [
                 {
                   $and: [
-                    { $ne: ["$lastCheckedAt", null] },
+                    { $eq: [{ $type: "$lastCheckedAt" }, "date"] },
                     {
                       $or: [
                         { $eq: ["$$lastTrackElem", null] },
@@ -1034,7 +1034,7 @@ router.get("/", authMiddleware, async (req, res) => {
             },
             in: {
               $and: [
-                { $ne: ["$lastCheckedAt", null] },
+                { $eq: [{ $type: "$lastCheckedAt" }, "date"] },
                 {
                   $or: [
                     { $eq: ["$$lastTrackElem", null] },
@@ -1048,7 +1048,7 @@ router.get("/", authMiddleware, async (req, res) => {
       }
     };
 
-    // Verification / Attention Status Filtering (Unchecked for 1 day, 2 days, 3+ days)
+    // Verification / Attention Status Filtering (Unchecked for 1 day, 2 days, 3+ days, or New)
     const attentionFilter = req.query.attentionFilter;
     if (attentionFilter && attentionFilter !== "all") {
       const activeStatusCondition = { status: { $not: /^\s*(delivered|cancelled)\s*$/i } };
@@ -1057,13 +1057,19 @@ router.get("/", authMiddleware, async (req, res) => {
       if (attentionFilter === "day3_plus") {
         query.$and.push(activeStatusCondition);
         query.$and.push({
-          $expr: { $lt: [effectiveDateExpr, threeDaysAgo] }
+          $expr: {
+            $and: [
+              { $eq: [{ $type: effectiveDateExpr }, "date"] },
+              { $lt: [effectiveDateExpr, threeDaysAgo] }
+            ]
+          }
         });
       } else if (attentionFilter === "day2") {
         query.$and.push(activeStatusCondition);
         query.$and.push({
           $expr: {
             $and: [
+              { $eq: [{ $type: effectiveDateExpr }, "date"] },
               { $lt: [effectiveDateExpr, twoDaysAgo] },
               { $gte: [effectiveDateExpr, threeDaysAgo] }
             ]
@@ -1074,6 +1080,7 @@ router.get("/", authMiddleware, async (req, res) => {
         query.$and.push({
           $expr: {
             $and: [
+              { $eq: [{ $type: effectiveDateExpr }, "date"] },
               { $lt: [effectiveDateExpr, oneDayAgo] },
               { $gte: [effectiveDateExpr, twoDaysAgo] }
             ]
@@ -1082,7 +1089,22 @@ router.get("/", authMiddleware, async (req, res) => {
       } else if (attentionFilter === "attention_needed") {
         query.$and.push(activeStatusCondition);
         query.$and.push({
-          $expr: { $lt: [effectiveDateExpr, oneDayAgo] }
+          $expr: {
+            $and: [
+              { $eq: [{ $type: effectiveDateExpr }, "date"] },
+              { $lt: [effectiveDateExpr, oneDayAgo] }
+            ]
+          }
+        });
+      } else if (attentionFilter === "new") {
+        query.$and.push(activeStatusCondition);
+        query.$and.push({
+          $expr: {
+            $and: [
+              { $eq: [isCheckedValidExpr, false] },
+              { $gte: [effectiveDateExpr, oneDayAgo] }
+            ]
+          }
         });
       } else if (attentionFilter === "checked") {
         query.$and.push({
@@ -1200,12 +1222,28 @@ router.get("/", authMiddleware, async (req, res) => {
               ]
             }
           },
+          newCount: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $eq: ["$isFinished", false] },
+                    { $eq: ["$isCheckedValid", false] },
+                    { $gte: ["$effectiveDate", oneDayAgo] }
+                  ]
+                },
+                1,
+                0
+              ]
+            }
+          },
           day1Count: {
             $sum: {
               $cond: [
                 {
                   $and: [
                     { $eq: ["$isFinished", false] },
+                    { $eq: [{ $type: "$effectiveDate" }, "date"] },
                     { $lt: ["$effectiveDate", oneDayAgo] },
                     { $gte: ["$effectiveDate", twoDaysAgo] }
                   ]
@@ -1221,6 +1259,7 @@ router.get("/", authMiddleware, async (req, res) => {
                 {
                   $and: [
                     { $eq: ["$isFinished", false] },
+                    { $eq: [{ $type: "$effectiveDate" }, "date"] },
                     { $lt: ["$effectiveDate", twoDaysAgo] },
                     { $gte: ["$effectiveDate", threeDaysAgo] }
                   ]
@@ -1236,6 +1275,7 @@ router.get("/", authMiddleware, async (req, res) => {
                 {
                   $and: [
                     { $eq: ["$isFinished", false] },
+                    { $eq: [{ $type: "$effectiveDate" }, "date"] },
                     { $lt: ["$effectiveDate", threeDaysAgo] }
                   ]
                 },
@@ -1377,6 +1417,7 @@ router.get("/", authMiddleware, async (req, res) => {
     const vData = (verificationStats && verificationStats.length > 0) ? verificationStats[0] : {};
     const verificationSummary = {
       checkedCount: vData.checkedCount || 0,
+      newCount: vData.newCount || 0,
       day1Count: vData.day1Count || 0,
       day2Count: vData.day2Count || 0,
       day3Count: vData.day3Count || 0,
