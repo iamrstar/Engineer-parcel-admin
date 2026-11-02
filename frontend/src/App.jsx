@@ -28,6 +28,7 @@ import Offices from "./pages/Offices"
 import Leads from "./pages/Leads"
 import InvoiceBuilder from "./pages/InvoiceBuilder"
 import QuotationBuilder from "./pages/QuotationBuilder"
+import DailyWorksheet from "./pages/DailyWorksheet"
 import PartnerPortalLogin from "./pages/partner-portal/Login"
 import PartnerPortalDashboard from "./pages/partner-portal/Dashboard"
 import PartnerPortalOrders from "./pages/partner-portal/Orders"
@@ -173,6 +174,16 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <QuotationBuilder />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/daily-worksheet"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <DailyWorksheet />
                 </Layout>
               </ProtectedRoute>
             }
