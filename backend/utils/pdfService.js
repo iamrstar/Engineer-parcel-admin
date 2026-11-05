@@ -15,9 +15,25 @@ const assetCache = {
  * Crucial for pdf-lib which uses standard WinAnsi fonts by default.
  */
 const clean = (str) => {
-    if (typeof str !== 'string') return String(str || '');
-    // Replace tabs with space and remove non-printable/non-WinAnsi characters
-    return str.replace(/\t/g, ' ').replace(/[^\x20-\x7E]/g, '');
+    if (str === null || str === undefined) return '';
+    const s = typeof str === 'string' ? str : String(str);
+    return s
+        .replace(/[\t\r\n\v\f]+/g, ' ')
+        .replace(/[\u2013\u2014]/g, '-')
+        .replace(/[\u2018\u2019]/g, "'")
+        .replace(/[\u201C\u201D]/g, '"')
+        .replace(/[^\x20-\x7E]/g, '')
+        .trim();
+};
+
+const safeWidthOfTextAtSize = (font, text, size) => {
+    try {
+        const c = clean(text);
+        if (!c) return 0;
+        return font.widthOfTextAtSize(c, size);
+    } catch (e) {
+        return clean(text).length * size * 0.55;
+    }
 };
 
 const numberToWords = (num) => {
@@ -59,26 +75,27 @@ const getAsset = (name, filePath) => {
  * Parses items string (e.g. "Alpha Box x2, Nova Box x1") into an array of individual items.
  */
 function parseItems(itemsStr, totalCount) {
-    if (!itemsStr) return Array(totalCount || 1).fill("Standard Box");
+    const maxCount = Math.min(Math.max(parseInt(totalCount, 10) || 1, 1), 100);
+    if (!itemsStr) return Array(maxCount).fill("Standard Box");
 
-    const parts = itemsStr.split(',').map(p => p.trim());
+    const str = typeof itemsStr === 'string' ? itemsStr : String(itemsStr);
+    const parts = str.split(',').map(p => clean(p)).filter(Boolean);
     const expanded = [];
 
     parts.forEach(part => {
         const match = part.match(/(.+) x(\d+)/i);
         if (match) {
-            const name = match[1].trim();
-            const count = parseInt(match[2], 10);
-            for (let i = 0; i < count; i++) expanded.push(name);
+            const name = clean(match[1]);
+            const count = Math.min(Math.max(parseInt(match[2], 10) || 1, 1), 50);
+            for (let i = 0; i < count; i++) expanded.push(name || "Standard Box");
         } else {
-            expanded.push(part);
+            expanded.push(part || "Standard Box");
         }
     });
 
-    // If parsing produced fewer items than totalCount, fill the rest
-    if (totalCount && expanded.length < totalCount) {
-        const fallback = parts[0] ? parts[0].replace(/ x\d+/i, '').trim() : "Standard Box";
-        while (expanded.length < totalCount) {
+    if (maxCount && expanded.length < maxCount) {
+        const fallback = expanded[0] || "Standard Box";
+        while (expanded.length < maxCount) {
             expanded.push(fallback);
         }
     }
@@ -118,7 +135,7 @@ async function generateReceiptPDF(booking, invoice = null, receiptGst = null) {
 
         const drawCell = (text, x, yTop, boxW, boxH, font, size, align = 'left', color = black) => {
             const tx = clean(text);
-            const tw = font.widthOfTextAtSize(tx, size);
+            const tw = safeWidthOfTextAtSize(font, tx, size);
             const th = font.sizeAtHeight(size);
             let px = x + 6;
             if (align === 'center') px = x + (boxW / 2) - (tw / 2);
@@ -131,20 +148,22 @@ async function generateReceiptPDF(booking, invoice = null, receiptGst = null) {
         const drawVLine = (xPos, yTop, yBot) => page.drawLine({ start: { x: xPos, y: yTop }, end: { x: xPos, y: yBot }, thickness: 0.6, color: black });
 
         const wrapText = (text, x, y, maxW, font, size) => {
-            const words = clean(text).split(' ');
+            const words = clean(text).split(' ').filter(Boolean);
             let line = '';
             let cy = y;
             for (const w of words) {
                 const tl = line + w + ' ';
-                if (font.widthOfTextAtSize(tl, size) > maxW) {
-                    page.drawText(line.trim(), { x, y: cy, size, font });
+                if (safeWidthOfTextAtSize(font, tl, size) > maxW) {
+                    page.drawText(clean(line).trim(), { x, y: cy, size, font });
                     line = w + ' ';
                     cy -= (size + 2.5);
                 } else {
                     line = tl;
                 }
             }
-            page.drawText(line.trim(), { x, y: cy, size, font });
+            if (line.trim()) {
+                page.drawText(clean(line).trim(), { x, y: cy, size, font });
+            }
             return cy;
         };
 
@@ -201,7 +220,7 @@ async function generateReceiptPDF(booking, invoice = null, receiptGst = null) {
         // --- 4. DATE & RECEIPT/INVOICE NO ---
         const r3H = 18;
         const r3Y = globalY - r3H;
-        
+
         if (invoice) {
             const resDate = invoice.createdAt ? new Date(invoice.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }) : new Date().toLocaleDateString('en-IN');
             drawCell(`Invoice Date: ${resDate}`, startX, globalY, midX - startX, r3H, fonts.regular, 8.5);
@@ -211,7 +230,7 @@ async function generateReceiptPDF(booking, invoice = null, receiptGst = null) {
             drawCell(`Receipt Date: ${resDate}`, startX, globalY, midX - startX, r3H, fonts.regular, 8.5);
             drawCell(`Receipt No: EP/${new Date().getFullYear()}/${tid.split('-').pop()}`, midX, globalY, endX - midX, r3H, fonts.regular, 8.5);
         }
-        
+
         drawVLine(midX, globalY, r3Y);
         drawHLine(r3Y);
         globalY = r3Y;
@@ -237,7 +256,7 @@ async function generateReceiptPDF(booking, invoice = null, receiptGst = null) {
             };
             drawF('Name', det?.name);
             drawF('Phone', det?.phone);
-            
+
             if (isSender) {
                 if (invoice && invoice.senderGst) {
                     drawF('GSTIN', invoice.senderGst);
@@ -245,7 +264,7 @@ async function generateReceiptPDF(booking, invoice = null, receiptGst = null) {
                     drawF('GSTIN', receiptGst);
                 }
             }
-            
+
             let a = det?.address || '';
             if (det?.address1) a = `${det.address1}, ${det.address2 || ''}`.trim();
             if (det?.landmark) a += ` (${det.landmark})`;
@@ -265,11 +284,11 @@ async function generateReceiptPDF(booking, invoice = null, receiptGst = null) {
         const itH = 18;
         const itY = globalY - itH;
         page.drawRectangle({ x: startX, y: itY, width: tableWidth, height: itH, color: headerBg });
-        
+
         // Sno(30), Desc(220), Qty(40), Weight(60), Dims(remainder)
         const cols = [
-            { l: 'Sno.', w: 30 }, 
-            { l: 'Description of Goods', w: 220 }, 
+            { l: 'Sno.', w: 30 },
+            { l: 'Description of Goods', w: 220 },
             { l: 'Qty', w: 40 },
             { l: 'Weight(Ch.)', w: 60 },
             { l: 'Dimensions', w: tableWidth - 350 }
@@ -286,7 +305,7 @@ async function generateReceiptPDF(booking, invoice = null, receiptGst = null) {
 
         // --- 7. Item Content (Dynamic) ---
         const startItemY = globalY - 12;
-        const descText = booking.serviceType === 'campus-parcel' 
+        const descText = booking.serviceType === 'campus-parcel'
             ? (booking.packageDetails?.description || 'Campus Parcel Shipment')
             : ([booking.packageDetails?.description, booking.notes].filter(Boolean).join(' | ') || 'Shipment Content');
 
@@ -318,16 +337,17 @@ async function generateReceiptPDF(booking, invoice = null, receiptGst = null) {
         cx2 += cols[0].w + cols[1].w;
         drawCell(String(booking.packageDetails?.boxQuantity || 1), cx2, globalY, cols[2].w, r7H, fonts.regular, 8, 'center');
         cx2 += cols[2].w;
-        
+
         const weightVal = booking.packageDetails?.chargeableWeight || booking.packageDetails?.weight || 0;
         const weightUnit = booking.packageDetails?.chargeableWeightUnit || booking.packageDetails?.weightUnit || 'kg';
         drawCell(`${weightVal}${weightUnit}`, cx2, globalY, cols[3].w, r7H, fonts.bold, 8, 'center');
         cx2 += cols[3].w;
 
-        if (fonts.regular.widthOfTextAtSize(ds, 7.5) > cols[4].w - 10) {
-            wrapText(ds, cx2 + 5, startItemY, cols[4].w - 10, fonts.regular, 6.5);
+        const cleanDs = clean(ds);
+        if (safeWidthOfTextAtSize(fonts.regular, cleanDs, 7.5) > cols[4].w - 10) {
+            wrapText(cleanDs, cx2 + 5, startItemY, cols[4].w - 10, fonts.regular, 6.5);
         } else {
-            drawCell(ds, cx2, globalY, cols[4].w, r7H, fonts.regular, 7.5, 'center');
+            drawCell(cleanDs, cx2, globalY, cols[4].w, r7H, fonts.regular, 7.5, 'center');
         }
 
         cx = startX;
@@ -385,7 +405,7 @@ async function generateReceiptPDF(booking, invoice = null, receiptGst = null) {
         // --- 10. PAYMENT SECTION (QR & BANK) ---
         if (booking.paymentStatus?.toLowerCase() === 'pending') {
             const payFontSize = 7.5;
-            
+
             // Bank Details (Left side)
             const bX = startX + 10;
             page.drawText("BANK TRANSFER DETAILS", { x: bX, y: globalY - 12, size: 8, font: fonts.bold });
@@ -508,8 +528,8 @@ async function generateLabelPDF(booking) {
                 const rectX = margin + 5;
                 const rectY = globalY - 80;
                 page.drawRectangle({ x: rectX, y: rectY, width: rectW, height: rectH, borderColor: red, borderWidth: 2 });
-                const seqW = fonts.bold.widthOfTextAtSize(boxSequence, 20);
-                page.drawText(boxSequence, { x: rectX + (rectW / 2) - (seqW / 2), y: rectY + 15, size: 20, font: fonts.bold, color: black });
+                const seqW = safeWidthOfTextAtSize(fonts.bold, boxSequence, 20);
+                page.drawText(clean(boxSequence), { x: rectX + (rectW / 2) - (seqW / 2), y: rectY + 15, size: 20, font: fonts.bold, color: black });
             }
 
             globalY -= 85;
@@ -521,19 +541,21 @@ async function generateLabelPDF(booking) {
             globalY -= 15;
             drawText(booking.receiverDetails?.name || 'N/A', margin, globalY, 10, fonts.bold);
             globalY -= 12;
-            const rAddr = booking.receiverDetails?.address || '';
-            const rWords = rAddr.split(' ');
+            const rAddr = clean(booking.receiverDetails?.address || '');
+            const rWords = rAddr.split(' ').filter(Boolean);
             let rLine = '';
             for (const w of rWords) {
-                if (fonts.regular.widthOfTextAtSize(rLine + w + ' ', 9) > (width - margin * 2)) {
-                    drawText(rLine, margin, globalY, 9, fonts.regular);
+                if (safeWidthOfTextAtSize(fonts.regular, rLine + w + ' ', 9) > (width - margin * 2)) {
+                    drawText(rLine.trim(), margin, globalY, 9, fonts.regular);
                     rLine = w + ' ';
                     globalY -= 10;
                 } else {
                     rLine += w + ' ';
                 }
             }
-            drawText(rLine, margin, globalY, 9, fonts.regular);
+            if (rLine.trim()) {
+                drawText(rLine.trim(), margin, globalY, 9, fonts.regular);
+            }
             globalY -= 12;
             drawText(`${booking.receiverDetails?.pincode || ''} - ${booking.receiverDetails?.city || ''}`, margin, globalY, 10, fonts.bold);
             globalY -= 12;
@@ -549,19 +571,21 @@ async function generateLabelPDF(booking) {
             drawText(booking.senderDetails?.name || 'N/A', margin, globalY, 9, fonts.bold);
             globalY -= 12;
 
-            const sAddr = booking.senderDetails?.address || '';
-            const sWords = sAddr.split(' ');
+            const sAddr = clean(booking.senderDetails?.address || '');
+            const sWords = sAddr.split(' ').filter(Boolean);
             let sLine = '';
             for (const w of sWords) {
-                if (fonts.regular.widthOfTextAtSize(sLine + w + ' ', 9) > (width - margin * 2)) {
-                    drawText(sLine, margin, globalY, 9, fonts.regular);
+                if (safeWidthOfTextAtSize(fonts.regular, sLine + w + ' ', 9) > (width - margin * 2)) {
+                    drawText(sLine.trim(), margin, globalY, 9, fonts.regular);
                     sLine = w + ' ';
                     globalY -= 10;
                 } else {
                     sLine += w + ' ';
                 }
             }
-            drawText(sLine, margin, globalY, 9, fonts.regular);
+            if (sLine.trim()) {
+                drawText(sLine.trim(), margin, globalY, 9, fonts.regular);
+            }
             globalY -= 12;
             if (booking.serviceType === 'campus-parcel') {
                 drawText('IIT ISM Dhanbad - 826004', margin, globalY, 10, fonts.bold);
@@ -583,10 +607,11 @@ async function generateLabelPDF(booking) {
             const nameRectW = 150;
             const nameRectH = 40;
             const nameRectX = margin;
-            const nameRectY = 40; 
+            const nameRectY = 40;
             page.drawRectangle({ x: nameRectX, y: nameRectY, width: nameRectW, height: nameRectH, borderColor: red, borderWidth: 2 });
-            const nameW = fonts.bold.widthOfTextAtSize(boxName, 14);
-            page.drawText(clean(boxName), { x: nameRectX + (nameRectW / 2) - (nameW / 2), y: nameRectY + 15, size: 14, font: fonts.bold, color: black });
+            const cleanedBoxName = clean(boxName) || "Standard Box";
+            const nameW = safeWidthOfTextAtSize(fonts.bold, cleanedBoxName, 14);
+            page.drawText(cleanedBoxName, { x: nameRectX + (nameRectW / 2) - (nameW / 2), y: nameRectY + 15, size: 14, font: fonts.bold, color: black });
 
             // Subtext
             drawText('Please do not bend. Handle with care.', margin, margin + 10, 8, fonts.regular);
@@ -648,7 +673,7 @@ async function generateOfficeLabelPDF(booking) {
 
             // --- 2. Title ---
             const titleText = "DECLARATION FORM";
-            const titleWidth = fonts.bold.widthOfTextAtSize(titleText, 12);
+            const titleWidth = safeWidthOfTextAtSize(fonts.bold, titleText, 12);
             drawText(titleText, (width / 2) - (titleWidth / 2), globalY, 12, fonts.bold);
             drawHLine(globalY - 2, (width / 2) - (titleWidth / 2), (width / 2) + (titleWidth / 2));
             globalY -= 30;
@@ -705,10 +730,10 @@ async function generateOfficeLabelPDF(booking) {
 
             drawText("Place of Delivery:", margin + 265, globalY, 10, fonts.bold);
             const rAddrFull = `${booking.receiverDetails?.address || ''}, ${booking.receiverDetails?.city || ''} - ${booking.receiverDetails?.pincode || ''}`;
-            
+
             drawText(rAddrFull.substring(0, 40), margin + 355, globalY, 8.5, fonts.regular);
             drawHLine(globalY - 2, margin + 350, width - margin);
-            
+
             globalY -= 15;
             drawText(rAddrFull.slice(40, 150), margin, globalY + 2, 8.5, fonts.regular);
             drawHLine(globalY, margin, width - margin);
@@ -783,10 +808,10 @@ async function generateOfficeLabelPDF(booking) {
             globalY -= 35;
             drawText("Address:", width - margin - 160, globalY, 10, fonts.bold);
             const sAddr = `${booking.senderDetails?.address || ''}, ${booking.senderDetails?.pincode || ''}`;
-            
+
             drawText(sAddr.substring(0, 40), width - margin - 110, globalY, 8.5, fonts.regular);
             drawHLine(globalY - 2, width - margin - 115, width - margin);
-            
+
             globalY -= 12;
             drawHLine(globalY - 2, width - margin - 115, width - margin);
             drawText(sAddr.slice(40, 90), width - margin - 110, globalY, 8.5, fonts.regular);
@@ -809,7 +834,7 @@ async function generateOfficeLabelPDF(booking) {
 async function generateCombinedPDF(booking, options = { receipt: true, label: true, declaration: true }) {
     try {
         const mergedPdf = await PDFDocument.create();
-        
+
         const includeReceipt = options.receipt !== 'false' && options.receipt !== false;
         const includeLabel = options.label !== 'false' && options.label !== false;
         const includeDecl = options.declaration !== 'false' && options.declaration !== false;
