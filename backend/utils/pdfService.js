@@ -220,7 +220,7 @@ async function generateReceiptPDF(booking, invoice = null, receiptGst = null) {
         // --- 4. DATE & RECEIPT/INVOICE NO ---
         const r3H = 18;
         const r3Y = globalY - r3H;
-
+        
         if (invoice) {
             const resDate = invoice.createdAt ? new Date(invoice.createdAt).toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }) : new Date().toLocaleDateString('en-IN');
             drawCell(`Invoice Date: ${resDate}`, startX, globalY, midX - startX, r3H, fonts.regular, 8.5);
@@ -230,7 +230,7 @@ async function generateReceiptPDF(booking, invoice = null, receiptGst = null) {
             drawCell(`Receipt Date: ${resDate}`, startX, globalY, midX - startX, r3H, fonts.regular, 8.5);
             drawCell(`Receipt No: EP/${new Date().getFullYear()}/${tid.split('-').pop()}`, midX, globalY, endX - midX, r3H, fonts.regular, 8.5);
         }
-
+        
         drawVLine(midX, globalY, r3Y);
         drawHLine(r3Y);
         globalY = r3Y;
@@ -256,7 +256,7 @@ async function generateReceiptPDF(booking, invoice = null, receiptGst = null) {
             };
             drawF('Name', det?.name);
             drawF('Phone', det?.phone);
-
+            
             if (isSender) {
                 if (invoice && invoice.senderGst) {
                     drawF('GSTIN', invoice.senderGst);
@@ -264,7 +264,7 @@ async function generateReceiptPDF(booking, invoice = null, receiptGst = null) {
                     drawF('GSTIN', receiptGst);
                 }
             }
-
+            
             let a = det?.address || '';
             if (det?.address1) a = `${det.address1}, ${det.address2 || ''}`.trim();
             if (det?.landmark) a += ` (${det.landmark})`;
@@ -284,11 +284,11 @@ async function generateReceiptPDF(booking, invoice = null, receiptGst = null) {
         const itH = 18;
         const itY = globalY - itH;
         page.drawRectangle({ x: startX, y: itY, width: tableWidth, height: itH, color: headerBg });
-
+        
         // Sno(30), Desc(220), Qty(40), Weight(60), Dims(remainder)
         const cols = [
-            { l: 'Sno.', w: 30 },
-            { l: 'Description of Goods', w: 220 },
+            { l: 'Sno.', w: 30 }, 
+            { l: 'Description of Goods', w: 220 }, 
             { l: 'Qty', w: 40 },
             { l: 'Weight(Ch.)', w: 60 },
             { l: 'Dimensions', w: tableWidth - 350 }
@@ -305,7 +305,7 @@ async function generateReceiptPDF(booking, invoice = null, receiptGst = null) {
 
         // --- 7. Item Content (Dynamic) ---
         const startItemY = globalY - 12;
-        const descText = booking.serviceType === 'campus-parcel'
+        const descText = booking.serviceType === 'campus-parcel' 
             ? (booking.packageDetails?.description || 'Campus Parcel Shipment')
             : ([booking.packageDetails?.description, booking.notes].filter(Boolean).join(' | ') || 'Shipment Content');
 
@@ -337,7 +337,7 @@ async function generateReceiptPDF(booking, invoice = null, receiptGst = null) {
         cx2 += cols[0].w + cols[1].w;
         drawCell(String(booking.packageDetails?.boxQuantity || 1), cx2, globalY, cols[2].w, r7H, fonts.regular, 8, 'center');
         cx2 += cols[2].w;
-
+        
         const weightVal = booking.packageDetails?.chargeableWeight || booking.packageDetails?.weight || 0;
         const weightUnit = booking.packageDetails?.chargeableWeightUnit || booking.packageDetails?.weightUnit || 'kg';
         drawCell(`${weightVal}${weightUnit}`, cx2, globalY, cols[3].w, r7H, fonts.bold, 8, 'center');
@@ -405,7 +405,7 @@ async function generateReceiptPDF(booking, invoice = null, receiptGst = null) {
         // --- 10. PAYMENT SECTION (QR & BANK) ---
         if (booking.paymentStatus?.toLowerCase() === 'pending') {
             const payFontSize = 7.5;
-
+            
             // Bank Details (Left side)
             const bX = startX + 10;
             page.drawText("BANK TRANSFER DETAILS", { x: bX, y: globalY - 12, size: 8, font: fonts.bold });
@@ -607,7 +607,7 @@ async function generateLabelPDF(booking) {
             const nameRectW = 150;
             const nameRectH = 40;
             const nameRectX = margin;
-            const nameRectY = 40;
+            const nameRectY = 40; 
             page.drawRectangle({ x: nameRectX, y: nameRectY, width: nameRectW, height: nameRectH, borderColor: red, borderWidth: 2 });
             const cleanedBoxName = clean(boxName) || "Standard Box";
             const nameW = safeWidthOfTextAtSize(fonts.bold, cleanedBoxName, 14);
@@ -730,10 +730,10 @@ async function generateOfficeLabelPDF(booking) {
 
             drawText("Place of Delivery:", margin + 265, globalY, 10, fonts.bold);
             const rAddrFull = `${booking.receiverDetails?.address || ''}, ${booking.receiverDetails?.city || ''} - ${booking.receiverDetails?.pincode || ''}`;
-
+            
             drawText(rAddrFull.substring(0, 40), margin + 355, globalY, 8.5, fonts.regular);
             drawHLine(globalY - 2, margin + 350, width - margin);
-
+            
             globalY -= 15;
             drawText(rAddrFull.slice(40, 150), margin, globalY + 2, 8.5, fonts.regular);
             drawHLine(globalY, margin, width - margin);
@@ -808,10 +808,10 @@ async function generateOfficeLabelPDF(booking) {
             globalY -= 35;
             drawText("Address:", width - margin - 160, globalY, 10, fonts.bold);
             const sAddr = `${booking.senderDetails?.address || ''}, ${booking.senderDetails?.pincode || ''}`;
-
+            
             drawText(sAddr.substring(0, 40), width - margin - 110, globalY, 8.5, fonts.regular);
             drawHLine(globalY - 2, width - margin - 115, width - margin);
-
+            
             globalY -= 12;
             drawHLine(globalY - 2, width - margin - 115, width - margin);
             drawText(sAddr.slice(40, 90), width - margin - 110, globalY, 8.5, fonts.regular);
@@ -834,7 +834,7 @@ async function generateOfficeLabelPDF(booking) {
 async function generateCombinedPDF(booking, options = { receipt: true, label: true, declaration: true }) {
     try {
         const mergedPdf = await PDFDocument.create();
-
+        
         const includeReceipt = options.receipt !== 'false' && options.receipt !== false;
         const includeLabel = options.label !== 'false' && options.label !== false;
         const includeDecl = options.declaration !== 'false' && options.declaration !== false;
