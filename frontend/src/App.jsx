@@ -150,6 +150,26 @@ function App() {
             }
           />
           <Route
+            path="/payroll"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <UserManagement defaultTab="history" />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/salary"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <UserManagement defaultTab="history" />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/partners"
             element={
               <ProtectedRoute>

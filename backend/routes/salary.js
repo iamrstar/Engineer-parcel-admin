@@ -382,5 +382,168 @@ router.get("/history", adminAuth, async (req, res) => {
     }
 });
 
+/**
+ * @route   GET /api/salary/slip/:id
+ * @desc    Get single salary slip details
+ * @access  Admin
+ */
+router.get("/slip/:id", adminAuth, async (req, res) => {
+    try {
+        const slip = await SalarySlip.findById(req.params.id);
+        if (!slip) {
+            return res.status(404).json({ message: "Salary slip not found" });
+        }
+        res.json(slip);
+    } catch (error) {
+        console.error("Fetch slip error:", error);
+        res.status(500).json({ message: "Server error fetching salary slip" });
+    }
+});
+
+/**
+ * @route   POST /api/salary/slip/:id/resend-email
+ * @desc    Re-send salary slip PDF to employee email
+ * @access  Admin
+ */
+router.post("/slip/:id/resend-email", adminAuth, async (req, res) => {
+    try {
+        const slip = await SalarySlip.findById(req.params.id);
+        if (!slip) {
+            return res.status(404).json({ message: "Salary slip not found" });
+        }
+
+        const targetEmail = req.body.email || slip.employeeEmail;
+        if (!targetEmail) {
+            return res.status(400).json({ message: "No email address found for this employee" });
+        }
+
+        const pdfBuffer = await generateSalarySlipPDF(slip.toObject());
+        const transporter = getTransporter();
+
+        const safePeriod = slip.payPeriod.replace(/[^a-zA-Z0-9 ]/g, "");
+        const safeName = slip.employeeName.replace(/[^a-zA-Z0-9]/g, "_");
+        const pdfFileName = `SalarySlip_${safeName}_${safePeriod.replace(/ /g, "_")}.pdf`;
+
+        const emailHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <style>
+                body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f4f6f8; margin: 0; padding: 20px; color: #333; }
+                .card { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1px solid #e2e8f0; }
+                .header { background: #0c1c38; padding: 24px 30px; text-align: center; }
+                .header h2 { color: #ffffff; margin: 10px 0 0 0; font-size: 18px; letter-spacing: 0.5px; }
+                .header p { color: #94a3b8; margin: 4px 0 0 0; font-size: 12px; }
+                .body-content { padding: 30px; }
+                .greeting { font-size: 16px; font-weight: 600; color: #1e293b; margin-bottom: 12px; }
+                .intro { font-size: 14px; line-height: 1.6; color: #475569; margin-bottom: 24px; }
+                .summary-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 24px; }
+                .highlight-net { background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 10px; padding: 16px; text-align: center; margin-bottom: 24px; }
+                .net-title { font-size: 12px; font-weight: 700; color: #065f46; text-transform: uppercase; letter-spacing: 1px; }
+                .net-amount { font-size: 24px; font-weight: 800; color: #047857; margin-top: 4px; }
+                .words { font-size: 12px; color: #065f46; font-style: italic; margin-top: 2px; }
+                .footer { background: #f1f5f9; padding: 20px; text-align: center; font-size: 11px; color: #64748b; border-top: 1px solid #e2e8f0; }
+            </style>
+        </head>
+        <body>
+            <div class="card">
+                <div class="header">
+                    <h2>SRQ ENGINEERS PARCEL AND HAUL PRIVATE LIMITED</h2>
+                    <p>IIT (ISM) Dhanbad - 826004, Jharkhand, India</p>
+                </div>
+                <div class="body-content">
+                    <div class="greeting">Dear ${slip.employeeName},</div>
+                    <div class="intro">
+                        Please find attached your salary statement for <strong>${slip.payPeriod}</strong> as requested.
+                    </div>
+                    <div class="summary-box">
+                        <table width="100%" cellpadding="6" cellspacing="0" style="font-size: 13px;">
+                            <tr>
+                                <td style="color: #64748b;">Statement No:</td>
+                                <td align="right" style="font-weight: 700; color: #0f172a;">${slip.slipNumber}</td>
+                            </tr>
+                            <tr>
+                                <td style="color: #64748b;">Pay Period:</td>
+                                <td align="right" style="font-weight: 700; color: #0f172a;">${slip.payPeriod}</td>
+                            </tr>
+                            <tr>
+                                <td style="color: #64748b;">Designation:</td>
+                                <td align="right" style="font-weight: 700; color: #0f172a;">${slip.designation}</td>
+                            </tr>
+                            <tr>
+                                <td style="color: #64748b;">Gross Earnings:</td>
+                                <td align="right" style="font-weight: 700; color: #0f172a;">₹ ${Number(slip.grossEarnings).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                            </tr>
+                            <tr>
+                                <td style="color: #64748b;">Total Deductions:</td>
+                                <td align="right" style="font-weight: 700; color: #dc2626;">₹ ${Number(slip.totalDeductions).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                            </tr>
+                        </table>
+                    </div>
+                    <div class="highlight-net">
+                        <div class="net-title">Net Salary Transferred</div>
+                        <div class="net-amount">₹ ${Number(slip.netPay).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                        <div class="words">(${slip.netPayInWords} Rupees Only)</div>
+                    </div>
+                </div>
+                <div class="footer">
+                    <div>Confidential Payroll Document &copy; ${new Date().getFullYear()} SRQ Engineers Parcel and Haul Private Limited.</div>
+                </div>
+            </div>
+        </body>
+        </html>
+        `;
+
+        await transporter.sendMail({
+            from: `"Engineers Parcel Payroll" <${process.env.EMAIL_USER}>`,
+            to: targetEmail,
+            subject: `Salary Slip for ${slip.payPeriod} - SRQ Engineers Parcel`,
+            html: emailHtml,
+            attachments: [
+                {
+                    filename: pdfFileName,
+                    content: pdfBuffer,
+                    contentType: "application/pdf",
+                },
+            ],
+        });
+
+        slip.emailSent = true;
+        slip.emailedAt = new Date();
+        slip.status = "Emailed";
+        await slip.save();
+
+        res.json({
+            success: true,
+            message: `Salary slip emailed successfully to ${targetEmail}!`,
+            slip,
+        });
+    } catch (error) {
+        console.error("Resend email error:", error);
+        res.status(500).json({ message: "Failed to resend salary slip email: " + error.message });
+    }
+});
+
+/**
+ * @route   DELETE /api/salary/slip/:id
+ * @desc    Delete a salary slip record
+ * @access  Admin
+ */
+router.delete("/slip/:id", adminAuth, async (req, res) => {
+    try {
+        const slip = await SalarySlip.findById(req.params.id);
+        if (!slip) {
+            return res.status(404).json({ message: "Salary slip not found" });
+        }
+
+        await slip.deleteOne();
+        res.json({ success: true, message: "Salary slip deleted successfully" });
+    } catch (error) {
+        console.error("Delete slip error:", error);
+        res.status(500).json({ message: "Server error deleting salary slip" });
+    }
+});
+
 module.exports = router;
 

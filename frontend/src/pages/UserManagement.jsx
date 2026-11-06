@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, useLocation } from "react-router-dom"
 import axios from "axios"
 import toast from "react-hot-toast"
 import {
@@ -33,7 +33,11 @@ import {
     Wallet,
     Briefcase,
     Info,
-    Check
+    Check,
+    History,
+    Clock,
+    RefreshCw,
+    CheckCheck
 } from "lucide-react"
 
 // Months list
@@ -87,13 +91,28 @@ const numberToWordsIndian = (num) => {
     return result.trim();
 };
 
-const UserManagement = () => {
+const UserManagement = ({ defaultTab }) => {
     const navigate = useNavigate()
+    const location = useLocation()
     const [users, setUsers] = useState([])
     const [performanceStats, setPerformanceStats] = useState([])
     const [loading, setLoading] = useState(true)
     const [searchTerm, setSearchTerm] = useState("")
     const [roleFilter, setRoleFilter] = useState("all")
+
+    // Main Top Navigation: 'users' | 'history'
+    const queryTab = new URLSearchParams(location.search).get("tab")
+    const initialTab = (defaultTab === "history" || defaultTab === "payroll" || queryTab === "history" || queryTab === "payroll") ? "history" : "users"
+    const [activeMainTab, setActiveMainTab] = useState(initialTab)
+
+    // Salary Disbursement History State
+    const [allSalaryHistory, setAllSalaryHistory] = useState([])
+    const [loadingHistory, setLoadingHistory] = useState(false)
+    const [historySearchTerm, setHistorySearchTerm] = useState("")
+    const [historyMonthFilter, setHistoryMonthFilter] = useState("all")
+    const [resendingEmailId, setResendingEmailId] = useState(null)
+    const [viewingHistoricalSlip, setViewingHistoricalSlip] = useState(null)
+    const [isSelectUserModalOpen, setIsSelectUserModalOpen] = useState(false)
 
     // Add/Edit User Modal State
     const [isModalOpen, setIsModalOpen] = useState(false)
@@ -137,7 +156,7 @@ const UserManagement = () => {
         }
     })
 
-    // ─── SALARY RELEASE & PAYSLIP MODAL STATE (Investrow Style with Engineers Parcel Branding) ───
+    // ─── SALARY RELEASE & PAYSLIP MODAL STATE ───
     const [isSalaryModalOpen, setIsSalaryModalOpen] = useState(false)
     const [selectedSalaryUser, setSelectedSalaryUser] = useState(null)
     const [salaryTab, setSalaryTab] = useState("edit") // 'edit' | 'preview'
@@ -165,6 +184,7 @@ const UserManagement = () => {
     useEffect(() => {
         fetchUsers()
         fetchPerformanceStats()
+        fetchAllSalaryHistory()
     }, [roleFilter])
 
     const fetchPerformanceStats = async () => {
@@ -196,6 +216,56 @@ const UserManagement = () => {
             console.error(error)
         } finally {
             setLoading(false)
+        }
+    }
+
+    const fetchAllSalaryHistory = async (overrideSearch = null) => {
+        try {
+            setLoadingHistory(true)
+            const token = localStorage.getItem("adminToken") || localStorage.getItem("token")
+            const params = {}
+            if (historyMonthFilter !== "all") params.month = historyMonthFilter
+            if (overrideSearch || historySearchTerm) params.search = overrideSearch || historySearchTerm
+
+            const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/salary/history`, {
+                params,
+                headers: { Authorization: `Bearer ${token}` }
+            })
+            setAllSalaryHistory(res.data)
+        } catch (error) {
+            console.error("Failed to fetch salary history:", error)
+        } finally {
+            setLoadingHistory(false)
+        }
+    }
+
+    const handleResendSlipEmail = async (slipId) => {
+        try {
+            setResendingEmailId(slipId)
+            const token = localStorage.getItem("adminToken") || localStorage.getItem("token")
+            const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/salary/slip/${slipId}/resend-email`, {}, {
+                headers: { Authorization: `Bearer ${token}` }
+            })
+            toast.success(res.data.message || "Salary slip emailed successfully!")
+            fetchAllSalaryHistory()
+        } catch (error) {
+            toast.error(error.response?.data?.message || "Failed to resend email")
+        } finally {
+            setResendingEmailId(null)
+        }
+    }
+
+    const handleDeleteSlip = async (slipId) => {
+        if (!window.confirm("Are you sure you want to delete this salary slip record?")) return
+        try {
+            const token = localStorage.getItem("adminToken") || localStorage.getItem("token")
+            await axios.delete(`${import.meta.env.VITE_API_URL}/api/salary/slip/${slipId}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            })
+            toast.success("Salary slip record deleted successfully")
+            fetchAllSalaryHistory()
+        } catch (error) {
+            toast.error("Failed to delete salary slip")
         }
     }
 
@@ -351,7 +421,6 @@ const UserManagement = () => {
         setSalaryTab("edit")
         setLastReleasedSlip(null)
 
-        // Set Date and Month defaults
         const now = new Date()
         setPayMonth(MONTHS_LIST[now.getMonth()])
         setPayYear(String(now.getFullYear()))
@@ -367,7 +436,6 @@ const UserManagement = () => {
         const defaultPeriod = `${MONTHS_LIST[now.getMonth()]} ${now.getFullYear()}`
         setRemarksNote(`Salary released for ${defaultPeriod}`)
 
-        // Populate base salary & allowances
         const s = user.salaryDetails || {}
         setBaseSalary(Number(s.basicSalary) || 0)
 
@@ -378,7 +446,6 @@ const UserManagement = () => {
         if (s.medicalAllowance) initialAllowances.push({ id: "med", name: "Medical Allowance", amount: Number(s.medicalAllowance) })
         setAllowancesList(initialAllowances)
 
-        // Populate deductions
         const initialDeductions = [
             { id: "pf", name: "Provident Fund (PF)", amount: Number(s.pfDeduction) || 0 },
             { id: "pt", name: "Professional Tax (PT)", amount: Number(s.professionalTax) || 0 },
@@ -389,7 +456,6 @@ const UserManagement = () => {
 
         setIsSalaryModalOpen(true)
 
-        // Fetch user's previous slips
         try {
             const token = localStorage.getItem("adminToken") || localStorage.getItem("token")
             const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/salary/user/${user._id}`, {
@@ -438,7 +504,6 @@ const UserManagement = () => {
     const payPeriodText = `${payMonth} ${payYear}`
     const monthYyyyMm = `${payYear}-${String(MONTHS_LIST.indexOf(payMonth) + 1).padStart(2, "0")}`
 
-    // Complete earnings array for backend and preview
     const fullEarningsArray = [
         { name: "Basic / Base Salary", amount: Number(baseSalary) || 0 },
         ...allowancesList.map(a => ({ name: a.name, amount: Number(a.amount) || 0 }))
@@ -478,7 +543,6 @@ const UserManagement = () => {
             setLastReleasedSlip(res.data.slip)
             toast.success(res.data.message || "Salary released successfully!")
 
-            // Refresh slip history
             const historyRes = await axios.get(`${import.meta.env.VITE_API_URL}/api/salary/user/${selectedSalaryUser._id}`, {
                 headers: { Authorization: `Bearer ${token}` }
             })
@@ -486,7 +550,8 @@ const UserManagement = () => {
                 setSalaryHistory(historyRes.data.recentSlips)
             }
 
-            fetchUsers() // in case default salary was updated
+            fetchAllSalaryHistory()
+            fetchUsers()
             setSalaryTab("preview")
         } catch (error) {
             console.error("Release salary failed:", error)
@@ -499,7 +564,6 @@ const UserManagement = () => {
     const handleDownloadPdf = async (slipId) => {
         const targetId = slipId || lastReleasedSlip?._id
         if (!targetId) {
-            // If not yet saved to DB, release first without email
             await handleReleaseSalary(false)
             return
         }
@@ -533,6 +597,20 @@ const UserManagement = () => {
         user.designation?.toLowerCase().includes(searchTerm.toLowerCase())
     )
 
+    const filteredHistory = allSalaryHistory.filter(slip => {
+        const matchesSearch = !historySearchTerm ||
+            slip.employeeName?.toLowerCase().includes(historySearchTerm.toLowerCase()) ||
+            slip.employeeEmail?.toLowerCase().includes(historySearchTerm.toLowerCase()) ||
+            slip.slipNumber?.toLowerCase().includes(historySearchTerm.toLowerCase()) ||
+            slip.designation?.toLowerCase().includes(historySearchTerm.toLowerCase())
+
+        const matchesMonth = historyMonthFilter === "all" || slip.month === historyMonthFilter
+        return matchesSearch && matchesMonth
+    })
+
+    const totalDisbursedAmount = allSalaryHistory.reduce((sum, s) => sum + (Number(s.netPay) || 0), 0)
+    const emailedCount = allSalaryHistory.filter(s => s.emailSent).length
+
     const getRoleBadge = (role) => {
         const roles = {
             admin: "bg-red-50 text-red-700 border-red-200",
@@ -545,203 +623,668 @@ const UserManagement = () => {
 
     return (
         <div className="container mx-auto px-4 py-8">
-            <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
                         <Users className="h-8 w-8 text-primary-600" />
                         Employee & Payroll Management
                     </h1>
-                    <p className="text-gray-500 mt-1">Manage staff credentials, salary structure, PF/TDS, and release monthly payslips</p>
+                    <p className="text-gray-500 mt-1">Manage staff credentials, salary structure, PF/TDS, release payslips and inspect disbursement history</p>
                 </div>
+                <div className="flex items-center gap-3">
+                    <button
+                        onClick={() => setIsSelectUserModalOpen(true)}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-lg shadow-emerald-200 flex items-center gap-2 w-fit text-sm"
+                    >
+                        <IndianRupee className="h-4 w-4" />
+                        Release Salary
+                    </button>
+                    <button
+                        onClick={() => handleOpenModal()}
+                        className="bg-primary-600 hover:bg-primary-700 text-white px-5 py-2.5 rounded-xl font-medium transition-all shadow-lg shadow-primary-200 flex items-center gap-2 w-fit text-sm"
+                    >
+                        <UserPlus className="h-4 w-4" />
+                        Add New User / Staff
+                    </button>
+                </div>
+            </div>
+
+            {/* ─── PRIMARY SECTION SWITCHER (Users Directory vs Salary Disbursement History) ─── */}
+            <div className="flex items-center gap-2 bg-gray-100 p-1.5 rounded-2xl border border-gray-200 w-fit mb-6 shadow-2xs">
                 <button
-                    onClick={() => handleOpenModal()}
-                    className="bg-primary-600 hover:bg-primary-700 text-white px-6 py-2.5 rounded-xl font-medium transition-all shadow-lg shadow-primary-200 flex items-center gap-2 w-fit"
+                    onClick={() => setActiveMainTab("users")}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${activeMainTab === "users" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-800"}`}
                 >
-                    <UserPlus className="h-5 w-5" />
-                    Add New User / Staff
+                    <Users className="h-4 w-4" />
+                    <span>Staff Directory ({users.length})</span>
+                </button>
+                <button
+                    onClick={() => {
+                        setActiveMainTab("history");
+                        fetchAllSalaryHistory();
+                    }}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 ${activeMainTab === "history" ? "bg-emerald-600 text-white shadow-sm" : "text-gray-500 hover:text-gray-800"}`}
+                >
+                    <History className="h-4 w-4" />
+                    <span>Salary History & Statements ({allSalaryHistory.length})</span>
                 </button>
             </div>
 
-            {/* Control Bar */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-6 flex flex-col md:flex-row gap-4">
-                <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
-                    <input
-                        type="text"
-                        placeholder="Search by name, username, designation, phone, or email..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-primary-500 text-sm"
-                    />
-                </div>
-                <div className="flex items-center gap-2">
-                    <Filter className="h-5 w-5 text-gray-400" />
-                    <select
-                        value={roleFilter}
-                        onChange={(e) => setRoleFilter(e.target.value)}
-                        className="bg-gray-50 border-none rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500"
-                    >
-                        <option value="all">All Roles</option>
-                        <option value="staff">Staff</option>
-                        <option value="agent">Agents</option>
-                        <option value="rider">Riders</option>
-                        <option value="admin">Admins</option>
-                    </select>
-                </div>
-            </div>
-
-            {/* Users Table */}
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                {loading ? (
-                    <div className="flex flex-col items-center justify-center h-64 gap-4">
-                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
-                        <p className="text-gray-500 font-medium">Loading user and payroll records...</p>
+            {/* ══════════════════════════════════════════════════════════════════════
+                VIEW 1: STAFF DIRECTORY TABLE
+            ══════════════════════════════════════════════════════════════════════ */}
+            {activeMainTab === "users" ? (
+                <>
+                    {/* Control Bar */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 mb-6 flex flex-col md:flex-row gap-4">
+                        <div className="relative flex-1">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
+                            <input
+                                type="text"
+                                placeholder="Search by name, username, designation, phone, or email..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-primary-500 text-sm"
+                            />
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Filter className="h-5 w-5 text-gray-400" />
+                            <select
+                                value={roleFilter}
+                                onChange={(e) => setRoleFilter(e.target.value)}
+                                className="bg-gray-50 border-none rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary-500"
+                            >
+                                <option value="all">All Roles</option>
+                                <option value="staff">Staff</option>
+                                <option value="agent">Agents</option>
+                                <option value="rider">Riders</option>
+                                <option value="admin">Admins</option>
+                            </select>
+                        </div>
                     </div>
-                ) : filteredUsers.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-64 text-gray-500">
-                        <Users className="h-12 w-12 mb-4 opacity-20" />
-                        <p className="text-lg">No users found</p>
-                    </div>
-                ) : (
-                    <div className="overflow-x-auto">
-                        <table className="min-w-full divide-y divide-gray-100">
-                            <thead className="bg-gray-50/70 text-left">
-                                <tr>
-                                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Employee / User</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Designation & Dept</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Default Salary Structure</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Role</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                                    <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Payroll Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-100">
-                                {filteredUsers.map((user) => {
-                                    const basic = Number(user.salaryDetails?.basicSalary) || 0
-                                    const pf = Number(user.salaryDetails?.pfDeduction) || 0
-                                    const pt = Number(user.salaryDetails?.professionalTax) || 0
 
-                                    return (
-                                        <tr key={user._id} className="hover:bg-gray-50/60 transition-colors group">
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="flex items-center">
-                                                    <div className="h-10 w-10 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-sm">
-                                                        {user.name?.charAt(0).toUpperCase()}
-                                                    </div>
-                                                    <div className="ml-4">
-                                                        <div className="text-sm font-semibold text-gray-900">{user.name}</div>
-                                                        <div className="text-xs text-gray-500 flex items-center gap-1">
-                                                            <Shield className="h-3 w-3" /> @{user.username}
-                                                        </div>
-                                                        {user.email && (
-                                                            <div className="text-[11px] text-gray-400 flex items-center gap-1 mt-0.5">
-                                                                <Mail className="h-3 w-3" /> {user.email}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <div className="text-sm font-medium text-gray-900 flex items-center gap-1.5">
-                                                    <Briefcase className="h-3.5 w-3.5 text-gray-400" />
-                                                    {user.designation || "Staff Member"}
-                                                </div>
-                                                <div className="text-xs text-gray-500">
-                                                    Dept: <span className="font-medium text-gray-700">{user.department || "Operations"}</span>
-                                                </div>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                {basic > 0 ? (
-                                                    <div className="space-y-0.5">
-                                                        <div className="text-xs font-bold text-emerald-700 flex items-center gap-1">
-                                                            <IndianRupee className="h-3 w-3" />
-                                                            {basic.toLocaleString("en-IN")}/mo (Base)
-                                                        </div>
-                                                        <div className="text-[11px] text-gray-500">
-                                                            PF: ₹{pf} | PT: ₹{pt}
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <span className="text-xs text-gray-400 italic">Not configured</span>
-                                                )}
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <span className={`px-2.5 py-1 text-xs font-bold rounded-lg uppercase tracking-wider border ${getRoleBadge(user.role)}`}>
-                                                    {user.role}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap">
-                                                <button
-                                                    onClick={() => toggleStatus(user)}
-                                                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-colors ${user.isActive
-                                                        ? "bg-green-50 text-green-700 hover:bg-green-100"
-                                                        : "bg-red-50 text-red-700 hover:bg-red-100"
-                                                        }`}
-                                                >
-                                                    {user.isActive ? <UserCheck className="h-3 w-3" /> : <UserX className="h-3 w-3" />}
-                                                    {user.isActive ? 'Active' : 'Inactive'}
-                                                </button>
-                                            </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-right">
-                                                <div className="flex items-center justify-end gap-2">
-                                                    {/* ⭐ RELEASE SALARY ACTION BUTTON */}
-                                                    <button
-                                                        onClick={() => handleOpenSalaryModal(user)}
-                                                        className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all hover:scale-[1.02]"
-                                                        title="Release Monthly Salary Statement"
-                                                    >
-                                                        <IndianRupee className="h-3.5 w-3.5" />
-                                                        <span>Release Salary</span>
-                                                    </button>
-
-                                                    <button
-                                                        onClick={() => navigate(`/tracking-tasks?userId=${user._id}`)}
-                                                        className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-all"
-                                                        title="Assign Task"
-                                                    >
-                                                        <ClipboardList className="h-4 w-4" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleViewCredentials(user)}
-                                                        className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all"
-                                                        title="View Credentials"
-                                                    >
-                                                        <Eye className="h-4 w-4" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleOpenModal(user)}
-                                                        className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-all"
-                                                        title="Edit User Profile"
-                                                    >
-                                                        <Edit2 className="h-4 w-4" />
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDelete(user._id)}
-                                                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                                                        title="Delete User"
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </button>
-                                                </div>
-                                            </td>
+                    {/* Users Table */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                        {loading ? (
+                            <div className="flex flex-col items-center justify-center h-64 gap-4">
+                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+                                <p className="text-gray-500 font-medium">Loading user and payroll records...</p>
+                            </div>
+                        ) : filteredUsers.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center h-64 text-gray-500">
+                                <Users className="h-12 w-12 mb-4 opacity-20" />
+                                <p className="text-lg">No users found</p>
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full divide-y divide-gray-100">
+                                    <thead className="bg-gray-50/70 text-left">
+                                        <tr>
+                                            <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Employee / User</th>
+                                            <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Designation & Dept</th>
+                                            <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Role</th>
+                                            <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                                            <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Payroll Actions</th>
                                         </tr>
-                                    )
-                                })}
-                            </tbody>
-                        </table>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {filteredUsers.map((user) => {
+                                            const basic = Number(user.salaryDetails?.basicSalary) || 0
+                                            const pf = Number(user.salaryDetails?.pfDeduction) || 0
+                                            const pt = Number(user.salaryDetails?.professionalTax) || 0
+
+                                            return (
+                                                <tr key={user._id} className="hover:bg-gray-50/60 transition-colors group">
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div className="flex items-center">
+                                                            <div className="h-10 w-10 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center font-bold text-sm">
+                                                                {user.name?.charAt(0).toUpperCase()}
+                                                            </div>
+                                                            <div className="ml-4">
+                                                                <div className="text-sm font-semibold text-gray-900">{user.name}</div>
+                                                                <div className="text-xs text-gray-500 flex items-center gap-1">
+                                                                    <Shield className="h-3 w-3" /> @{user.username}
+                                                                </div>
+                                                                {user.email && (
+                                                                    <div className="text-[11px] text-gray-400 flex items-center gap-1 mt-0.5">
+                                                                        <Mail className="h-3 w-3" /> {user.email}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <div className="text-sm font-medium text-gray-900 flex items-center gap-1.5">
+                                                            <Briefcase className="h-3.5 w-3.5 text-gray-400" />
+                                                            {user.designation || "Staff Member"}
+                                                        </div>
+                                                        <div className="text-xs text-gray-500">
+                                                            Dept: <span className="font-medium text-gray-700">{user.department || "Operations"}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <span className={`px-2.5 py-1 text-xs font-bold rounded-lg uppercase tracking-wider border ${getRoleBadge(user.role)}`}>
+                                                            {user.role}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap">
+                                                        <button
+                                                            onClick={() => toggleStatus(user)}
+                                                            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition-colors ${user.isActive
+                                                                ? "bg-green-50 text-green-700 hover:bg-green-100"
+                                                                : "bg-red-50 text-red-700 hover:bg-red-100"
+                                                                }`}
+                                                        >
+                                                            {user.isActive ? <UserCheck className="h-3 w-3" /> : <UserX className="h-3 w-3" />}
+                                                            {user.isActive ? 'Active' : 'Inactive'}
+                                                        </button>
+                                                    </td>
+                                                    <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                        <div className="flex items-center justify-end gap-2">
+                                                            {/* ⭐ RELEASE SALARY ACTION BUTTON */}
+                                                            <button
+                                                                onClick={() => handleOpenSalaryModal(user)}
+                                                                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-sm transition-all hover:scale-[1.02]"
+                                                                title="Release Monthly Salary Statement"
+                                                            >
+                                                                <IndianRupee className="h-3.5 w-3.5" />
+                                                                <span>Release Salary</span>
+                                                            </button>
+
+                                                            {/* View user's past slips in history */}
+                                                            <button
+                                                                onClick={() => {
+                                                                    setActiveMainTab("history");
+                                                                    setHistorySearchTerm(user.name);
+                                                                    fetchAllSalaryHistory(user.name);
+                                                                }}
+                                                                className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                                                                title="View Past Salary Slips History"
+                                                            >
+                                                                <History className="h-4 w-4" />
+                                                            </button>
+
+                                                            <button
+                                                                onClick={() => navigate(`/tracking-tasks?userId=${user._id}`)}
+                                                                className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-all"
+                                                                title="Assign Task"
+                                                            >
+                                                                <ClipboardList className="h-4 w-4" />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleViewCredentials(user)}
+                                                                className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-lg transition-all"
+                                                                title="View Credentials"
+                                                            >
+                                                                <Eye className="h-4 w-4" />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleOpenModal(user)}
+                                                                className="p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 rounded-lg transition-all"
+                                                                title="Edit User Profile"
+                                                            >
+                                                                <Edit2 className="h-4 w-4" />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDelete(user._id)}
+                                                                className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                                                title="Delete User"
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            )
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
                     </div>
-                )}
-            </div>
+                </>
+            ) : (
+                /* ══════════════════════════════════════════════════════════════════════
+                    VIEW 2: SALARY DISBURSEMENT HISTORY & STATEMENTS
+                ══════════════════════════════════════════════════════════════════════ */
+                <div className="space-y-6">
+
+                    {/* Summary KPI Cards */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
+                            <div>
+                                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">Total Net Salary Disbursed</span>
+                                <div className="text-2xl font-black text-emerald-700 mt-1">₹ {totalDisbursedAmount.toLocaleString("en-IN")}</div>
+                            </div>
+                            <div className="h-12 w-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                                <IndianRupee className="h-6 w-6" />
+                            </div>
+                        </div>
+
+                        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
+                            <div>
+                                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">Total Payslips Released</span>
+                                <div className="text-2xl font-black text-slate-900 mt-1">{allSalaryHistory.length} Slips</div>
+                            </div>
+                            <div className="h-12 w-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                                <Receipt className="h-6 w-6" />
+                            </div>
+                        </div>
+
+                        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm flex items-center justify-between">
+                            <div>
+                                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">Emailed to Employees</span>
+                                <div className="text-2xl font-black text-indigo-700 mt-1">{emailedCount} Delivered</div>
+                            </div>
+                            <div className="h-12 w-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center font-bold">
+                                <Mail className="h-6 w-6" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* History Filters & Controls */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex flex-col md:flex-row gap-4">
+                        <div className="relative flex-1">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-5 w-5" />
+                            <input
+                                type="text"
+                                placeholder="Search past slips by employee name, slip ID, email or designation..."
+                                value={historySearchTerm}
+                                onChange={(e) => setHistorySearchTerm(e.target.value)}
+                                className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-emerald-500 text-sm"
+                            />
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <Filter className="h-5 w-5 text-gray-400" />
+                            <input
+                                type="month"
+                                value={historyMonthFilter === "all" ? "" : historyMonthFilter}
+                                onChange={(e) => setHistoryMonthFilter(e.target.value || "all")}
+                                className="bg-gray-50 border-none rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-emerald-500 font-medium"
+                                placeholder="Filter Month"
+                            />
+                            {historyMonthFilter !== "all" && (
+                                <button
+                                    onClick={() => setHistoryMonthFilter("all")}
+                                    className="px-2.5 py-1 text-xs text-gray-500 hover:text-gray-800 bg-gray-100 rounded-lg"
+                                >
+                                    Clear Month
+                                </button>
+                            )}
+                            <button
+                                onClick={() => fetchAllSalaryHistory()}
+                                className="p-2.5 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-xl transition-all"
+                                title="Refresh History"
+                            >
+                                <RefreshCw className={`h-4 w-4 ${loadingHistory ? 'animate-spin' : ''}`} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* History Table */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                        {loadingHistory ? (
+                            <div className="flex flex-col items-center justify-center h-64 gap-4">
+                                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+                                <p className="text-gray-500 font-medium">Fetching salary disbursement history...</p>
+                            </div>
+                        ) : filteredHistory.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center h-64 text-gray-500">
+                                <History className="h-12 w-12 mb-3 opacity-20" />
+                                <p className="text-base font-semibold text-gray-700">No salary slips found</p>
+                                <p className="text-xs text-gray-400 mt-1">Once you click &quot;Release Salary&quot; for any staff member, their record will appear here.</p>
+                            </div>
+                        ) : (
+                            <div className="overflow-x-auto">
+                                <table className="min-w-full divide-y divide-gray-100">
+                                    <thead className="bg-gray-50/70 text-left">
+                                        <tr>
+                                            <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Slip ID</th>
+                                            <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Employee</th>
+                                            <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Pay Period</th>
+                                            <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Gross (₹)</th>
+                                            <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Deductions (₹)</th>
+                                            <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Net Take-Home</th>
+                                            <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Dispatched</th>
+                                            <th className="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {filteredHistory.map((slip) => (
+                                            <tr key={slip._id} className="hover:bg-gray-50/60 transition-colors">
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <span className="font-mono text-xs font-bold text-slate-800 bg-slate-100 px-2.5 py-1 rounded-md border border-slate-200">
+                                                        {slip.slipNumber}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="text-sm font-bold text-gray-900">{slip.employeeName}</div>
+                                                    <div className="text-xs text-gray-500">{slip.designation || "Staff"}</div>
+                                                    {slip.employeeEmail && (
+                                                        <div className="text-[11px] text-gray-400 truncate max-w-[180px]">{slip.employeeEmail}</div>
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <span className="text-xs font-bold text-primary-700 bg-primary-50 px-2.5 py-1 rounded-lg">
+                                                        {slip.payPeriod}
+                                                    </span>
+                                                    <div className="text-[10px] text-gray-400 mt-1">
+                                                        {new Date(slip.payDate || slip.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-xs font-semibold text-gray-800 font-mono">
+                                                    ₹{Number(slip.grossEarnings || 0).toLocaleString("en-IN")}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-xs font-semibold text-rose-600 font-mono">
+                                                    -₹{Number(slip.totalDeductions || 0).toLocaleString("en-IN")}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    <div className="text-sm font-extrabold text-emerald-700 font-mono">
+                                                        ₹{Number(slip.netPay || 0).toLocaleString("en-IN")}
+                                                    </div>
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap">
+                                                    {slip.emailSent ? (
+                                                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                                                            <CheckCheck className="h-3 w-3" />
+                                                            Emailed
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-600 bg-slate-100 px-2.5 py-1 rounded-full border border-slate-200">
+                                                            Released
+                                                        </span>
+                                                    )}
+                                                </td>
+                                                <td className="px-6 py-4 whitespace-nowrap text-right">
+                                                    <div className="flex items-center justify-end gap-1.5">
+                                                        {/* Preview Slip */}
+                                                        <button
+                                                            onClick={() => setViewingHistoricalSlip(slip)}
+                                                            className="p-1.5 text-gray-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-all"
+                                                            title="View Payslip Statement"
+                                                        >
+                                                            <Eye className="h-4 w-4" />
+                                                        </button>
+
+                                                        {/* Download PDF */}
+                                                        <button
+                                                            onClick={() => handleDownloadPdf(slip._id)}
+                                                            className="p-1.5 text-gray-500 hover:text-primary-700 hover:bg-primary-50 rounded-lg transition-all"
+                                                            title="Download Official PDF"
+                                                        >
+                                                            <Download className="h-4 w-4" />
+                                                        </button>
+
+                                                        {/* Resend Email */}
+                                                        <button
+                                                            disabled={resendingEmailId === slip._id}
+                                                            onClick={() => handleResendSlipEmail(slip._id)}
+                                                            className="p-1.5 text-gray-500 hover:text-indigo-700 hover:bg-indigo-50 rounded-lg transition-all disabled:opacity-50"
+                                                            title="Re-send Email to Employee"
+                                                        >
+                                                            {resendingEmailId === slip._id ? (
+                                                                <div className="h-4 w-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                                                            ) : (
+                                                                <Send className="h-4 w-4" />
+                                                            )}
+                                                        </button>
+
+                                                        {/* Delete Slip */}
+                                                        <button
+                                                            onClick={() => handleDeleteSlip(slip._id)}
+                                                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                                            title="Delete Record"
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
 
             {/* ══════════════════════════════════════════════════════════════════════
-                ⭐ SALARY RELEASE & STATEMENT MODAL (Investrow Format with Engineers Parcel Logo)
+                ⭐ HISTORICAL SLIP FULL-SCREEN PREVIEW MODAL
+            ══════════════════════════════════════════════════════════════════════ */}
+            {viewingHistoricalSlip && (
+                <div className="fixed inset-0 z-[90] flex items-center justify-center p-3 sm:p-4">
+                    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setViewingHistoricalSlip(null)} />
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[92vh] flex flex-col relative z-10 overflow-hidden transform transition-all animate-in zoom-in duration-200">
+                        <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between border-b border-slate-800">
+                            <div>
+                                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                                    <Receipt className="h-4 w-4 text-emerald-400" />
+                                    Payslip Statement &bull; {viewingHistoricalSlip.slipNumber}
+                                </h3>
+                                <p className="text-xs text-slate-400 mt-0.5">
+                                    {viewingHistoricalSlip.employeeName} &bull; {viewingHistoricalSlip.payPeriod}
+                                </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => handleDownloadPdf(viewingHistoricalSlip._id)}
+                                    className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all"
+                                >
+                                    <Download className="h-3.5 w-3.5" />
+                                    Download PDF
+                                </button>
+                                <button
+                                    onClick={() => setViewingHistoricalSlip(null)}
+                                    className="p-1.5 text-slate-400 hover:text-white rounded-lg transition-all"
+                                >
+                                    <X className="h-5 w-5" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Statement Paper Rendering */}
+                        <div className="p-6 overflow-y-auto flex-1 bg-slate-50">
+                            <div className="bg-white border border-slate-200 rounded-2xl shadow-sm p-7 text-slate-800 font-sans text-xs max-w-2xl mx-auto">
+                                <div className="flex items-start justify-between border-b border-slate-200 pb-5 mb-5">
+                                    <div>
+                                        <div className="h-10 mb-2 flex items-center">
+                                            <img
+                                                src="/company-logo.jpg"
+                                                alt="Engineers Parcel"
+                                                className="h-10 w-auto object-contain"
+                                                onError={(e) => { e.target.src = "/logo.png" }}
+                                            />
+                                        </div>
+                                        <h2 className="text-xs font-bold text-slate-900 tracking-tight">
+                                            SRQ Engineers Parcel and Haul Private Limited
+                                        </h2>
+                                        <p className="text-[10px] text-slate-500 mt-0.5">
+                                            IIT (ISM) Dhanbad - 826004, Jharkhand, India &bull; CIN: U63090JH2023PTC021234
+                                        </p>
+                                    </div>
+                                    <div className="text-right">
+                                        <span className="inline-block text-[10px] font-bold uppercase tracking-widest bg-cyan-50 text-cyan-700 px-3 py-1 rounded-full border border-cyan-200/80 mb-2">
+                                            CONFIDENTIAL PAYSLIP
+                                        </span>
+                                        <div className="text-lg font-black text-slate-900 uppercase">
+                                            {viewingHistoricalSlip.payPeriod}
+                                        </div>
+                                        <div className="text-[11px] text-slate-500 mt-0.5">
+                                            Pay Date: {new Date(viewingHistoricalSlip.payDate || viewingHistoricalSlip.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="border border-slate-200 rounded-xl bg-slate-50/50 p-4 mb-3 text-[11px] grid grid-cols-2 sm:grid-cols-4 gap-y-3.5 gap-x-4">
+                                    <div>
+                                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">EMPLOYEE NAME</div>
+                                        <div className="font-bold text-slate-900 mt-0.5 text-xs">{viewingHistoricalSlip.employeeName}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">EMPLOYEE ID</div>
+                                        <div className="font-bold text-primary-600 mt-0.5">{viewingHistoricalSlip.employeeId || viewingHistoricalSlip.slipNumber}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">DESIGNATION</div>
+                                        <div className="font-bold text-slate-900 mt-0.5">{viewingHistoricalSlip.designation}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">PAYMENT METHOD</div>
+                                        <div className="font-semibold text-slate-800 mt-0.5">Direct Bank Transfer / NEFT</div>
+                                    </div>
+
+                                    <div>
+                                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">EMAIL ADDRESS</div>
+                                        <div className="text-slate-600 mt-0.5 truncate">{viewingHistoricalSlip.employeeEmail || "N/A"}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">MOBILE CONTACT</div>
+                                        <div className="text-slate-800 mt-0.5">{viewingHistoricalSlip.employeePhone || "N/A"}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">PAY PERIOD</div>
+                                        <div className="font-medium text-slate-800 mt-0.5">{viewingHistoricalSlip.payPeriod}</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">STATUS</div>
+                                        <div className="font-bold text-emerald-600 mt-0.5 flex items-center gap-1.5">
+                                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500"></span>
+                                            {viewingHistoricalSlip.emailSent ? "Verified & Emailed" : "Released"}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-slate-100/70 border border-slate-200/80 rounded-xl px-4 py-2 mb-5 text-[11px] text-slate-700 flex flex-wrap items-center justify-between gap-2">
+                                    <span>Total Days: <strong className="text-slate-900">{viewingHistoricalSlip.workingDays || 30}</strong></span>
+                                    <span>Paid Days: <strong className="text-slate-900">{viewingHistoricalSlip.paidDays || 30}</strong></span>
+                                    <span>Loss of Pay: <strong className="text-slate-900">{viewingHistoricalSlip.lossOfPayDays || 0}</strong></span>
+                                    <span>Bank: <strong className="text-slate-900">{viewingHistoricalSlip.bankDetails?.bankName || "SBI"}</strong></span>
+                                </div>
+
+                                <div className="border border-slate-200 rounded-xl overflow-hidden mb-5">
+                                    <div className="grid grid-cols-2 bg-slate-900 text-white font-bold text-[11px] uppercase tracking-wider px-5 py-3">
+                                        <div className="flex justify-between pr-4"><span>EARNINGS & ALLOWANCES</span><span>AMOUNT (₹)</span></div>
+                                        <div className="flex justify-between pl-4 border-l border-slate-700"><span>DEDUCTIONS</span><span>AMOUNT (₹)</span></div>
+                                    </div>
+                                    <div className="divide-y divide-slate-100 bg-white">
+                                        {Array.from({ length: Math.max(viewingHistoricalSlip.earnings?.length || 0, viewingHistoricalSlip.deductions?.length || 0, 4) }).map((_, idx) => {
+                                            const e = viewingHistoricalSlip.earnings?.[idx]
+                                            const d = viewingHistoricalSlip.deductions?.[idx]
+                                            return (
+                                                <div key={idx} className="grid grid-cols-2 text-[11px] px-5 py-2.5">
+                                                    <div className="flex justify-between pr-4 items-center">
+                                                        <span className={e ? "text-slate-700 font-medium" : "text-slate-300"}>{e ? e.name : "–"}</span>
+                                                        <span className={e ? "font-bold text-slate-900 font-mono" : "text-slate-300"}>{e ? `₹${Number(e.amount).toLocaleString("en-IN")}` : "–"}</span>
+                                                    </div>
+                                                    <div className="flex justify-between pl-4 border-l border-slate-200 items-center">
+                                                        <span className={d ? "text-slate-700 font-medium" : "text-slate-300"}>{d ? d.name : "–"}</span>
+                                                        <span className={d ? (d.amount > 0 ? "font-bold text-rose-600 font-mono" : "font-bold text-slate-900 font-mono") : "text-slate-300"}>
+                                                            {d ? `₹${Number(d.amount).toLocaleString("en-IN")}` : "–"}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                    <div className="grid grid-cols-2 bg-slate-50 px-5 py-3 font-bold text-xs border-t border-slate-200">
+                                        <div className="flex justify-between pr-4"><span>Total Gross Earnings</span><span className="font-extrabold text-slate-900 font-mono">₹{Number(viewingHistoricalSlip.grossEarnings).toLocaleString("en-IN")}</span></div>
+                                        <div className="flex justify-between pl-4 border-l border-slate-200"><span>Total Deductions</span><span className="font-extrabold text-rose-600 font-mono">₹{Number(viewingHistoricalSlip.totalDeductions).toLocaleString("en-IN")}</span></div>
+                                    </div>
+                                </div>
+
+                                <div className="bg-[#059669] rounded-xl p-4 text-white flex items-center justify-between mb-4">
+                                    <div>
+                                        <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-100">NET TAKE-HOME PAY (IN-HAND)</div>
+                                        <div className="text-xs text-emerald-50 mt-1 italic">Amount in words: {viewingHistoricalSlip.netPayInWords} Rupees Only</div>
+                                    </div>
+                                    <div className="text-2xl font-black text-white font-mono">₹{Number(viewingHistoricalSlip.netPay).toLocaleString("en-IN")}</div>
+                                </div>
+
+                                {viewingHistoricalSlip.notes && (
+                                    <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 mb-4 text-xs text-slate-700">
+                                        <strong>Remarks:</strong> {viewingHistoricalSlip.notes}
+                                    </div>
+                                )}
+
+                                <div className="flex items-center justify-between pt-4 border-t border-slate-200 text-[10px] text-slate-400">
+                                    <div>Note: This is an official computer-generated statement issued by Engineers Parcel.</div>
+                                    <div className="text-right">
+                                        <div className="font-serif italic font-bold text-slate-900">Engineers Parcel</div>
+                                        <div className="text-slate-600 text-[9px]">Authorized Signatory</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Quick Staff Selection Modal for Salary Release */}
+            {isSelectUserModalOpen && (
+                <div className="fixed inset-0 z-[75] flex items-center justify-center p-4">
+                    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setIsSelectUserModalOpen(false)} />
+                    <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg max-h-[85vh] flex flex-col relative z-10 overflow-hidden">
+                        <div className="p-5 border-b border-gray-100 flex items-center justify-between bg-emerald-50/50">
+                            <div className="flex items-center gap-3">
+                                <div className="h-10 w-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center font-bold">
+                                    <IndianRupee className="h-5 w-5" />
+                                </div>
+                                <div>
+                                    <h3 className="text-base font-bold text-gray-900">Select Staff to Release Salary</h3>
+                                    <p className="text-xs text-gray-500">Pick an employee to prepare their monthly statement</p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setIsSelectUserModalOpen(false)}
+                                className="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg"
+                            >
+                                <X className="h-5 w-5" />
+                            </button>
+                        </div>
+                        <div className="p-4 overflow-y-auto space-y-2 flex-1 divide-y divide-gray-50">
+                            {users.map(u => (
+                                <div
+                                    key={u._id}
+                                    onClick={() => {
+                                        setIsSelectUserModalOpen(false);
+                                        handleOpenSalaryModal(u);
+                                    }}
+                                    className="p-3 rounded-2xl hover:bg-emerald-50/60 cursor-pointer transition-all flex items-center justify-between group"
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="h-9 w-9 rounded-full bg-emerald-100 text-emerald-800 font-bold flex items-center justify-center text-xs">
+                                            {u.name?.charAt(0).toUpperCase()}
+                                        </div>
+                                        <div>
+                                            <div className="text-sm font-bold text-gray-900 group-hover:text-emerald-700">{u.name}</div>
+                                            <div className="text-xs text-gray-500">{u.designation || u.role} &bull; {u.email || "No email"}</div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        {Number(u.salaryDetails?.basicSalary) > 0 && (
+                                            <span className="text-xs font-semibold text-gray-500">₹{Number(u.salaryDetails.basicSalary).toLocaleString("en-IN")}</span>
+                                        )}
+                                        <span className="text-xs font-bold text-emerald-600 bg-emerald-100/70 px-2.5 py-1 rounded-lg group-hover:bg-emerald-600 group-hover:text-white transition-all">
+                                            Select &rarr;
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ══════════════════════════════════════════════════════════════════════
+                ⭐ SALARY RELEASE & STATEMENT MODAL
             ══════════════════════════════════════════════════════════════════════ */}
             {isSalaryModalOpen && selectedSalaryUser && (
                 <div className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-4">
                     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setIsSalaryModalOpen(false)} />
                     <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[92vh] flex flex-col relative z-10 overflow-hidden transform transition-all animate-in zoom-in duration-200 border border-gray-100">
 
-                        {/* Top Header matching reference image */}
+                        {/* Top Header */}
                         <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
                             <div className="flex items-center gap-3">
                                 <div className="h-10 w-10 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-100 flex items-center justify-center font-bold">
@@ -792,7 +1335,7 @@ const UserManagement = () => {
                         {/* Modal Body */}
                         <div className="p-6 overflow-y-auto space-y-6 flex-1 bg-white">
 
-                            {/* ─── TAB 1: EDIT BREAKDOWN (Exact match with reference Image 2) ─── */}
+                            {/* ─── TAB 1: EDIT BREAKDOWN ─── */}
                             {salaryTab === "edit" ? (
                                 <div className="space-y-6">
 
@@ -901,7 +1444,7 @@ const UserManagement = () => {
                                         </div>
                                     </div>
 
-                                    {/* Two Cards Side by Side: Earnings vs Deductions */}
+                                    {/* Two Cards: Earnings vs Deductions */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
                                         {/* Card 1: Earnings & Allowances */}
@@ -916,7 +1459,6 @@ const UserManagement = () => {
                                                 </span>
                                             </div>
 
-                                            {/* Base Monthly Salary */}
                                             <div>
                                                 <label className="text-xs font-semibold text-gray-700 block mb-1">
                                                     Base / Basic Monthly Salary (₹) *
@@ -930,7 +1472,6 @@ const UserManagement = () => {
                                                 />
                                             </div>
 
-                                            {/* Dynamic Allowances List */}
                                             <div className="space-y-2.5">
                                                 {allowancesList.map((item) => (
                                                     <div key={item.id} className="flex items-center gap-2 bg-gray-50 p-2 rounded-xl border border-gray-200">
@@ -970,7 +1511,6 @@ const UserManagement = () => {
                                                 <span>+ Add Allowance / Incentive</span>
                                             </button>
 
-                                            {/* Quick Add Chips */}
                                             <div className="pt-2">
                                                 <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Quick add:</div>
                                                 <div className="flex flex-wrap gap-1.5">
@@ -1000,7 +1540,6 @@ const UserManagement = () => {
                                                 </span>
                                             </div>
 
-                                            {/* Deductions Rows */}
                                             <div className="space-y-2.5">
                                                 {deductionsList.map((item) => (
                                                     <div key={item.id} className="flex items-center gap-2 bg-gray-50 p-2 rounded-xl border border-gray-200">
@@ -1040,7 +1579,6 @@ const UserManagement = () => {
                                                 <span>+ Add Deduction</span>
                                             </button>
 
-                                            {/* Quick Add Chips for Deductions */}
                                             <div className="pt-2">
                                                 <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-1.5">Quick add:</div>
                                                 <div className="flex flex-wrap gap-1.5">
@@ -1059,7 +1597,7 @@ const UserManagement = () => {
                                         </div>
                                     </div>
 
-                                    {/* Sleek Dark Navy Summary Bar matching Image 2 */}
+                                    {/* Sleek Dark Summary Bar */}
                                     <div className="bg-slate-900 text-white rounded-2xl p-5 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-md">
                                         <div className="flex items-center gap-8">
                                             <div>
@@ -1091,7 +1629,7 @@ const UserManagement = () => {
                                         />
                                     </div>
 
-                                    {/* Checkboxes matching reference Image 2 */}
+                                    {/* Checkboxes */}
                                     <div className="space-y-2 pt-1">
                                         <label className="flex items-center gap-2.5 cursor-pointer text-xs font-medium text-gray-700">
                                             <input
@@ -1117,6 +1655,40 @@ const UserManagement = () => {
                                         </label>
                                     </div>
 
+                                    {/* Previous Slips History for this user */}
+                                    {salaryHistory.length > 0 && (
+                                        <div className="border border-slate-200 rounded-2xl p-4 bg-slate-50/50">
+                                            <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                                <Clock className="h-4 w-4 text-emerald-600" />
+                                                Past Slips for {selectedSalaryUser.name}
+                                            </h4>
+                                            <div className="flex flex-wrap gap-2">
+                                                {salaryHistory.map((slip) => (
+                                                    <div key={slip._id} className="flex items-center gap-2 px-3 py-1.5 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl text-xs shadow-2xs">
+                                                        <span className="font-semibold text-slate-800">{slip.payPeriod}</span>
+                                                        <span className="font-bold text-emerald-700">₹{Number(slip.netPay).toLocaleString("en-IN")}</span>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setViewingHistoricalSlip(slip)}
+                                                            className="text-primary-600 hover:text-primary-800 p-0.5"
+                                                            title="View Slip"
+                                                        >
+                                                            <Eye className="h-3.5 w-3.5" />
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleDownloadPdf(slip._id)}
+                                                            className="text-gray-400 hover:text-emerald-700 p-0.5"
+                                                            title="Download Slip PDF"
+                                                        >
+                                                            <Download className="h-3.5 w-3.5" />
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+
                                 </div>
                             ) : (
                                 /* ─── TAB 2: INTERACTIVE PREVIEW (Ultra-Clean Executive Corporate Design) ─── */
@@ -1131,9 +1703,7 @@ const UserManagement = () => {
                                                         src="/company-logo.jpg"
                                                         alt="Engineers Parcel"
                                                         className="h-11 w-auto object-contain"
-                                                        onError={(e) => {
-                                                            e.target.src = "/logo.png"
-                                                        }}
+                                                        onError={(e) => { e.target.src = "/logo.png" }}
                                                     />
                                                 </div>
                                                 <h2 className="text-xs font-bold text-slate-900 tracking-tight">
@@ -1281,7 +1851,7 @@ const UserManagement = () => {
                                             </div>
                                         </div>
 
-                                        {/* 5. Net Take-Home Pay Banner (Deep Emerald Green) */}
+                                        {/* 5. Net Take-Home Pay Banner */}
                                         <div className="bg-[#059669] rounded-xl p-4 sm:p-5 text-white flex items-center justify-between mb-4 shadow-sm">
                                             <div>
                                                 <div className="text-[10px] font-bold uppercase tracking-widest text-emerald-100">

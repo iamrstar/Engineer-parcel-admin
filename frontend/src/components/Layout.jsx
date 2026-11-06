@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useAuth } from "../contexts/AuthContext"
 import axios from "axios"
 import toast from "react-hot-toast"
-import { Package, LayoutDashboard, FileText, MapPin, Ticket, LogOut, Menu, X, BarChart, Bell, Users, Building, CheckSquare, ClipboardList, UserCheck, MessageCircle, CheckCircle, Moon, Sun, Gift, Trophy, Receipt, Calculator, FileSpreadsheet, Megaphone } from "lucide-react"
+import { Package, LayoutDashboard, FileText, MapPin, Ticket, LogOut, Menu, X, BarChart, Bell, Users, Building, CheckSquare, ClipboardList, UserCheck, MessageCircle, CheckCircle, Moon, Sun, Gift, Trophy, Receipt, Calculator, FileSpreadsheet, Megaphone, Wallet } from "lucide-react"
 import { socket } from "../utils/socket"
 import { Activity as ActivityIcon } from "lucide-react"
 import { useTheme } from "../contexts/ThemeContext"
@@ -289,7 +289,7 @@ const Layout = ({ children }) => {
           headers: { Authorization: `Bearer ${token}` }
         })
         setUnacceptedIncentivesCount(resIncentives.data.count || 0)
-      } catch(err) {
+      } catch (err) {
         // ignore if not staff or error
       }
 
@@ -365,6 +365,7 @@ const Layout = ({ children }) => {
     { name: "Attendance", href: "/attendance", icon: UserCheck },
     { name: "Attendance Report", href: "/attendance-report", icon: FileText },
     { name: "User Management", href: "/user-management", icon: Users },
+    { name: "Payroll & Salary", href: "/payroll", icon: Wallet },
     { name: "Corporate Partners", href: "/partners", icon: Building },
     { name: "Invoice Builder", href: "/invoice-builder", icon: Receipt },
     { name: "Quotation Builder", href: "/quotation-builder", icon: Calculator },
@@ -376,28 +377,28 @@ const Layout = ({ children }) => {
   ]
 
   const defaultStaffAllowed = [
-    "Dashboard", "Booking", "E-Docket", "Pincodes", "Create Order", 
-    "Corporate Partners", "Partner Management", "Invoice Builder", "Quotation Builder", "Daily Work Log", "Communication", "Staff Tasks", "Tasks Management", "Manage Queries", 
+    "Dashboard", "Booking", "E-Docket", "Pincodes", "Create Order",
+    "Corporate Partners", "Partner Management", "Invoice Builder", "Quotation Builder", "Daily Work Log", "Communication", "Staff Tasks", "Tasks Management", "Manage Queries",
     "Courier Dockets", "Docket Management", "Leads", "Performance"
   ];
-  
-  const navigation = isAdmin 
-    ? allNavigation 
+
+  const navigation = isAdmin
+    ? allNavigation
     : allNavigation.filter(item => {
-        if (user?.permissions && Array.isArray(user.permissions) && user.permissions.length > 0) {
-          if (user.permissions.includes("ALL")) return true;
-          if (item.name === "Daily Work Log") return true;
-          return user.permissions.includes(item.name) || 
-                 user.permissions.includes(item.name.replace("My ", "Staff ")) ||
-                 (item.name === "Corporate Partners" && user.permissions.includes("Partner Management")) ||
-                 (item.name === "Courier Dockets" && user.permissions.includes("Docket Management"));
-        }
-        return defaultStaffAllowed.includes(item.name);
-      }).map(item => {
-        if (item.name === "Manage Queries") return { ...item, name: "My Queries" }
-        if (item.name === "Staff Tasks" || item.name === "Tasks Management") return { ...item, name: "My Tasks" }
-        return item
-      });
+      if (user?.permissions && Array.isArray(user.permissions) && user.permissions.length > 0) {
+        if (user.permissions.includes("ALL")) return true;
+        if (item.name === "Daily Work Log") return true;
+        return user.permissions.includes(item.name) ||
+          user.permissions.includes(item.name.replace("My ", "Staff ")) ||
+          (item.name === "Corporate Partners" && user.permissions.includes("Partner Management")) ||
+          (item.name === "Courier Dockets" && user.permissions.includes("Docket Management"));
+      }
+      return defaultStaffAllowed.includes(item.name);
+    }).map(item => {
+      if (item.name === "Manage Queries") return { ...item, name: "My Queries" }
+      if (item.name === "Staff Tasks" || item.name === "Tasks Management") return { ...item, name: "My Tasks" }
+      return item
+    });
 
   const handleLogout = () => {
     logout()
@@ -435,11 +436,10 @@ const Layout = ({ children }) => {
                   key={item.name}
                   to={item.href}
                   onClick={() => setSidebarOpen(false)}
-                  className={`group flex items-center justify-between px-3 py-1.5 rounded-xl text-sm font-bold transition-all duration-300 ${
-                    isActive 
-                      ? "bg-gradient-to-r from-primary-600 to-primary-500 text-white shadow-lg shadow-primary-500/25" 
+                  className={`group flex items-center justify-between px-3 py-1.5 rounded-xl text-sm font-bold transition-all duration-300 ${isActive
+                      ? "bg-gradient-to-r from-primary-600 to-primary-500 text-white shadow-lg shadow-primary-500/25"
                       : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center">
                     <item.icon className={`h-5 w-5 mr-3 transition-transform duration-300 ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-primary-500 group-hover:scale-110'}`} />
@@ -487,11 +487,10 @@ const Layout = ({ children }) => {
                 <Link
                   key={item.name}
                   to={item.href}
-                  className={`group flex items-center justify-between px-3 py-1.5 rounded-xl text-sm font-bold transition-all duration-300 ${
-                    isActive 
-                      ? "bg-gradient-to-r from-primary-600 to-primary-500 text-white shadow-lg shadow-primary-500/25 transform scale-[1.02]" 
+                  className={`group flex items-center justify-between px-3 py-1.5 rounded-xl text-sm font-bold transition-all duration-300 ${isActive
+                      ? "bg-gradient-to-r from-primary-600 to-primary-500 text-white shadow-lg shadow-primary-500/25 transform scale-[1.02]"
                       : "text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-white/5 hover:text-gray-900 dark:hover:text-white hover:scale-[1.01]"
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center">
                     <item.icon className={`h-5 w-5 mr-3 transition-transform duration-300 ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-primary-500 group-hover:scale-110'}`} />
@@ -511,7 +510,7 @@ const Layout = ({ children }) => {
             <div className="flex items-center gap-2 overflow-hidden max-w-[70%]">
               <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-800 dark:to-gray-900 border border-white dark:border-white/10 shadow-sm overflow-hidden flex items-center justify-center shrink-0">
                 <span className="font-black text-gray-500 dark:text-gray-400 text-sm uppercase">
-                   {user?.name ? user.name.charAt(0) : (user?.username ? user.username.charAt(0) : 'A')}
+                  {user?.name ? user.name.charAt(0) : (user?.username ? user.username.charAt(0) : 'A')}
                 </span>
               </div>
               <div className="flex-1 overflow-hidden">
@@ -533,14 +532,14 @@ const Layout = ({ children }) => {
 
       {/* Main content */}
       <div className="lg:pl-64 flex flex-col min-h-screen bg-gray-50 dark:bg-[#0A0A0A] transition-colors duration-300">
-        
+
         {/* Top bar (Glassmorphism) */}
         <div className="sticky top-0 z-30 flex h-16 items-center gap-x-4 bg-white/70 dark:bg-[#0A0A0A]/70 backdrop-blur-xl border-b border-gray-100/50 dark:border-white/10 px-4 shadow-[0_4px_30px_rgba(0,0,0,0.02)] sm:gap-x-6 sm:px-6 lg:px-8 transition-colors duration-300">
           <button type="button" className="-m-2.5 p-2.5 text-gray-700 dark:text-gray-300 lg:hidden hover:bg-gray-100 dark:hover:bg-white/5 rounded-full transition-colors" onClick={() => setSidebarOpen(true)}>
             <Menu className="h-6 w-6" />
           </button>
           <div className="flex flex-1 gap-x-4 self-stretch lg:gap-x-6 items-center">
-            
+
             {/* Dynamic Page Title */}
             <div className="flex items-center gap-x-4 lg:gap-x-6">
               <h1 className="text-lg sm:text-xl font-extrabold text-gray-900 dark:text-white tracking-tight capitalize">
@@ -550,7 +549,7 @@ const Layout = ({ children }) => {
 
             {/* Right side - Notifications & Theme */}
             <div className="flex flex-1 justify-end items-center gap-x-4">
-              
+
               {/* Dark Mode Toggle */}
               <button
                 onClick={toggleDarkMode}
@@ -612,7 +611,7 @@ const Layout = ({ children }) => {
                                 <span className="text-gray-900 dark:text-gray-200 font-medium truncate">{order.receiverDetails?.name || 'Unknown'}</span>
                               </div>
                             </div>
-                            
+
                             <div className="mt-3 pt-2 border-t border-gray-100/50 flex justify-between items-center text-xs text-gray-500">
                               <span className="font-bold text-gray-700">₹{order.pricing?.totalAmount || 0}</span>
                               <span className="text-primary-600 font-extrabold text-[10px] uppercase tracking-wider flex items-center gap-1 group-hover:translate-x-1 transition-transform">
@@ -642,7 +641,7 @@ const Layout = ({ children }) => {
 
         {/* Page content */}
         <main className={`flex-1 relative ${location.pathname === "/invoice-builder" || location.pathname === "/quotation-builder" ? "" : "py-8"}`}>
-          
+
           {/* Subtle background gradient blob for the whole app */}
           <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none -z-10">
             <div className="absolute top-0 right-1/4 w-96 h-96 bg-primary-200 rounded-full mix-blend-multiply filter blur-[128px] opacity-20"></div>
