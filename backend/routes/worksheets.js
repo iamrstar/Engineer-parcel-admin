@@ -654,7 +654,76 @@ router.get("/export-excel", authMiddleware, async (req, res) => {
     workbook.creator = "Engineers Parcel Admin";
     workbook.created = new Date();
 
-    const sheetName = `Daily Log (${worksheet.month || "Current"})`;
+    // ─────────────────────────────────────────────────────────────
+    // SHEET 1: How to Fill Guidelines
+    // ─────────────────────────────────────────────────────────────
+    const wsHow = workbook.addWorksheet("How to Fill", { views: [{ showGridLines: true }] });
+    wsHow.mergeCells(1, 1, 1, 4);
+    const rHowTitle = wsHow.getCell(1, 1);
+    rHowTitle.value = `DAILY WORK LOG - HOW TO FILL GUIDELINES (${template.companyName || "Engineers Parcel"})`;
+    rHowTitle.font = { name: "Arial", size: 12, bold: true, color: { argb: "FFFFFFFF" } };
+    rHowTitle.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0D233A" } };
+    rHowTitle.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+    wsHow.getRow(1).height = 28;
+
+    const rules = [
+      ["Rule 1: Daily Fill", "Fill ONCE at day end before leaving the office (6:00 PM - 8:00 PM)."],
+      ["Rule 2: Yellow Cells", "YELLOW cells = you fill. Grey & white cells are automated."],
+      ["Rule 3: Numbers Only", "Enter numbers only in metric columns. Enter 0 if nothing happened. Leave blank only if on leave."],
+      ["Rule 4: Leave Marking", "If on leave or weekly off, set status accordingly and leave metric columns empty."],
+      ["Rule 5: Problem Log", "1 concise line stating the biggest operational/client bottleneck faced today."],
+    ];
+
+    wsHow.getRow(3).values = ["GUIDELINE", "INSTRUCTION"];
+    wsHow.getRow(3).font = { name: "Arial", size: 10, bold: true, color: { argb: "FFFFFFFF" } };
+    wsHow.getRow(3).getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF102A45" } };
+    wsHow.getRow(3).getCell(2).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF102A45" } };
+    wsHow.getRow(3).height = 22;
+
+    let rIdx = 4;
+    rules.forEach(([title, desc]) => {
+      const row = wsHow.getRow(rIdx);
+      row.values = [title, desc];
+      row.height = 20;
+      row.getCell(1).font = { name: "Arial", size: 9.5, bold: true };
+      row.getCell(2).font = { name: "Arial", size: 9.5 };
+      rIdx++;
+    });
+
+    rIdx += 2;
+    wsHow.getRow(rIdx).values = ["COLUMN NAME", "DATA TYPE", "SUMMARY TYPE", "HOW TO FILL"];
+    wsHow.getRow(rIdx).font = { name: "Arial", size: 10, bold: true, color: { argb: "FFFFFFFF" } };
+    for (let c = 1; c <= 4; c++) {
+      wsHow.getRow(rIdx).getCell(c).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF102A45" } };
+    }
+    wsHow.getRow(rIdx).height = 22;
+    rIdx++;
+
+    fields.forEach((f) => {
+      const row = wsHow.getRow(rIdx);
+      row.values = [f.label, f.type, f.summaryType, f.placeholder || "Enter daily metric"];
+      row.height = 20;
+      row.getCell(1).font = { name: "Arial", size: 9.5, bold: true };
+      row.getCell(2).font = { name: "Arial", size: 9 };
+      row.getCell(3).font = { name: "Arial", size: 9 };
+      row.getCell(4).font = { name: "Arial", size: 9.5 };
+      rIdx++;
+    });
+
+    wsHow.getColumn(1).width = 30;
+    wsHow.getColumn(2).width = 14;
+    wsHow.getColumn(3).width = 16;
+    wsHow.getColumn(4).width = 50;
+
+    // ─────────────────────────────────────────────────────────────
+    // SHEET 2: Daily Log
+    // ─────────────────────────────────────────────────────────────
+    const monthShortName = (worksheet.monthStartDate || worksheet.month || "").includes("Oct")
+      ? "OCT"
+      : (worksheet.monthStartDate || worksheet.month || "").includes("Nov")
+      ? "NOV"
+      : worksheet.month;
+    const sheetName = `Daily Log (${monthShortName})`;
     const ws = workbook.addWorksheet(sheetName.substring(0, 31), {
       views: [{ showGridLines: true }],
     });
@@ -726,12 +795,31 @@ router.get("/export-excel", authMiddleware, async (req, res) => {
       };
     }
 
-    // Row 5: Example row (like in Google Sheet screenshot)
+    // Row 5: Example row (matching exact Google Sheet screenshot)
+    const exampleFieldValues = {
+      totalOrders: 14,
+      quotationsPrepared: 8,
+      invoicesSent: 6,
+      invoiceValue: 42000,
+      receivingInvoice: 5,
+      paymentsReceived: 18000,
+      paymentFollowup: 8,
+      pendingDues: 96000,
+      pettyCash: 4700,
+      biggestProblem: "Customer not picking call at Hirapur",
+    };
+
     const exampleVals = [
       "EXAMPLE ->",
       "Tue",
       "Present",
-      ...fields.map((f) => (f.type === "number" ? 5 : "Notes...")),
+      ...fields.map((f) =>
+        exampleFieldValues[f.key] !== undefined
+          ? exampleFieldValues[f.key]
+          : f.type === "number"
+          ? 5
+          : "Notes..."
+      ),
       "Yes",
     ];
     const exampleRow = ws.getRow(5);
@@ -861,6 +949,130 @@ router.get("/export-excel", authMiddleware, async (req, res) => {
       ws.getColumn(colIdx).width = Math.max(16, Math.min(32, f.label.length + 3));
     });
     ws.getColumn(totalCols).width = 10; // Filled?
+
+    // ─────────────────────────────────────────────────────────────
+    // SHEET 3: Weekly Summary
+    // ─────────────────────────────────────────────────────────────
+    const wsWeekly = workbook.addWorksheet("Weekly Summary", { views: [{ showGridLines: true }] });
+    const numCols = 3 + fields.length;
+    wsWeekly.mergeCells(1, 1, 1, numCols);
+    const rWeeklyTitle = wsWeekly.getCell(1, 1);
+    rWeeklyTitle.value = `WEEKLY WORK SUMMARY - ${(worksheet.staffName || "STAFF").toUpperCase()}  |  ${worksheet.month}`;
+    rWeeklyTitle.font = { name: "Arial", size: 12, bold: true, color: { argb: "FFFFFFFF" } };
+    rWeeklyTitle.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0D233A" } };
+    rWeeklyTitle.alignment = { vertical: "middle", horizontal: "left", indent: 1 };
+    wsWeekly.getRow(1).height = 28;
+
+    const weeklyHeaders = ["Week Period", "Working Days", "Days Present", ...fields.map((f) => f.label)];
+    const wHeaderRow = wsWeekly.getRow(3);
+    wHeaderRow.values = weeklyHeaders;
+    wHeaderRow.height = 28;
+
+    for (let c = 1; c <= weeklyHeaders.length; c++) {
+      const cell = wHeaderRow.getCell(c);
+      cell.font = { name: "Arial", size: 9, bold: true, color: { argb: "FFFFFFFF" } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF102A45" } };
+      cell.alignment = { vertical: "middle", horizontal: "center", wrapText: true };
+      cell.border = {
+        top: { style: "thin", color: { argb: "FFCCCCCC" } },
+        bottom: { style: "medium", color: { argb: "FF0D233A" } },
+        left: { style: "thin", color: { argb: "FFCCCCCC" } },
+        right: { style: "thin", color: { argb: "FFCCCCCC" } },
+      };
+    }
+
+    // Define 5 weeks
+    const weeksDef = [
+      { name: "Week 1 (01 - 07)", start: 1, end: 7 },
+      { name: "Week 2 (08 - 14)", start: 8, end: 14 },
+      { name: "Week 3 (15 - 21)", start: 15, end: 21 },
+      { name: "Week 4 (22 - 28)", start: 22, end: 28 },
+      { name: `Week 5 (29 - ${worksheet.daysInMonth || 31})`, start: 29, end: worksheet.daysInMonth || 31 },
+    ];
+
+    let wRowIdx = 4;
+    const grandTotals = { present: 0, fieldSums: {} };
+    fields.forEach((f) => { grandTotals.fieldSums[f.key] = 0; });
+
+    weeksDef.forEach((w) => {
+      const weekEntries = worksheet.entries.filter((e) => e.dayNumber >= w.start && e.dayNumber <= w.end);
+      const workingDays = weekEntries.filter((e) => e.dayOfWeek !== "Sun").length;
+      const presentCount = weekEntries.filter((e) => e.status === "Present").length;
+      grandTotals.present += presentCount;
+
+      const weekVals = [w.name, workingDays, presentCount];
+      fields.forEach((f) => {
+        if (f.summaryType === "sum" || f.summaryType === "average") {
+          let sum = 0;
+          let count = 0;
+          weekEntries.forEach((e) => {
+            const val = parseFloat(e.values?.[f.key]);
+            if (!isNaN(val)) {
+              sum += val;
+              count++;
+            }
+          });
+          const result = f.summaryType === "average" && count > 0 ? parseFloat((sum / count).toFixed(1)) : sum;
+          weekVals.push(result);
+          grandTotals.fieldSums[f.key] += sum;
+        } else {
+          // Collect problem notes or leave blank
+          const notes = weekEntries
+            .map((e) => e.values?.[f.key])
+            .filter((v) => v && String(v).trim().length > 0)
+            .join("; ");
+          weekVals.push(notes || "—");
+        }
+      });
+
+      const row = wsWeekly.getRow(wRowIdx);
+      row.values = weekVals;
+      row.height = 24;
+      for (let c = 1; c <= weeklyHeaders.length; c++) {
+        const cell = row.getCell(c);
+        cell.font = { name: "Arial", size: 9.5 };
+        cell.alignment = { vertical: "middle", horizontal: c <= 3 ? "center" : "center" };
+        cell.border = {
+          top: { style: "thin", color: { argb: "FFE2E8F0" } },
+          bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+          left: { style: "thin", color: { argb: "FFE2E8F0" } },
+          right: { style: "thin", color: { argb: "FFE2E8F0" } },
+        };
+      }
+      wRowIdx++;
+    });
+
+    // Grand Totals Row for Weekly Summary
+    const wTotalRow = wsWeekly.getRow(wRowIdx);
+    const wTotalVals = ["MONTH TOTAL", worksheet.entries.filter((e) => e.dayOfWeek !== "Sun").length, grandTotals.present];
+    fields.forEach((f) => {
+      if (f.summaryType === "sum" || f.summaryType === "average") {
+        wTotalVals.push(grandTotals.fieldSums[f.key] || 0);
+      } else {
+        wTotalVals.push("—");
+      }
+    });
+    wTotalRow.values = wTotalVals;
+    wTotalRow.height = 26;
+    for (let c = 1; c <= weeklyHeaders.length; c++) {
+      const cell = wTotalRow.getCell(c);
+      cell.font = { name: "Arial", size: 10, bold: true, color: { argb: "FF0D233A" } };
+      cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE2E8F0" } };
+      cell.alignment = { vertical: "middle", horizontal: "center" };
+      cell.border = {
+        top: { style: "medium", color: { argb: "FF0D233A" } },
+        bottom: { style: "medium", color: { argb: "FF0D233A" } },
+        left: { style: "thin", color: { argb: "FFCCCCCC" } },
+        right: { style: "thin", color: { argb: "FFCCCCCC" } },
+      };
+    }
+
+    wsWeekly.getColumn(1).width = 22;
+    wsWeekly.getColumn(2).width = 14;
+    wsWeekly.getColumn(3).width = 14;
+    fields.forEach((f, idx) => {
+      wsWeekly.getColumn(4 + idx).width = Math.max(16, Math.min(35, f.label.length + 3));
+    });
 
     const safeName = (worksheet.staffName || "Staff").replace(/[^a-zA-Z0-9]/g, "_");
     const filename = `EP_Daily_Sheet_${safeName}_${worksheet.month}.xlsx`;

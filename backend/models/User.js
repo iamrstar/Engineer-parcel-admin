@@ -45,6 +45,35 @@ const userSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: "Office"
         },
+        designation: {
+            type: String,
+            default: "Operations Staff",
+        },
+        department: {
+            type: String,
+            default: "Operations",
+        },
+        joiningDate: {
+            type: Date,
+        },
+        salaryDetails: {
+            basicSalary: { type: Number, default: 0 },
+            hra: { type: Number, default: 0 },
+            conveyanceAllowance: { type: Number, default: 0 },
+            specialAllowance: { type: Number, default: 0 },
+            medicalAllowance: { type: Number, default: 0 },
+            pfDeduction: { type: Number, default: 0 },
+            tdsDeduction: { type: Number, default: 0 },
+            professionalTax: { type: Number, default: 0 },
+            otherDeductions: { type: Number, default: 0 },
+        },
+        bankDetails: {
+            bankName: { type: String, default: "" },
+            accountNumber: { type: String, default: "" },
+            ifscCode: { type: String, default: "" },
+            panNumber: { type: String, default: "" },
+            uanNumber: { type: String, default: "" },
+        },
     },
     { timestamps: true, collection: "intake_users" }
 );

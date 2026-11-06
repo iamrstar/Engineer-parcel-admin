@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useAuth } from "../contexts/AuthContext"
 import axios from "axios"
 import toast from "react-hot-toast"
-import { Package, LayoutDashboard, FileText, MapPin, Ticket, LogOut, Menu, X, BarChart, Bell, Users, Building, CheckSquare, ClipboardList, UserCheck, MessageCircle, CheckCircle, Moon, Sun, Gift, Trophy, Receipt, Calculator, FileSpreadsheet } from "lucide-react"
+import { Package, LayoutDashboard, FileText, MapPin, Ticket, LogOut, Menu, X, BarChart, Bell, Users, Building, CheckSquare, ClipboardList, UserCheck, MessageCircle, CheckCircle, Moon, Sun, Gift, Trophy, Receipt, Calculator, FileSpreadsheet, Megaphone } from "lucide-react"
 import { socket } from "../utils/socket"
 import { Activity as ActivityIcon } from "lucide-react"
 import { useTheme } from "../contexts/ThemeContext"
@@ -361,6 +361,7 @@ const Layout = ({ children }) => {
     { name: "Tasks", href: "/tasks", icon: CheckSquare, badge: tasksCount },
     { name: isAdmin ? "Tasks Management" : "Staff Tasks", href: "/tracking-tasks", icon: ClipboardList, badge: unacceptedIncentivesCount },
     { name: "Daily Work Log", href: "/daily-worksheet", icon: FileSpreadsheet },
+    { name: "Communication", href: "/communication", icon: Megaphone },
     { name: "Attendance", href: "/attendance", icon: UserCheck },
     { name: "Attendance Report", href: "/attendance-report", icon: FileText },
     { name: "User Management", href: "/user-management", icon: Users },
@@ -376,7 +377,7 @@ const Layout = ({ children }) => {
 
   const defaultStaffAllowed = [
     "Dashboard", "Booking", "E-Docket", "Pincodes", "Create Order", 
-    "Corporate Partners", "Partner Management", "Invoice Builder", "Quotation Builder", "Daily Work Log", "Staff Tasks", "Tasks Management", "Manage Queries", 
+    "Corporate Partners", "Partner Management", "Invoice Builder", "Quotation Builder", "Daily Work Log", "Communication", "Staff Tasks", "Tasks Management", "Manage Queries", 
     "Courier Dockets", "Docket Management", "Leads", "Performance"
   ];
   

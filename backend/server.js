@@ -97,6 +97,8 @@ const leadRoutes = require("./routes/leads");
 const invoiceRoutes = require("./routes/invoices");
 const expenseRoutes = require("./routes/expenses");
 const worksheetRoutes = require("./routes/worksheets");
+const communicationRoutes = require("./routes/communication");
+const salaryRoutes = require("./routes/salary");
 
 app.use("/api/auth", authRoutes);
 app.use("/api/bookings", bookingRoutes);
@@ -121,6 +123,8 @@ app.use("/api/leads", leadRoutes);
 app.use("/api/invoices", invoiceRoutes);
 app.use("/api/expenses", expenseRoutes);
 app.use("/api/worksheets", worksheetRoutes);
+app.use("/api/communication", communicationRoutes);
+app.use("/api/salary", salaryRoutes);
 
 app.use("/api/intake", intakeRoutes);
 

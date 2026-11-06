@@ -38,7 +38,7 @@ router.get("/", adminAuth, async (req, res) => {
 // @access  Admin
 router.post("/", adminAuth, async (req, res) => {
     try {
-        const { name, username, email, phone, password, role } = req.body;
+        const { name, username, email, phone, password, role, designation, department, joiningDate, salaryDetails, bankDetails } = req.body;
 
         // Check if user already exists
         let user = await User.findOne({ $or: [{ username }, { phone }, { email }] });
@@ -59,6 +59,11 @@ router.post("/", adminAuth, async (req, res) => {
             password: hashedPassword,
             plainPassword: password, // Store plain text for admin viewing
             role: userRole,
+            designation: designation || "Staff",
+            department: department || "Operations",
+            joiningDate: joiningDate || null,
+            salaryDetails: salaryDetails || {},
+            bankDetails: bankDetails || {},
             officeId: (req.admin && req.admin.officeId) ? req.admin.officeId : req.body.officeId,
         });
 
@@ -79,7 +84,7 @@ router.post("/", adminAuth, async (req, res) => {
 // @access  Admin
 router.put("/:id", adminAuth, async (req, res) => {
     try {
-        const { name, username, email, phone, password, role, isActive } = req.body;
+        const { name, username, email, phone, password, role, isActive, designation, department, joiningDate, salaryDetails, bankDetails } = req.body;
 
         let user = await User.findById(req.params.id);
         if (!user) {
@@ -97,6 +102,21 @@ router.put("/:id", adminAuth, async (req, res) => {
         if (phone) user.phone = phone;
         if (role) user.role = role;
         if (typeof isActive !== "undefined") user.isActive = isActive;
+        if (typeof designation !== "undefined") user.designation = designation;
+        if (typeof department !== "undefined") user.department = department;
+        if (typeof joiningDate !== "undefined") user.joiningDate = joiningDate;
+        if (salaryDetails) {
+            user.salaryDetails = {
+                ...user.salaryDetails,
+                ...salaryDetails
+            };
+        }
+        if (bankDetails) {
+            user.bankDetails = {
+                ...user.bankDetails,
+                ...bankDetails
+            };
+        }
 
         if (password) {
             const salt = await bcrypt.genSalt(10);

@@ -29,6 +29,7 @@ import Leads from "./pages/Leads"
 import InvoiceBuilder from "./pages/InvoiceBuilder"
 import QuotationBuilder from "./pages/QuotationBuilder"
 import DailyWorksheet from "./pages/DailyWorksheet"
+import Communication from "./pages/Communication"
 import PartnerPortalLogin from "./pages/partner-portal/Login"
 import PartnerPortalDashboard from "./pages/partner-portal/Dashboard"
 import PartnerPortalOrders from "./pages/partner-portal/Orders"
@@ -184,6 +185,16 @@ function App() {
               <ProtectedRoute>
                 <Layout>
                   <DailyWorksheet />
+                </Layout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/communication"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <Communication />
                 </Layout>
               </ProtectedRoute>
             }
