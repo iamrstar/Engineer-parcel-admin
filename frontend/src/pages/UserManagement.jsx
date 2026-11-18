@@ -37,7 +37,10 @@ import {
     History,
     Clock,
     RefreshCw,
-    CheckCheck
+    CheckCheck,
+    Globe,
+    Building2,
+    MapPin
 } from "lucide-react"
 
 // Months list
@@ -102,8 +105,19 @@ const UserManagement = ({ defaultTab }) => {
 
     // Main Top Navigation: 'users' | 'history'
     const queryTab = new URLSearchParams(location.search).get("tab")
-    const initialTab = (defaultTab === "history" || defaultTab === "payroll" || queryTab === "history" || queryTab === "payroll") ? "history" : "users"
+    const initialTab = (defaultTab === "history" || defaultTab === "payroll" || location.pathname === "/payroll" || location.pathname === "/salary" || queryTab === "history" || queryTab === "payroll") ? "history" : "users"
     const [activeMainTab, setActiveMainTab] = useState(initialTab)
+
+    // Sync active tab when route or prop changes
+    useEffect(() => {
+        const qTab = new URLSearchParams(location.search).get("tab")
+        if (defaultTab === "history" || defaultTab === "payroll" || location.pathname === "/payroll" || location.pathname === "/salary" || qTab === "history" || qTab === "payroll") {
+            setActiveMainTab("history")
+            fetchAllSalaryHistory()
+        } else if (defaultTab === "users" || qTab === "users") {
+            setActiveMainTab("users")
+        }
+    }, [defaultTab, location.pathname, location.search])
 
     // Salary Disbursement History State
     const [allSalaryHistory, setAllSalaryHistory] = useState([])
@@ -136,6 +150,7 @@ const UserManagement = ({ defaultTab }) => {
         designation: "Operations Staff",
         department: "Operations",
         joiningDate: "",
+        locationAccessMode: "offices_only", // "offices_only" | "pan_india" | "global"
         salaryDetails: {
             basicSalary: 0,
             hra: 0,
@@ -284,6 +299,7 @@ const UserManagement = ({ defaultTab }) => {
                 designation: user.designation || "Operations Staff",
                 department: user.department || "Operations",
                 joiningDate: user.joiningDate ? user.joiningDate.slice(0, 10) : "",
+                locationAccessMode: user.locationAccessMode || "offices_only",
                 salaryDetails: {
                     basicSalary: user.salaryDetails?.basicSalary || 0,
                     hra: user.salaryDetails?.hra || 0,
@@ -316,6 +332,7 @@ const UserManagement = ({ defaultTab }) => {
                 designation: "Operations Staff",
                 department: "Operations",
                 joiningDate: new Date().toISOString().slice(0, 10),
+                locationAccessMode: "offices_only",
                 salaryDetails: {
                     basicSalary: 0,
                     hra: 0,
@@ -766,6 +783,25 @@ const UserManagement = ({ defaultTab }) => {
                                                         <span className={`px-2.5 py-1 text-xs font-bold rounded-lg uppercase tracking-wider border ${getRoleBadge(user.role)}`}>
                                                             {user.role}
                                                         </span>
+                                                        <div className="mt-1">
+                                                            {user.role === "admin" ? (
+                                                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">
+                                                                    <Globe className="h-2.5 w-2.5" /> Global (Admin)
+                                                                </span>
+                                                            ) : user.locationAccessMode === "global" ? (
+                                                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">
+                                                                    <Globe className="h-2.5 w-2.5" /> Global Remote
+                                                                </span>
+                                                            ) : user.locationAccessMode === "pan_india" ? (
+                                                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                                                                    🇮🇳 Pan-India
+                                                                </span>
+                                                            ) : (
+                                                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                                                                    <Building2 className="h-2.5 w-2.5" /> Offices Only
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     </td>
                                                     <td className="px-6 py-4 whitespace-nowrap">
                                                         <button
@@ -1199,6 +1235,13 @@ const UserManagement = ({ defaultTab }) => {
                                         <div className="text-xs text-emerald-50 mt-1 italic">Amount in words: {viewingHistoricalSlip.netPayInWords} Rupees Only</div>
                                     </div>
                                     <div className="text-2xl font-black text-white font-mono">₹{Number(viewingHistoricalSlip.netPay).toLocaleString("en-IN")}</div>
+                                </div>
+
+                                <div className="bg-amber-50/80 border border-amber-200/80 text-amber-900 text-[11px] rounded-xl px-4 py-3 mb-3 flex items-center gap-2.5">
+                                    <Info className="h-4 w-4 text-amber-600 shrink-0" />
+                                    <span>
+                                        <strong>Important Note:</strong> After releasing, it may take up to 72 hours to credit to your source account.
+                                    </span>
                                 </div>
 
                                 {viewingHistoricalSlip.notes && (
@@ -2109,6 +2152,76 @@ const UserManagement = ({ defaultTab }) => {
                                                 className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 text-sm outline-none"
                                                 placeholder="••••••••"
                                             />
+                                        </div>
+                                        <div className="col-span-2 pt-2 border-t border-gray-100">
+                                            <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                                <MapPin className="h-3.5 w-3.5 text-primary-600" />
+                                                Workplace Location Policy & Geofencing *
+                                            </label>
+                                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                                                <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
+                                                    formData.locationAccessMode === "offices_only" ? "bg-emerald-50/70 border-emerald-500 text-emerald-950 shadow-xs" : "bg-white border-gray-200 hover:bg-gray-50 text-gray-700"
+                                                }`}>
+                                                    <input
+                                                        type="radio"
+                                                        name="locationAccessMode"
+                                                        value="offices_only"
+                                                        checked={formData.locationAccessMode === "offices_only"}
+                                                        onChange={(e) => setFormData({ ...formData, locationAccessMode: e.target.value })}
+                                                        className="mt-0.5 text-emerald-600 focus:ring-emerald-500"
+                                                    />
+                                                    <div>
+                                                        <div className="text-xs font-bold flex items-center gap-1">
+                                                            🏢 Offices Only
+                                                        </div>
+                                                        <p className="text-[10px] text-gray-500 mt-0.5 leading-snug">
+                                                            Work strictly at registered office premises (IIT ISM & branch).
+                                                        </p>
+                                                    </div>
+                                                </label>
+
+                                                <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
+                                                    formData.locationAccessMode === "pan_india" ? "bg-amber-50/70 border-amber-500 text-amber-950 shadow-xs" : "bg-white border-gray-200 hover:bg-gray-50 text-gray-700"
+                                                }`}>
+                                                    <input
+                                                        type="radio"
+                                                        name="locationAccessMode"
+                                                        value="pan_india"
+                                                        checked={formData.locationAccessMode === "pan_india"}
+                                                        onChange={(e) => setFormData({ ...formData, locationAccessMode: e.target.value })}
+                                                        className="mt-0.5 text-amber-600 focus:ring-amber-500"
+                                                    />
+                                                    <div>
+                                                        <div className="text-xs font-bold flex items-center gap-1">
+                                                            🇮🇳 Pan-India
+                                                        </div>
+                                                        <p className="text-[10px] text-gray-500 mt-0.5 leading-snug">
+                                                            Authorized to work from anywhere across India.
+                                                        </p>
+                                                    </div>
+                                                </label>
+
+                                                <label className={`flex items-start gap-2.5 p-3 rounded-xl border cursor-pointer transition-all ${
+                                                    formData.locationAccessMode === "global" ? "bg-purple-50/70 border-purple-500 text-purple-950 shadow-xs" : "bg-white border-gray-200 hover:bg-gray-50 text-gray-700"
+                                                }`}>
+                                                    <input
+                                                        type="radio"
+                                                        name="locationAccessMode"
+                                                        value="global"
+                                                        checked={formData.locationAccessMode === "global"}
+                                                        onChange={(e) => setFormData({ ...formData, locationAccessMode: e.target.value })}
+                                                        className="mt-0.5 text-purple-600 focus:ring-purple-500"
+                                                    />
+                                                    <div>
+                                                        <div className="text-xs font-bold flex items-center gap-1">
+                                                            🌍 Global Remote
+                                                        </div>
+                                                        <p className="text-[10px] text-gray-500 mt-0.5 leading-snug">
+                                                            Unrestricted global remote work access worldwide.
+                                                        </p>
+                                                    </div>
+                                                </label>
+                                            </div>
                                         </div>
                                     </div>
 

@@ -38,7 +38,7 @@ router.get("/", adminAuth, async (req, res) => {
 // @access  Admin
 router.post("/", adminAuth, async (req, res) => {
     try {
-        const { name, username, email, phone, password, role, designation, department, joiningDate, salaryDetails, bankDetails } = req.body;
+        const { name, username, email, phone, password, role, designation, department, joiningDate, salaryDetails, bankDetails, locationAccessMode } = req.body;
 
         // Check if user already exists
         let user = await User.findOne({ $or: [{ username }, { phone }, { email }] });
@@ -65,6 +65,7 @@ router.post("/", adminAuth, async (req, res) => {
             salaryDetails: salaryDetails || {},
             bankDetails: bankDetails || {},
             officeId: (req.admin && req.admin.officeId) ? req.admin.officeId : req.body.officeId,
+            locationAccessMode: locationAccessMode || "offices_only",
         });
 
         await user.save();
@@ -84,7 +85,7 @@ router.post("/", adminAuth, async (req, res) => {
 // @access  Admin
 router.put("/:id", adminAuth, async (req, res) => {
     try {
-        const { name, username, email, phone, password, role, isActive, designation, department, joiningDate, salaryDetails, bankDetails } = req.body;
+        const { name, username, email, phone, password, role, isActive, designation, department, joiningDate, salaryDetails, bankDetails, locationAccessMode } = req.body;
 
         let user = await User.findById(req.params.id);
         if (!user) {
@@ -117,6 +118,8 @@ router.put("/:id", adminAuth, async (req, res) => {
                 ...bankDetails
             };
         }
+
+        if (locationAccessMode) user.locationAccessMode = locationAccessMode;
 
         if (password) {
             const salt = await bcrypt.genSalt(10);
@@ -160,15 +163,30 @@ router.delete("/:id", adminAuth, async (req, res) => {
 });
 
 // @route   POST /api/users/login
-// @desc    Login for users (Riders/Agents)
+// @desc    Login for users (Staff / Riders / Agents)
 // @access  Public
 router.post("/login", async (req, res) => {
     try {
         const { phone, password, username } = req.body;
 
-        // Support login via phone or username
-        const query = phone ? { phone } : { username };
-        const user = await User.findOne(query);
+        const rawIdentifier = (phone || username || "").toString().trim();
+        const rawPassword = (password || "").toString();
+
+        if (!rawIdentifier || !rawPassword) {
+            return res.status(400).json({ message: "Username/phone and password are required" });
+        }
+
+        const isNumericPhone = /^\d+$/.test(rawIdentifier);
+        const regexIdentifier = new RegExp(`^${rawIdentifier.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, "i");
+
+        // Query by username, phone, or email
+        const user = await User.findOne({
+            $or: [
+                { username: regexIdentifier },
+                { phone: rawIdentifier },
+                ...(isNumericPhone ? [] : [{ email: regexIdentifier }])
+            ]
+        });
 
         if (!user) {
             return res.status(401).json({ message: "Invalid credentials" });
@@ -178,14 +196,33 @@ router.post("/login", async (req, res) => {
             return res.status(403).json({ message: "Account is deactivated" });
         }
 
-        const isMatch = await bcrypt.compare(password, user.password);
+        // Check password against bcrypt hash, plainPassword, and trimmed variant
+        let isMatch = false;
+        try {
+            isMatch = await bcrypt.compare(rawPassword, user.password);
+        } catch (e) {}
+
+        if (!isMatch && (user.password === rawPassword || user.plainPassword === rawPassword)) {
+            isMatch = true;
+        }
+
+        if (!isMatch && rawPassword.trim() !== rawPassword) {
+            const trimmedPass = rawPassword.trim();
+            try {
+                isMatch = await bcrypt.compare(trimmedPass, user.password);
+            } catch (e) {}
+            if (!isMatch && (user.password === trimmedPass || user.plainPassword === trimmedPass)) {
+                isMatch = true;
+            }
+        }
+
         if (!isMatch) {
             return res.status(401).json({ message: "Invalid credentials" });
         }
 
         const token = jwt.sign(
             { id: user._id, role: user.role },
-            process.env.JWT_SECRET || "your_super_secret_jwt_key_here",
+            process.env.JWT_SECRET || "your_super_secret_jwt_key_here_make_it_long_and_complex",
             { expiresIn: "7d" }
         );
 
@@ -196,13 +233,53 @@ router.post("/login", async (req, res) => {
                 name: user.name,
                 username: user.username,
                 phone: user.phone,
+                email: user.email,
                 role: user.role,
-                permissions: user.permissions,
+                permissions: user.permissions || [],
                 officeId: user.officeId,
+                locationAccessMode: user.locationAccessMode || "offices_only",
             },
         });
     } catch (error) {
         console.error("User login error:", error);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
+// @route   GET /api/users/me
+// @desc    Get current logged in user details including locationAccessMode
+// @access  User / Admin
+router.get("/me", userAuth, async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id).select("-password");
+        if (!user) {
+            // Also check Admin collection if user is an admin
+            const Admin = require("../models/Admin");
+            const admin = await Admin.findById(req.user._id);
+            if (admin) {
+                return res.json({
+                    id: admin._id,
+                    name: admin.username,
+                    username: admin.username,
+                    role: "admin",
+                    locationAccessMode: "global",
+                });
+            }
+            return res.status(404).json({ message: "User not found" });
+        }
+        res.json({
+            id: user._id,
+            name: user.name,
+            username: user.username,
+            phone: user.phone,
+            email: user.email,
+            role: user.role,
+            permissions: user.permissions || [],
+            officeId: user.officeId,
+            locationAccessMode: user.locationAccessMode || "offices_only",
+        });
+    } catch (err) {
+        console.error("User /me error:", err);
         res.status(500).json({ message: "Server error" });
     }
 });
@@ -220,7 +297,7 @@ router.post("/impersonate", adminAuth, async (req, res) => {
 
         const token = jwt.sign(
             { id: user._id, role: user.role },
-            process.env.JWT_SECRET || "your_super_secret_jwt_key_here",
+            process.env.JWT_SECRET || "your_super_secret_jwt_key_here_make_it_long_and_complex",
             { expiresIn: "7d" }
         );
 

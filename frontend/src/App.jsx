@@ -1,5 +1,6 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom"
 import { AuthProvider, useAuth } from "./contexts/AuthContext"
+import { GeofenceProvider } from "./contexts/GeofenceContext"
 import { ThemeProvider } from "./contexts/ThemeContext"
 import Login from "./pages/Login"
 import Dashboard from "./pages/Dashboard"
@@ -56,7 +57,8 @@ function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <Router>
+        <GeofenceProvider>
+          <Router>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route
@@ -64,6 +66,16 @@ function App() {
             element={
               <ProtectedRoute>
                 <HomeRedirect />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/rider-dashboard"
+            element={
+              <ProtectedRoute>
+                <Layout>
+                  <RiderDashboard />
+                </Layout>
               </ProtectedRoute>
             }
           />
@@ -362,6 +374,7 @@ function App() {
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </Router>
+      </GeofenceProvider>
     </AuthProvider>
     </ThemeProvider>
   )

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import toast from "react-hot-toast";
-import { Building, Plus, X, Users, MapPin, Key, Trash2, Loader2, Mail, MailX, Send } from "lucide-react";
+import { Building, Plus, X, Users, MapPin, Key, Trash2, Loader2, Mail, MailX, Send, Shield, Save, CheckCircle2, Globe, Navigation, AlertTriangle, Check, Power, Sliders, ToggleLeft, ToggleRight } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 
 const Offices = () => {
@@ -34,9 +34,152 @@ const Offices = () => {
     "Sales Report", "Web Analytics"
   ];
 
+  const [geofenceConfig, setGeofenceConfig] = useState({
+    globalMode: "offices_only",
+    enforceGeofence: true,
+    authorizedLocations: [
+      {
+        id: "office_1",
+        name: "Engineers Parcel Head Office (IIT ISM Dhanbad)",
+        placeId: "ChIJO9LYJiignysRoxbn5RCefB4",
+        address: "4th Floor, I2H Building, IIT (ISM) Dhanbad, Jharkhand 826004, India",
+        latitude: 23.814343,
+        longitude: 86.441198,
+        radiusMeters: 500,
+        isActive: true,
+        isHeadOffice: true,
+      },
+      {
+        id: "office_2",
+        name: "Engineers Parcel Second Office",
+        placeId: "ChIJO6nl04679jkR9J18NwQUqVo",
+        address: "Engineers Parcel Second Branch Premises",
+        latitude: 23.812500,
+        longitude: 86.440000,
+        radiusMeters: 500,
+        isActive: true,
+        isHeadOffice: false,
+      },
+    ]
+  });
+  const [savingGeofence, setSavingGeofence] = useState(false);
+  const [showAddLocationModal, setShowAddLocationModal] = useState(false);
+  const [newLocationForm, setNewLocationForm] = useState({
+    name: "",
+    placeId: "",
+    address: "",
+    latitude: 23.814343,
+    longitude: 86.441198,
+    radiusMeters: 500,
+    isActive: true,
+  });
+
   useEffect(() => {
     fetchOffices();
+    fetchGeofenceConfig();
   }, []);
+
+  const fetchGeofenceConfig = async () => {
+    try {
+      const res = await axios.get(`${import.meta.env.VITE_API_URL}/api/offices/geofence-config`);
+      if (res.data) {
+        setGeofenceConfig({
+          globalMode: res.data.globalMode || "offices_only",
+          enforceGeofence: res.data.enforceGeofence !== false,
+          authorizedLocations: res.data.authorizedLocations || [],
+        });
+      }
+    } catch (e) {
+      console.error("Failed to load geofence config", e);
+    }
+  };
+
+  const handleSaveGeofence = async () => {
+    setSavingGeofence(true);
+    try {
+      const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
+      await axios.put(`${import.meta.env.VITE_API_URL}/api/offices/geofence-config`, geofenceConfig, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      toast.success("Workplace Geofence Policy saved successfully!");
+    } catch (e) {
+      toast.error(e.response?.data?.message || "Failed to update geofence");
+    } finally {
+      setSavingGeofence(false);
+    }
+  };
+
+  // Immediate save on quick policy changes (Mode change or Enforcement Gate toggle)
+  const updateGeofencePolicy = async (partialConfig) => {
+    const updated = { ...geofenceConfig, ...partialConfig };
+    setGeofenceConfig(updated);
+    try {
+      const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
+      await axios.put(`${import.meta.env.VITE_API_URL}/api/offices/geofence-config`, updated, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      toast.success("Geofence Policy updated & active instantly!");
+    } catch (e) {
+      toast.error("Failed to update geofence policy");
+    }
+  };
+
+  // Toggle active state for Office 1 or Office 2 with immediate feedback
+  const handleToggleLocation = async (locId) => {
+    try {
+      const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
+      const res = await axios.put(`${import.meta.env.VITE_API_URL}/api/offices/geofence-config/location/${locId}/toggle`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      toast.success(res.data.message || "Office access updated");
+      fetchGeofenceConfig();
+    } catch (e) {
+      toast.error(e.response?.data?.message || "Failed to toggle office access");
+    }
+  };
+
+  // Add new authorized office location
+  const handleAddLocationSubmit = async (e) => {
+    e.preventDefault();
+    if (!newLocationForm.name || !newLocationForm.placeId) {
+      return toast.error("Please provide both Office Name and Place ID");
+    }
+    try {
+      const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
+      const res = await axios.post(`${import.meta.env.VITE_API_URL}/api/offices/geofence-config/location`, newLocationForm, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      toast.success(res.data.message || "New authorized office added!");
+      setShowAddLocationModal(false);
+      setNewLocationForm({
+        name: "",
+        placeId: "",
+        address: "",
+        latitude: 23.814343,
+        longitude: 86.441198,
+        radiusMeters: 500,
+        isActive: true,
+      });
+      fetchGeofenceConfig();
+    } catch (e) {
+      toast.error(e.response?.data?.message || "Failed to add office");
+    }
+  };
+
+  // Delete an authorized location (cannot delete head office)
+  const handleDeleteLocation = async (locId) => {
+    if (!window.confirm("Are you sure you want to remove this office location from authorized premises?")) return;
+    try {
+      const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
+      await axios.delete(`${import.meta.env.VITE_API_URL}/api/offices/geofence-config/location/${locId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      toast.success("Office location removed");
+      fetchGeofenceConfig();
+    } catch (e) {
+      toast.error(e.response?.data?.message || "Failed to remove office");
+    }
+  };
 
   const fetchOffices = async () => {
     try {
@@ -183,6 +326,258 @@ const Offices = () => {
         </button>
       </div>
 
+      {/* ─── STAFF WORKPLACE GEOFENCING & MULTI-OFFICE CONTROL CENTER ─── */}
+      <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 space-y-6">
+        
+        {/* Top Header & Save Button */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between pb-5 border-b border-slate-100 gap-4">
+          <div className="flex items-center gap-3">
+            <div className="h-12 w-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
+              <MapPin className="w-6 h-6" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-extrabold text-slate-900">
+                  Staff Workplace Geofence & Location Access Control
+                </h2>
+                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                  geofenceConfig.enforceGeofence
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : "bg-rose-50 text-rose-700 border-rose-200"
+                }`}>
+                  {geofenceConfig.enforceGeofence ? "Geofence Enforced" : "Geofence Disabled"}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Manage physical office branches (IIT ISM Dhanbad & 2nd Office) and configure Pan-India or Global remote access policies.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => setShowAddLocationModal(true)}
+              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl flex items-center gap-1.5 transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Branch Office</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveGeofence}
+              disabled={savingGeofence}
+              className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl shadow-md shadow-emerald-600/20 flex items-center gap-2 transition-all active:scale-95"
+            >
+              <Save className="w-4 h-4" />
+              <span>{savingGeofence ? "Saving..." : "Save Policy"}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Global Access Policy Selector & Master Enforcement Toggle */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="md:col-span-2 bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-2">
+              Default System Work Location Policy
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => updateGeofencePolicy({ globalMode: "offices_only" })}
+                className={`p-3 rounded-xl border text-left transition-all ${
+                  geofenceConfig.globalMode === "offices_only"
+                    ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
+                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                }`}
+              >
+                <div className="text-xs font-bold flex items-center gap-1.5">
+                  <Building className="w-4 h-4" />
+                  <span>Offices Only</span>
+                </div>
+                <p className={`text-[10px] mt-1 ${geofenceConfig.globalMode === "offices_only" ? "text-emerald-100" : "text-slate-400"}`}>
+                  Strict physical presence at authorized office branches.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => updateGeofencePolicy({ globalMode: "pan_india" })}
+                className={`p-3 rounded-xl border text-left transition-all ${
+                  geofenceConfig.globalMode === "pan_india"
+                    ? "bg-amber-600 text-white border-amber-600 shadow-sm"
+                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                }`}
+              >
+                <div className="text-xs font-bold flex items-center gap-1.5">
+                  <Globe className="w-4 h-4" />
+                  <span>Pan-India Remote</span>
+                </div>
+                <p className={`text-[10px] mt-1 ${geofenceConfig.globalMode === "pan_india" ? "text-amber-100" : "text-slate-400"}`}>
+                  Staff can login and work from anywhere across India.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => updateGeofencePolicy({ globalMode: "global" })}
+                className={`p-3 rounded-xl border text-left transition-all ${
+                  geofenceConfig.globalMode === "global"
+                    ? "bg-purple-600 text-white border-purple-600 shadow-sm"
+                    : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
+                }`}
+              >
+                <div className="text-xs font-bold flex items-center gap-1.5">
+                  <Globe className="w-4 h-4" />
+                  <span>Global Access</span>
+                </div>
+                <p className={`text-[10px] mt-1 ${geofenceConfig.globalMode === "global" ? "text-purple-100" : "text-slate-400"}`}>
+                  Unrestricted global access for all staff worldwide.
+                </p>
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 flex flex-col justify-between">
+            <div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">
+                Enforcement Gate
+              </span>
+              <p className="text-xs text-slate-600">
+                When enabled, unauthorized staff outside allowed premises are blocked with a full-screen geofence restriction.
+              </p>
+            </div>
+            <label className="flex items-center justify-between p-2.5 bg-white rounded-xl border border-slate-200 cursor-pointer mt-3">
+              <span className="text-xs font-bold text-slate-800">
+                {geofenceConfig.enforceGeofence ? "Enforcement Active" : "Enforcement Bypassed"}
+              </span>
+              <input
+                type="checkbox"
+                checked={geofenceConfig.enforceGeofence}
+                onChange={(e) => updateGeofencePolicy({ enforceGeofence: e.target.checked })}
+                className="w-4 h-4 text-emerald-600 rounded focus:ring-emerald-500 cursor-pointer"
+              />
+            </label>
+          </div>
+        </div>
+
+        {/* Authorized Office Locations List */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+              <Building className="w-4 h-4 text-emerald-600" />
+              <span>Authorized Office Premises (Multi-Branch Geofencing)</span>
+            </h3>
+            <span className="text-xs text-slate-400">
+              {geofenceConfig.authorizedLocations?.filter(l => l.isActive).length || 0} active out of {geofenceConfig.authorizedLocations?.length || 0} locations
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {(geofenceConfig.authorizedLocations || []).map((loc, idx) => (
+              <div
+                key={loc.id || loc._id || idx}
+                className={`p-5 rounded-2xl border transition-all ${
+                  loc.isActive
+                    ? "bg-white border-slate-200 shadow-xs hover:border-emerald-300"
+                    : "bg-slate-50/70 border-slate-200/60 opacity-75"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="flex items-start gap-2.5">
+                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${
+                      loc.isActive ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-slate-100 text-slate-400"
+                    }`}>
+                      <Building className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-bold text-slate-900">{loc.name}</h4>
+                        {loc.isHeadOffice && (
+                          <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-primary-50 text-primary-700 border border-primary-200">
+                            Head Office
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 mt-0.5 leading-snug">
+                        {loc.address}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* One-Click Toggle Switch */}
+                  <button
+                    type="button"
+                    onClick={() => handleToggleLocation(loc.id || loc._id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                      loc.isActive
+                        ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
+                        : "bg-slate-200 hover:bg-slate-300 text-slate-600"
+                    }`}
+                    title={loc.isActive ? "Click to disable office access for staff" : "Click to grant office access for staff"}
+                  >
+                    <Power className={`w-3.5 h-3.5 ${loc.isActive ? "text-emerald-600" : "text-slate-400"}`} />
+                    <span>{loc.isActive ? "Active (Allowed)" : "Disabled (Blocked)"}</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-100 text-xs">
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                      Google Place ID
+                    </span>
+                    <span className="font-mono text-[11px] font-bold text-slate-800 bg-slate-50 px-2 py-1 rounded-lg border border-slate-200/80 inline-block mt-0.5 truncate max-w-full">
+                      {loc.placeId}
+                    </span>
+                  </div>
+
+                  <div>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                      Allowed Boundary Radius
+                    </span>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <input
+                        type="number"
+                        min="50"
+                        max="5000"
+                        step="50"
+                        value={loc.radiusMeters || 500}
+                        onChange={(e) => {
+                          const val = Number(e.target.value) || 500;
+                          const updated = geofenceConfig.authorizedLocations.map((l) =>
+                            (l.id === loc.id || l._id === loc._id) ? { ...l, radiusMeters: val } : l
+                          );
+                          setGeofenceConfig({ ...geofenceConfig, authorizedLocations: updated });
+                        }}
+                        className="w-20 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 outline-none"
+                      />
+                      <span className="text-slate-500 text-xs font-medium">meters</span>
+                    </div>
+                  </div>
+
+                  <div className="col-span-2 flex items-center justify-between pt-1">
+                    <span className="text-[11px] text-slate-400 font-mono">
+                      GPS: {Number(loc.latitude).toFixed(6)}, {Number(loc.longitude).toFixed(6)}
+                    </span>
+                    {!loc.isHeadOffice && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteLocation(loc.id || loc._id)}
+                        className="text-rose-500 hover:text-rose-700 text-xs font-bold flex items-center gap-1 p-1"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Remove Location</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+      </div>
+
       {loading ? (
         <div className="text-center py-12 text-gray-400 font-bold">Loading offices...</div>
       ) : offices.length === 0 ? (
@@ -299,6 +694,133 @@ const Offices = () => {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Add Authorized Office Branch Modal */}
+      {showAddLocationModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" onClick={() => setShowAddLocationModal(false)}></div>
+          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                  <Building className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-base font-extrabold text-gray-900">Add Authorized Office Branch</h2>
+                  <p className="text-xs text-gray-500">Staff will be permitted to work from this premises</p>
+                </div>
+              </div>
+              <button onClick={() => setShowAddLocationModal(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddLocationSubmit} className="p-6 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                  Branch Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newLocationForm.name}
+                  onChange={(e) => setNewLocationForm({ ...newLocationForm, name: e.target.value })}
+                  className="w-full bg-gray-50 border border-gray-200 p-2.5 rounded-xl font-bold text-xs outline-none focus:ring-2 focus:ring-emerald-500"
+                  placeholder="e.g. Engineers Parcel Second Office"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                  Google Place ID *
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newLocationForm.placeId}
+                  onChange={(e) => setNewLocationForm({ ...newLocationForm, placeId: e.target.value })}
+                  className="w-full bg-gray-50 border border-gray-200 p-2.5 rounded-xl font-mono font-bold text-xs outline-none focus:ring-2 focus:ring-emerald-500"
+                  placeholder="ChIJO6nl04679jkR9J18NwQUqVo"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                  Office Address
+                </label>
+                <textarea
+                  rows="2"
+                  value={newLocationForm.address}
+                  onChange={(e) => setNewLocationForm({ ...newLocationForm, address: e.target.value })}
+                  className="w-full bg-gray-50 border border-gray-200 p-2.5 rounded-xl text-xs outline-none focus:ring-2 focus:ring-emerald-500 resize-none"
+                  placeholder="Office address details..."
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                    Latitude
+                  </label>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    value={newLocationForm.latitude}
+                    onChange={(e) => setNewLocationForm({ ...newLocationForm, latitude: parseFloat(e.target.value) || 0 })}
+                    className="w-full bg-gray-50 border border-gray-200 p-2.5 rounded-xl font-mono text-xs outline-none focus:ring-2 focus:ring-emerald-500"
+                    placeholder="23.812500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                    Longitude
+                  </label>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    value={newLocationForm.longitude}
+                    onChange={(e) => setNewLocationForm({ ...newLocationForm, longitude: parseFloat(e.target.value) || 0 })}
+                    className="w-full bg-gray-50 border border-gray-200 p-2.5 rounded-xl font-mono text-xs outline-none focus:ring-2 focus:ring-emerald-500"
+                    placeholder="86.440000"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1">
+                  Allowed Boundary Radius (Meters)
+                </label>
+                <input
+                  type="number"
+                  min="50"
+                  max="5000"
+                  step="50"
+                  value={newLocationForm.radiusMeters}
+                  onChange={(e) => setNewLocationForm({ ...newLocationForm, radiusMeters: Number(e.target.value) || 500 })}
+                  className="w-full bg-gray-50 border border-gray-200 p-2.5 rounded-xl font-bold text-xs outline-none focus:ring-2 focus:ring-emerald-500"
+                  placeholder="500"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-gray-100 flex items-center justify-end gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowAddLocationModal(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-gray-600 hover:bg-gray-100 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md shadow-emerald-200 transition-all"
+                >
+                  Save Branch Location
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
       )}
 

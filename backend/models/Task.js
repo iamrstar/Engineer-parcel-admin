@@ -14,6 +14,18 @@ const taskSchema = new mongoose.Schema(
       enum: ["tracking", "general"],
       default: "general"
     },
+    locationScope: {
+      type: String,
+      enum: ["office_only", "task_location", "pan_india", "global"],
+      default: "office_only"
+    },
+    locationDetails: {
+      placeId: { type: String },
+      address: { type: String },
+      latitude: { type: Number },
+      longitude: { type: Number },
+      radiusMeters: { type: Number, default: 500 }
+    },
     assignedTo: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",

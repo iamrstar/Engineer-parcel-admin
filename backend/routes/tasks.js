@@ -29,7 +29,7 @@ const anyAuth = async (req, res, next) => {
     const token = req.header("Authorization")?.replace("Bearer ", "");
     if (!token) return res.status(401).json({ message: "No token" });
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "your_super_secret_jwt_key_here");
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "your_super_secret_jwt_key_here_make_it_long_and_complex");
     
     // Check if it's admin
     const admin = await Admin.findById(decoded.id);
@@ -54,7 +54,7 @@ const anyAuth = async (req, res, next) => {
 // 1. Admin: Create a new task
 router.post("/", adminAuth, async (req, res) => {
   try {
-    const { title, description, type, priority, dueDate, assignedTo, bookings, isRecurring, cronExpression } = req.body;
+    const { title, description, type, priority, dueDate, assignedTo, bookings, isRecurring, cronExpression, locationScope, locationDetails } = req.body;
 
     if (!assignedTo || !title) {
       return res.status(400).json({ message: "Missing required fields: title or assignedTo" });
@@ -83,7 +83,9 @@ router.post("/", adminAuth, async (req, res) => {
       dueDate: dueDate || null,
       assignedTo,
       assignedBy: req.admin._id,
-      bookings: bookings || []
+      bookings: bookings || [],
+      locationScope: locationScope || "office_only",
+      locationDetails: locationDetails || {}
     });
 
     await newTask.save();

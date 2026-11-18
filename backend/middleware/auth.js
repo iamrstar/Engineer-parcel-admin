@@ -19,6 +19,15 @@ const authMiddleware = async (req, res, next) => {
     let userOrAdmin = await Admin.findById(decoded.id)
     if (userOrAdmin) {
       req.admin = userOrAdmin;
+      req.user = {
+        _id: userOrAdmin._id,
+        id: userOrAdmin._id,
+        name: userOrAdmin.username,
+        username: userOrAdmin.username,
+        role: "admin",
+        isActive: true,
+        permissions: ["ALL"],
+      };
       return next();
     }
 
@@ -26,6 +35,9 @@ const authMiddleware = async (req, res, next) => {
     userOrAdmin = await User.findById(decoded.id)
     if (userOrAdmin && userOrAdmin.isActive) {
       req.user = userOrAdmin;
+      if (userOrAdmin.role === "admin" || userOrAdmin.role === "office_admin") {
+        req.admin = userOrAdmin;
+      }
       return next();
     }
 

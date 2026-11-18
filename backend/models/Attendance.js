@@ -17,8 +17,18 @@ const attendanceSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["Present", "Late"],
+      enum: ["Present", "Late", "Outside Geofence"],
       default: "Present",
+    },
+    location: {
+      latitude: { type: Number },
+      longitude: { type: Number },
+      accuracy: { type: Number },
+      distanceMeters: { type: Number },
+      inGeofence: { type: Boolean, default: true },
+      placeId: { type: String, default: "ChIJO9LYJiignysRoxbn5RCefB4" },
+      officeName: { type: String, default: "Engineers Parcel Head Office (IIT ISM Dhanbad)" },
+      verifiedAt: { type: Date, default: Date.now }
     },
   },
   { timestamps: true }

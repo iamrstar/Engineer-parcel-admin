@@ -3,10 +3,12 @@ import { Link, useLocation, useNavigate } from "react-router-dom"
 import { useAuth } from "../contexts/AuthContext"
 import axios from "axios"
 import toast from "react-hot-toast"
-import { Package, LayoutDashboard, FileText, MapPin, Ticket, LogOut, Menu, X, BarChart, Bell, Users, Building, CheckSquare, ClipboardList, UserCheck, MessageCircle, CheckCircle, Moon, Sun, Gift, Trophy, Receipt, Calculator, FileSpreadsheet, Megaphone, Wallet } from "lucide-react"
+import { Package, LayoutDashboard, FileText, MapPin, Ticket, LogOut, Menu, X, BarChart, Bell, Users, Building, CheckSquare, ClipboardList, UserCheck, MessageCircle, CheckCircle, Moon, Sun, Gift, Trophy, Receipt, Calculator, FileSpreadsheet, Megaphone, Wallet, Shield } from "lucide-react"
 import { socket } from "../utils/socket"
 import { Activity as ActivityIcon } from "lucide-react"
 import { useTheme } from "../contexts/ThemeContext"
+import { useGeofence } from "../contexts/GeofenceContext"
+import GeofenceGuard from "./GeofenceGuard"
 
 const Layout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -17,6 +19,7 @@ const Layout = ({ children }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const { logout } = useAuth()
   const { isDarkMode, toggleDarkMode } = useTheme()
+  const { status: geofenceStatus, distanceMeters, isInsideGeofence, officeConfig } = useGeofence()
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -550,8 +553,37 @@ const Layout = ({ children }) => {
             </div>
 
             {/* Right side - Notifications & Theme */}
-            <div className="flex flex-1 justify-end items-center gap-x-4">
+            <div className="flex flex-1 justify-end items-center gap-x-3 sm:gap-x-4">
               
+              {/* Office Geofence Status Badge */}
+              {isAdmin ? (
+                <div
+                  title="Master Admin: Global unrestricted access"
+                  className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 text-xs font-bold rounded-full border border-blue-200 dark:border-blue-800 shadow-2xs"
+                >
+                  <Shield className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Admin Access</span>
+                </div>
+              ) : isInsideGeofence ? (
+                <div
+                  title={`Verified inside ${officeConfig?.name || 'Office'} (${distanceMeters != null ? `${distanceMeters}m` : '0m'} from office)`}
+                  className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-xs font-bold rounded-full border border-emerald-200 dark:border-emerald-800 shadow-2xs"
+                >
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>IIT (ISM) Dhanbad ({distanceMeters != null ? `${distanceMeters}m` : 'Verified'})</span>
+                </div>
+              ) : (
+                <div
+                  title="Outside authorized office geofence"
+                  className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 text-xs font-bold rounded-full border border-rose-200 dark:border-rose-800 shadow-2xs"
+                >
+                  <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
+                  <MapPin className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Outside Office ({distanceMeters != null ? (distanceMeters > 1000 ? `${(distanceMeters / 1000).toFixed(1)}km` : `${distanceMeters}m`) : 'Restricted'})</span>
+                </div>
+              )}
+
               {/* Dark Mode Toggle */}
               <button
                 onClick={toggleDarkMode}
@@ -650,13 +682,15 @@ const Layout = ({ children }) => {
             <div className="absolute top-40 left-1/4 w-72 h-72 bg-blue-200 rounded-full mix-blend-multiply filter blur-[128px] opacity-20"></div>
           </div>
 
-          {location.pathname === "/invoice-builder" || location.pathname === "/quotation-builder" ? (
-            children
-          ) : (
-            <div className="px-4 sm:px-6 lg:px-8 max-w-[1600px] mx-auto">
-              {children}
-            </div>
-          )}
+          <GeofenceGuard>
+            {location.pathname === "/invoice-builder" || location.pathname === "/quotation-builder" ? (
+              children
+            ) : (
+              <div className="px-4 sm:px-6 lg:px-8 max-w-[1600px] mx-auto">
+                {children}
+              </div>
+            )}
+          </GeofenceGuard>
         </main>
       </div>
     </div>

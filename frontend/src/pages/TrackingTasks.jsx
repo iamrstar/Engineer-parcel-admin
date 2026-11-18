@@ -10,7 +10,10 @@ import {
   PlusCircle,
   Loader2,
   Clock,
-  Search
+  Search,
+  MapPin,
+  Globe,
+  Building2
 } from 'lucide-react';
 import IncentiveTasksTab from '../components/IncentiveTasksTab';
 
@@ -37,6 +40,14 @@ const TrackingTasks = () => {
   const [dueDate, setDueDate] = useState('');
   const [isRecurring, setIsRecurring] = useState(false);
   const [cronExpression, setCronExpression] = useState('');
+  const [locationScope, setLocationScope] = useState('office_only');
+  const [taskLocationDetails, setTaskLocationDetails] = useState({
+    placeId: '',
+    address: '',
+    latitude: 23.814343,
+    longitude: 86.441198,
+    radiusMeters: 500,
+  });
   
   const [creating, setCreating] = useState(false);
   const [performanceStats, setPerformanceStats] = useState([]);
@@ -199,7 +210,9 @@ const TrackingTasks = () => {
         isRecurring,
         cronExpression: isRecurring ? cronExpression : undefined,
         assignedTo: selectedUser,
-        bookings: taskType === 'tracking' ? selectedBookings : []
+        bookings: taskType === 'tracking' ? selectedBookings : [],
+        locationScope,
+        locationDetails: locationScope === 'task_location' ? taskLocationDetails : undefined
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -212,6 +225,7 @@ const TrackingTasks = () => {
       setDueDate('');
       setIsRecurring(false);
       setCronExpression('');
+      setLocationScope('office_only');
       fetchUnassignedBookings();
       fetchTasks();
       setActiveTab('admin_tasks');
@@ -618,6 +632,61 @@ const TrackingTasks = () => {
                         <option value="0 10 * * 1">Every Monday at 10:00 AM</option>
                         <option value="0 10 1 * *">1st of Every Month at 10:00 AM</option>
                       </select>
+                    )}
+                  </div>
+
+                  {/* Workplace Location Access Scope for Task */}
+                  <div className="p-4 bg-gray-50 dark:bg-[#1A1A1A] rounded-2xl border border-gray-100 dark:border-gray-800 space-y-3">
+                    <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <MapPin className="h-4 w-4 text-primary-600" />
+                      Task Location Access Permission
+                    </label>
+                    <select
+                      value={locationScope}
+                      onChange={(e) => setLocationScope(e.target.value)}
+                      className="w-full px-4 py-2.5 bg-white dark:bg-[#111] border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-primary-500 text-xs font-bold dark:text-white"
+                    >
+                      <option value="office_only">🏢 Standard Office Premises Only</option>
+                      <option value="task_location">📍 Task-Specific Location / Client Site</option>
+                      <option value="pan_india">🇮🇳 Pan-India Field Access (Remote across India)</option>
+                      <option value="global">🌍 Global Remote Access (Anywhere Worldwide)</option>
+                    </select>
+
+                    {locationScope === "task_location" && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-gray-200 dark:border-gray-700 text-xs">
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Place ID</label>
+                          <input
+                            type="text"
+                            value={taskLocationDetails.placeId}
+                            onChange={(e) => setTaskLocationDetails({ ...taskLocationDetails, placeId: e.target.value })}
+                            placeholder="e.g. ChIJO..."
+                            className="w-full px-3 py-1.5 bg-white dark:bg-[#111] border border-gray-200 dark:border-gray-700 rounded-lg font-mono text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Site Address</label>
+                          <input
+                            type="text"
+                            value={taskLocationDetails.address}
+                            onChange={(e) => setTaskLocationDetails({ ...taskLocationDetails, address: e.target.value })}
+                            placeholder="Client site address..."
+                            className="w-full px-3 py-1.5 bg-white dark:bg-[#111] border border-gray-200 dark:border-gray-700 rounded-lg text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold text-gray-400 uppercase mb-1">Allowed Radius (Meters)</label>
+                          <input
+                            type="number"
+                            min="100"
+                            max="5000"
+                            step="50"
+                            value={taskLocationDetails.radiusMeters}
+                            onChange={(e) => setTaskLocationDetails({ ...taskLocationDetails, radiusMeters: Number(e.target.value) || 500 })}
+                            className="w-full px-3 py-1.5 bg-white dark:bg-[#111] border border-gray-200 dark:border-gray-700 rounded-lg text-xs font-bold"
+                          />
+                        </div>
+                      </div>
                     )}
                   </div>
 

@@ -21,7 +21,7 @@ const Attendance = () => {
   
   const [dateFilter, setDateFilter] = useState(getTodayStr());
 
-  const token = localStorage.getItem("adminToken");
+  const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
 
   useEffect(() => {
     if (token) {
@@ -96,6 +96,7 @@ const Attendance = () => {
                   <tr>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Staff Member</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">First Login Time</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Office Geofence (IIT ISM)</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
                   </tr>
                 </thead>
@@ -120,9 +121,24 @@ const Attendance = () => {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
+                        {record.location?.inGeofence !== false ? (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                            <span>In Office (IIT ISM) {record.location?.distanceMeters != null ? `• ${record.location.distanceMeters}m` : ''}</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                            <span>Outside Office {record.location?.distanceMeters ? `• ${record.location.distanceMeters}m` : ''}</span>
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-3 py-1 inline-flex text-xs leading-5 font-bold rounded-full ${
                           record.status === 'Late' 
-                            ? 'bg-red-100 text-red-800' 
+                            ? 'bg-amber-100 text-amber-800' 
+                            : record.status === 'Outside Geofence'
+                            ? 'bg-red-100 text-red-800'
                             : 'bg-green-100 text-green-800'
                         }`}>
                           {record.status}

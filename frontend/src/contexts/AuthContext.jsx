@@ -12,26 +12,84 @@ export const useAuth = () => {
 }
 
 export const AuthProvider = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const initialToken = localStorage.getItem("adminToken") || localStorage.getItem("token");
+  if (initialToken) {
+    axios.defaults.headers.common["Authorization"] = `Bearer ${initialToken}`;
+  }
 
-  const API_BASE_URL = import.meta.env.VITE_API_URL
+  const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(initialToken));
+  const [user, setUser] = useState(() => {
+    try {
+      const savedUser = localStorage.getItem("userData");
+      return savedUser ? JSON.parse(savedUser) : null;
+    } catch (e) {
+      return null;
+    }
+  });
+  const [loading, setLoading] = useState(false);
+
+  const API_BASE_URL = import.meta.env.VITE_API_URL;
+
+  const markAttendanceWithLocation = () => {
+    // Admins have unrestricted access: they can work, log in, and log out from anywhere worldwide.
+    // They are completely exempt from staff geolocation checks and attendance punches.
+    const savedUser = localStorage.getItem("userData");
+    if (savedUser) {
+      try {
+        const parsed = JSON.parse(savedUser);
+        if (parsed.role === "admin" || parsed.role === "office_admin" || (parsed.permissions && parsed.permissions.includes("ALL"))) {
+          return;
+        }
+      } catch (e) { }
+    }
+    if (localStorage.getItem("adminToken")) return;
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          axios
+            .post(`${API_BASE_URL}/api/attendance/mark`, {
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude,
+              accuracy: pos.coords.accuracy,
+            })
+            .catch((e) => console.log("Attendance mark error", e));
+        },
+        () => {
+          axios
+            .post(`${API_BASE_URL}/api/attendance/mark`)
+            .catch((e) => console.log("Attendance not marked", e));
+        },
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
+      );
+    } else {
+      axios
+        .post(`${API_BASE_URL}/api/attendance/mark`)
+        .catch((e) => console.log("Attendance not marked", e));
+    }
+  };
 
   useEffect(() => {
-    const token = localStorage.getItem("adminToken") || localStorage.getItem("token")
-    const savedUser = localStorage.getItem("userData")
+    const token = localStorage.getItem("adminToken") || localStorage.getItem("token");
+    const savedUser = localStorage.getItem("userData");
 
     if (token) {
-      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`
-      setIsAuthenticated(true)
+      axios.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+      setIsAuthenticated(true);
       if (savedUser) {
-        setUser(JSON.parse(savedUser))
+        try {
+          const parsed = JSON.parse(savedUser);
+          setUser(parsed);
+          // Purge leftover adminToken if currently logged in as staff/rider
+          if (parsed.role !== "admin" && parsed.role !== "office_admin") {
+            localStorage.removeItem("adminToken");
+          }
+        } catch (e) { }
       }
-      // Silently mark attendance
-      axios.post(`${API_BASE_URL}/api/attendance/mark`).catch(e => console.log("Attendance not marked", e))
+      // Silently mark attendance with location verification ONLY for non-admins (staff/riders)
+      markAttendanceWithLocation();
     }
-    setLoading(false)
+    setLoading(false);
 
     // Handle token expiry cleanly across the app
     const interceptor = axios.interceptors.response.use(
@@ -40,7 +98,8 @@ export const AuthProvider = ({ children }) => {
         if (
           error.response?.status === 401 &&
           !error.config?.url?.includes("/api/auth/login") &&
-          !error.config?.url?.includes("/api/users/login")
+          !error.config?.url?.includes("/api/users/login") &&
+          !error.config?.url?.includes("/api/attendance/mark")
         ) {
           if (localStorage.getItem("token") || localStorage.getItem("adminToken")) {
             localStorage.removeItem("adminToken")
@@ -86,7 +145,11 @@ export const AuthProvider = ({ children }) => {
       const finalUser = userData || admin // handle both response formats
 
       localStorage.setItem("token", token)
-      localStorage.setItem("adminToken", token) // for backward compatibility
+      if (finalUser?.role === "admin" || finalUser?.role === "office_admin") {
+        localStorage.setItem("adminToken", token)
+      } else {
+        localStorage.removeItem("adminToken") // Never store adminToken for staff/riders
+      }
       localStorage.setItem("userData", JSON.stringify(finalUser))
 
       axios.defaults.headers.common["Authorization"] = `Bearer ${token}`
@@ -94,8 +157,10 @@ export const AuthProvider = ({ children }) => {
       setIsAuthenticated(true)
       setUser(finalUser)
 
-      // Silently mark attendance
-      axios.post(`${API_BASE_URL}/api/attendance/mark`).catch(e => console.log("Attendance not marked", e))
+      // Silently mark attendance with location verification ONLY for non-admins
+      if (finalUser?.role !== "admin" && finalUser?.role !== "office_admin") {
+        markAttendanceWithLocation()
+      }
 
       return { success: true, user: finalUser }
     } catch (error) {

@@ -45,6 +45,11 @@ const userSchema = new mongoose.Schema(
             type: mongoose.Schema.Types.ObjectId,
             ref: "Office"
         },
+        locationAccessMode: {
+            type: String,
+            enum: ["offices_only", "pan_india", "global"],
+            default: "offices_only",
+        },
         designation: {
             type: String,
             default: "Operations Staff",

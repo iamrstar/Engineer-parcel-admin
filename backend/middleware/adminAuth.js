@@ -12,7 +12,7 @@ const adminAuth = async (req, res, next) => {
 
     const decoded = jwt.verify(
       token,
-      process.env.JWT_SECRET || "your_super_secret_jwt_key_here"
+      process.env.JWT_SECRET || "your_super_secret_jwt_key_here_make_it_long_and_complex"
     );
 
     let admin = await Admin.findById(decoded.id);

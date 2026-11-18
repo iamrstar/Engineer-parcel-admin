@@ -27,7 +27,7 @@ const multiAuth = async (req, res, next) => {
     const token = req.header("Authorization")?.replace("Bearer ", "");
     if (!token) return res.status(401).json({ message: "No token" });
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "your_super_secret_jwt_key_here");
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "your_super_secret_jwt_key_here_make_it_long_and_complex");
     
     const admin = await Admin.findById(decoded.id);
     if (admin) {
