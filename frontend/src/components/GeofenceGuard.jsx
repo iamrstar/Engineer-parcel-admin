@@ -82,10 +82,10 @@ export default function GeofenceGuard({ children }) {
   }
 
   // 5. Staff with "offices_only" under active Enforcement Gate:
-  // Must be physically verified inside an authorized office branch perimeter (<= 500m)
-    if (status === "allowed" || (status === "allowed" && isInsideGeofence)) {
-      return <>{children}</>;
-    }
+  // Must be physically verified inside an authorized office branch perimeter
+  if (isInsideGeofence || status === "allowed" || status === "admin_exempt" || status === "pan_india_allowed" || status === "global_allowed") {
+    return <>{children}</>;
+  }
 
     // 1. Initial Checking / GPS Acquisition
     if (status === "checking") {

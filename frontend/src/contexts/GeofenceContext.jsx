@@ -11,7 +11,7 @@ const DEFAULT_LOCATIONS = [
     address: "4th Floor, I2H Building, IIT (ISM) Dhanbad, Jharkhand 826004, India",
     latitude: 23.814343,
     longitude: 86.441198,
-    radiusMeters: 500,
+    radiusMeters: 1500, // 1500m covers full 218-acre campus perimeter
     isActive: true,
     isHeadOffice: true,
   },
@@ -22,7 +22,7 @@ const DEFAULT_LOCATIONS = [
     address: "Engineers Parcel Second Branch Premises",
     latitude: 23.812500,
     longitude: 86.440000,
-    radiusMeters: 500,
+    radiusMeters: 1000,
     isActive: true,
     isHeadOffice: false,
   },
@@ -207,7 +207,8 @@ export const GeofenceProvider = ({ children }) => {
           closestLoc = loc;
         }
 
-        if (dist <= (loc.radiusMeters || 500)) {
+        const effectiveRadius = (loc.radiusMeters || 1500) + Math.min(accuracy || 0, 300);
+        if (dist <= effectiveRadius) {
           insideAnyOffice = true;
           setDistanceMeters(dist);
           setIsInsideGeofence(true);

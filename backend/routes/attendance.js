@@ -47,7 +47,7 @@ router.post("/mark", userAuth, async (req, res) => {
           placeId: "ChIJO9LYJiignysRoxbn5RCefB4",
           latitude: 23.814343,
           longitude: 86.441198,
-          radiusMeters: 500,
+          radiusMeters: 1500,
           isActive: true
         },
         {
@@ -56,7 +56,7 @@ router.post("/mark", userAuth, async (req, res) => {
           placeId: "ChIJO6nl04679jkR9J18NwQUqVo",
           latitude: 23.812500,
           longitude: 86.440000,
-          radiusMeters: 500,
+          radiusMeters: 1000,
           isActive: true
         }
       ]
@@ -131,7 +131,8 @@ router.post("/mark", userAuth, async (req, res) => {
             minDistance = dist;
             closestOffice = loc;
           }
-          if (dist <= (loc.radiusMeters || 500)) {
+          const effectiveRadius = (loc.radiusMeters || 1500) + Math.min(Number(accuracy) || 0, 300);
+          if (dist <= effectiveRadius) {
             inGeofence = true;
             distanceMeters = dist;
             verifiedOfficeName = loc.name;

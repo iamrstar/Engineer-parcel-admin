@@ -19,7 +19,7 @@ const Layout = ({ children }) => {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const { logout } = useAuth()
   const { isDarkMode, toggleDarkMode } = useTheme()
-  const { status: geofenceStatus, distanceMeters, isInsideGeofence, officeConfig } = useGeofence()
+  const { status: geofenceStatus, distanceMeters, isInsideGeofence, officeConfig, geofenceConfig, userAccessMode } = useGeofence()
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -564,6 +564,40 @@ const Layout = ({ children }) => {
                   <Shield className="w-3.5 h-3.5 text-blue-600" />
                   <span>Admin Access</span>
                 </div>
+              ) : geofenceConfig?.enforceGeofence === false ? (
+                <div
+                  title="Workplace Enforcement Bypassed: Login allowed anywhere"
+                  className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 text-xs font-bold rounded-full border border-emerald-200 dark:border-emerald-800 shadow-2xs"
+                >
+                  <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                  <Building className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Gate Disabled (Anywhere)</span>
+                </div>
+              ) : (userAccessMode === "global" || geofenceConfig?.globalMode === "global") ? (
+                <div
+                  title="Global Remote: Allowed worldwide"
+                  className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 text-xs font-bold rounded-full border border-purple-200 dark:border-purple-800 shadow-2xs"
+                >
+                  <span className="w-2 h-2 rounded-full bg-purple-500"></span>
+                  <span>🌍 Global Remote</span>
+                </div>
+              ) : (userAccessMode === "pan_india" || geofenceConfig?.globalMode === "pan_india") ? (
+                <div
+                  title="Pan-India Access: Allowed anywhere in India"
+                  className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 text-xs font-bold rounded-full border border-amber-200 dark:border-amber-800 shadow-2xs"
+                >
+                  <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                  <span>🇮🇳 Pan-India Remote</span>
+                </div>
+              ) : geofenceStatus === "checking" ? (
+                <div
+                  title="Connecting to GPS to verify physical presence..."
+                  className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 text-xs font-bold rounded-full border border-amber-200 dark:border-amber-800 shadow-2xs"
+                >
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                  <MapPin className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Verifying Location...</span>
+                </div>
               ) : isInsideGeofence ? (
                 <div
                   title={`Verified inside ${officeConfig?.name || 'Office'} (${distanceMeters != null ? `${distanceMeters}m` : '0m'} from office)`}
@@ -571,7 +605,16 @@ const Layout = ({ children }) => {
                 >
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                   <MapPin className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>IIT (ISM) Dhanbad ({distanceMeters != null ? `${distanceMeters}m` : 'Verified'})</span>
+                  <span>{officeConfig?.name?.includes("IIT ISM") ? "IIT (ISM) Dhanbad" : (officeConfig?.name || "Office")} ({distanceMeters != null && distanceMeters > 0 ? `${distanceMeters}m` : 'Verified'})</span>
+                </div>
+              ) : geofenceStatus === "denied_permission" ? (
+                <div
+                  title="Location permission was denied in your browser"
+                  className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 text-xs font-bold rounded-full border border-rose-200 dark:border-rose-800 shadow-2xs"
+                >
+                  <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                  <MapPin className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Location Permission Denied</span>
                 </div>
               ) : (
                 <div

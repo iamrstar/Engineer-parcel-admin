@@ -91,7 +91,7 @@ const DEFAULT_AUTHORIZED_LOCATIONS = [
     address: "4th Floor, I2H Building, IIT (ISM) Dhanbad, Jharkhand 826004, India",
     latitude: 23.814343,
     longitude: 86.441198,
-    radiusMeters: 500,
+    radiusMeters: 1500, // 1500m encompasses entire 218-acre IIT ISM campus
     isActive: true,
     isHeadOffice: true,
   },
@@ -102,7 +102,7 @@ const DEFAULT_AUTHORIZED_LOCATIONS = [
     address: "Engineers Parcel Second Branch Premises",
     latitude: 23.812500,
     longitude: 86.440000,
-    radiusMeters: 500,
+    radiusMeters: 1000,
     isActive: true,
     isHeadOffice: false,
   },
