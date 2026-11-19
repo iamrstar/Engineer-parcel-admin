@@ -61,7 +61,7 @@ const defaultGeofenceState = {
   verifiedLocationName: "",
   nearestOffice: DEFAULT_LOCATIONS[0],
   errorMessage: "",
-  recheckLocation: () => {},
+  recheckLocation: () => { },
   fetchGeofenceConfig: async () => DEFAULT_GEOFENCE_CONFIG,
   isAdmin: false,
   userAccessMode: "offices_only",
@@ -83,12 +83,12 @@ export const GeofenceProvider = ({ children }) => {
     try {
       const saved = JSON.parse(localStorage.getItem("userData") || "{}");
       if (saved?.role === "admin" || saved?.role === "office_admin" || (saved?.permissions && saved.permissions.includes("ALL"))) return true;
-    } catch (e) {}
+    } catch (e) { }
     return false;
   };
 
   const isAdmin = checkIsAdmin(user);
-  
+
   const [currentUserMode, setCurrentUserMode] = useState(() => {
     try {
       const saved = JSON.parse(localStorage.getItem("userData") || "{}");
@@ -124,7 +124,7 @@ export const GeofenceProvider = ({ children }) => {
           const saved = JSON.parse(localStorage.getItem("userData") || "{}");
           saved.locationAccessMode = res.data.locationAccessMode;
           localStorage.setItem("userData", JSON.stringify(saved));
-        } catch (e) {}
+        } catch (e) { }
       }
     } catch (e) {
       // ignore
@@ -270,6 +270,7 @@ export const GeofenceProvider = ({ children }) => {
 
   // Trigger high-accuracy location check
   const recheckLocation = useCallback(() => {
+
     if (!isAuthenticated) return;
 
     if (isAdmin || geofenceConfig.enforceGeofence === false || userAccessMode === "global" || geofenceConfig.globalMode === "global") {
