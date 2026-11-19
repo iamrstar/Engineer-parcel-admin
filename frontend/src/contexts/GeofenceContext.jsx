@@ -207,30 +207,30 @@ export const GeofenceProvider = ({ children }) => {
           closestLoc = loc;
         }
 
-        const effectiveRadius = (loc.radiusMeters || 1500) + Math.min(accuracy || 0, 300);
-        if (dist <= effectiveRadius) {
-          insideAnyOffice = true;
-          setDistanceMeters(dist);
-          setIsInsideGeofence(true);
-          setStatus("allowed");
-          setVerifiedLocationName(loc.name);
-          setNearestOffice(loc);
-          setErrorMessage("");
-          break;
+          const effectiveRadius = (loc.radiusMeters || 1500) + Math.min(accuracy || 0, 300);
+          if (dist <= effectiveRadius) {
+            insideAnyOffice = true;
+            setDistanceMeters(dist);
+            setIsInsideGeofence(true);
+            setStatus("allowed");
+            setVerifiedLocationName(loc.name);
+            setNearestOffice(loc);
+            setErrorMessage("");
+            break;
+          }
         }
-      }
 
-      if (!insideAnyOffice) {
-        setIsInsideGeofence(false);
-        setStatus("out_of_bounds");
-        setDistanceMeters(minDistance);
-        setNearestOffice(closestLoc);
-        setErrorMessage(
-          `You are ${minDistance > 1000 ? `${(minDistance / 1000).toFixed(1)} km` : `${minDistance} meters`} away from the nearest authorized office (${closestLoc?.name}).`
-        );
-      }
-    },
-    [isAdmin, userAccessMode, geofenceConfig]
+        if (!insideAnyOffice) {
+          setIsInsideGeofence(false);
+          setStatus("out_of_bounds");
+          setDistanceMeters(minDistance);
+          setNearestOffice(closestLoc);
+          setErrorMessage(
+            `You are ${minDistance > 1000 ? `${(minDistance / 1000).toFixed(1)} km` : `${minDistance} meters`} away from the nearest authorized office (${closestLoc?.name}).`
+          );
+        }
+      },
+      [isAdmin, userAccessMode, geofenceConfig]
   );
 
   const handlePositionError = useCallback(

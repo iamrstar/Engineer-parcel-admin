@@ -131,99 +131,99 @@ router.post("/mark", userAuth, async (req, res) => {
             minDistance = dist;
             closestOffice = loc;
           }
-          const effectiveRadius = (loc.radiusMeters || 1500) + Math.min(Number(accuracy) || 0, 300);
-          if (dist <= effectiveRadius) {
-            inGeofence = true;
-            distanceMeters = dist;
-            verifiedOfficeName = loc.name;
-            verifiedPlaceId = loc.placeId;
-            break;
+            const effectiveRadius = (loc.radiusMeters || 1500) + Math.min(Number(accuracy) || 0, 300);
+            if (dist <= effectiveRadius) {
+              inGeofence = true;
+              distanceMeters = dist;
+              verifiedOfficeName = loc.name;
+              verifiedPlaceId = loc.placeId;
+              break;
+            }
+          }
+
+          if (!inGeofence && closestOffice) {
+            distanceMeters = minDistance;
+            verifiedPlaceId = closestOffice.placeId;
+            verifiedOfficeName = `Outside (${closestOffice.name})`;
           }
         }
-
-        if (!inGeofence && closestOffice) {
-          distanceMeters = minDistance;
-          verifiedPlaceId = closestOffice.placeId;
-          verifiedOfficeName = `Outside (${closestOffice.name})`;
-        }
       }
-    }
 
-    // Check if already marked today
-    let attendance = await Attendance.findOne({ user: req.user._id, date: todayStr });
-    
-    if (attendance) {
-      if (!attendance.location?.latitude && latitude && longitude) {
-        attendance.location = {
-          latitude: Number(latitude),
-          longitude: Number(longitude),
-          accuracy: Number(accuracy) || 0,
+      // Check if already marked today
+      let attendance = await Attendance.findOne({ user: req.user._id, date: todayStr });
+
+      if (attendance) {
+        if (!attendance.location?.latitude && latitude && longitude) {
+          attendance.location = {
+            latitude: Number(latitude),
+            longitude: Number(longitude),
+            accuracy: Number(accuracy) || 0,
+            distanceMeters,
+            inGeofence,
+            placeId: verifiedPlaceId,
+            officeName: verifiedOfficeName,
+            verifiedAt: new Date()
+          };
+          await attendance.save();
+        }
+        return res.status(200).json({
+          message: "Attendance already marked for today",
+          attendance,
+          inGeofence,
+          distanceMeters,
+          officeName: verifiedOfficeName
+        });
+      }
+
+      const now = new Date();
+      const istTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
+
+      const isLate = (istTime.getHours() > 10) || (istTime.getHours() === 10 && istTime.getMinutes() > 30);
+
+      let status = isLate ? "Late" : "Present";
+      if (!inGeofence && userRole !== "admin" && userRole !== "office_admin") {
+        status = "Outside Geofence";
+      }
+
+      attendance = new Attendance({
+        user: req.user._id,
+        date: todayStr,
+        firstLoginAt: now,
+        status,
+        location: {
+          latitude: latitude ? Number(latitude) : null,
+          longitude: longitude ? Number(longitude) : null,
+          accuracy: accuracy ? Number(accuracy) : null,
           distanceMeters,
           inGeofence,
           placeId: verifiedPlaceId,
           officeName: verifiedOfficeName,
-          verifiedAt: new Date()
-        };
-        await attendance.save();
-      }
-      return res.status(200).json({ 
-        message: "Attendance already marked for today", 
+          verifiedAt: now
+        }
+      });
+
+      await attendance.save();
+      res.status(201).json({
+        message: inGeofence ? `Attendance verified at ${verifiedOfficeName}` : "Attendance recorded outside authorized workplace",
         attendance,
         inGeofence,
         distanceMeters,
         officeName: verifiedOfficeName
       });
-    }
-
-    const now = new Date();
-    const istTime = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }));
-    
-    const isLate = (istTime.getHours() > 10) || (istTime.getHours() === 10 && istTime.getMinutes() > 30);
-
-    let status = isLate ? "Late" : "Present";
-    if (!inGeofence && userRole !== "admin" && userRole !== "office_admin") {
-      status = "Outside Geofence";
-    }
-
-    attendance = new Attendance({
-      user: req.user._id,
-      date: todayStr,
-      firstLoginAt: now,
-      status,
-      location: {
-        latitude: latitude ? Number(latitude) : null,
-        longitude: longitude ? Number(longitude) : null,
-        accuracy: accuracy ? Number(accuracy) : null,
-        distanceMeters,
-        inGeofence,
-        placeId: verifiedPlaceId,
-        officeName: verifiedOfficeName,
-        verifiedAt: now
+    } catch (error) {
+      if (error.code === 11000) {
+        return res.status(200).json({ message: "Attendance already marked" });
       }
-    });
-
-    await attendance.save();
-    res.status(201).json({ 
-      message: inGeofence ? `Attendance verified at ${verifiedOfficeName}` : "Attendance recorded outside authorized workplace", 
-      attendance,
-      inGeofence,
-      distanceMeters,
-      officeName: verifiedOfficeName
-    });
-  } catch (error) {
-    if (error.code === 11000) {
-      return res.status(200).json({ message: "Attendance already marked" });
+      console.error("Mark attendance error:", error);
+      res.status(500).json({ message: "Server error" });
     }
-    console.error("Mark attendance error:", error);
-    res.status(500).json({ message: "Server error" });
-  }
-});
+  });
 
 // 2. Admin: Get all attendance records (with optional date filter)
 router.get("/", adminAuth, async (req, res) => {
   try {
     const dateFilter = req.query.date || getTodayDateString();
-    
+
     const records = await Attendance.find({ date: dateFilter })
       .populate("user", "name username role")
       .sort({ firstLoginAt: 1 });
@@ -239,11 +239,11 @@ router.get("/", adminAuth, async (req, res) => {
 router.get("/report", adminAuth, async (req, res) => {
   try {
     const { startDate, endDate, userId } = req.query;
-    
+
     // Parse dates to JS Dates for task querying
     const start = startDate ? new Date(startDate) : new Date(getTodayDateString());
     start.setHours(0, 0, 0, 0);
-    
+
     const end = endDate ? new Date(endDate) : new Date(getTodayDateString());
     end.setHours(23, 59, 59, 999);
 
@@ -252,9 +252,9 @@ router.get("/report", adminAuth, async (req, res) => {
     if (startDate && endDate) {
       attendanceQuery.date = { $gte: startDate, $lte: endDate };
     } else {
-       attendanceQuery.date = getTodayDateString();
+      attendanceQuery.date = getTodayDateString();
     }
-    
+
     if (userId) {
       attendanceQuery.user = userId;
     }
@@ -269,7 +269,7 @@ router.get("/report", adminAuth, async (req, res) => {
     if (userId) {
       taskQuery.assignedTo = userId;
     }
-    
+
     const completedTasks = await Task.find(taskQuery).populate("assignedTo", "name username");
 
     let reportMap = {}; // key: "YYYY-MM-DD_userId"
@@ -293,7 +293,7 @@ router.get("/report", adminAuth, async (req, res) => {
       const dateStr = `${compDate.getFullYear()}-${String(compDate.getMonth() + 1).padStart(2, '0')}-${String(compDate.getDate()).padStart(2, '0')}`;
       const userIdStr = task.assignedTo._id.toString();
       const key = `${dateStr}_${userIdStr}`;
-      
+
       if (!reportMap[key]) {
         reportMap[key] = {
           date: dateStr,
@@ -304,7 +304,7 @@ router.get("/report", adminAuth, async (req, res) => {
           tasks: []
         };
       }
-      
+
       reportMap[key].tasksCompleted += 1;
       reportMap[key].tasks.push({
         title: task.title,
@@ -314,8 +314,8 @@ router.get("/report", adminAuth, async (req, res) => {
 
     // Convert map to array
     const reportData = Object.values(reportMap).sort((a, b) => {
-        if (a.date !== b.date) return b.date.localeCompare(a.date); // descending date
-        return a.user.name.localeCompare(b.user.name);
+      if (a.date !== b.date) return b.date.localeCompare(a.date); // descending date
+      return a.user.name.localeCompare(b.user.name);
     });
 
     res.json(reportData);

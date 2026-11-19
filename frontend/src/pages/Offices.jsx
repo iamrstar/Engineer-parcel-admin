@@ -246,16 +246,16 @@ const Offices = () => {
   // Switch to office by logging in as the office admin
   const handleSwitchToOffice = async (office) => {
     if (!office.adminUser?._id) return toast.error("No valid admin user for this office");
-    
+
     setSwitchingTo(office._id);
-    
+
     // Simulate a slight delay for a nice loader animation
     setTimeout(async () => {
       const res = await impersonate(office.adminUser._id);
       if (res.success) {
         toast.success(`Switched to ${office.name}!`);
         // Force reload to completely refresh the state and routes to the office dashboard
-        window.location.href = "/"; 
+        window.location.href = "/";
       } else {
         toast.error(res.message);
         setSwitchingTo(null);
@@ -328,7 +328,7 @@ const Offices = () => {
 
       {/* ─── STAFF WORKPLACE GEOFENCING & MULTI-OFFICE CONTROL CENTER ─── */}
       <div className="bg-white rounded-3xl p-6 shadow-sm border border-slate-200 space-y-6">
-        
+
         {/* Top Header & Save Button */}
         <div className="flex flex-col md:flex-row md:items-center justify-between pb-5 border-b border-slate-100 gap-4">
           <div className="flex items-center gap-3">
@@ -340,11 +340,10 @@ const Offices = () => {
                 <h2 className="text-base font-extrabold text-slate-900">
                   Staff Workplace Geofence & Location Access Control
                 </h2>
-                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
-                  geofenceConfig.enforceGeofence
+                <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${geofenceConfig.enforceGeofence
                     ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                     : "bg-rose-50 text-rose-700 border-rose-200"
-                }`}>
+                  }`}>
                   {geofenceConfig.enforceGeofence ? "Geofence Enforced" : "Geofence Disabled"}
                 </span>
               </div>
@@ -385,11 +384,10 @@ const Offices = () => {
               <button
                 type="button"
                 onClick={() => updateGeofencePolicy({ globalMode: "offices_only" })}
-                className={`p-3 rounded-xl border text-left transition-all ${
-                  geofenceConfig.globalMode === "offices_only"
+                className={`p-3 rounded-xl border text-left transition-all ${geofenceConfig.globalMode === "offices_only"
                     ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
                     : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
-                }`}
+                  }`}
               >
                 <div className="text-xs font-bold flex items-center gap-1.5">
                   <Building className="w-4 h-4" />
@@ -403,11 +401,10 @@ const Offices = () => {
               <button
                 type="button"
                 onClick={() => updateGeofencePolicy({ globalMode: "pan_india" })}
-                className={`p-3 rounded-xl border text-left transition-all ${
-                  geofenceConfig.globalMode === "pan_india"
+                className={`p-3 rounded-xl border text-left transition-all ${geofenceConfig.globalMode === "pan_india"
                     ? "bg-amber-600 text-white border-amber-600 shadow-sm"
                     : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
-                }`}
+                  }`}
               >
                 <div className="text-xs font-bold flex items-center gap-1.5">
                   <Globe className="w-4 h-4" />
@@ -421,11 +418,10 @@ const Offices = () => {
               <button
                 type="button"
                 onClick={() => updateGeofencePolicy({ globalMode: "global" })}
-                className={`p-3 rounded-xl border text-left transition-all ${
-                  geofenceConfig.globalMode === "global"
+                className={`p-3 rounded-xl border text-left transition-all ${geofenceConfig.globalMode === "global"
                     ? "bg-purple-600 text-white border-purple-600 shadow-sm"
                     : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100"
-                }`}
+                  }`}
               >
                 <div className="text-xs font-bold flex items-center gap-1.5">
                   <Globe className="w-4 h-4" />
@@ -477,17 +473,15 @@ const Offices = () => {
             {(geofenceConfig.authorizedLocations || []).map((loc, idx) => (
               <div
                 key={loc.id || loc._id || idx}
-                className={`p-5 rounded-2xl border transition-all ${
-                  loc.isActive
+                className={`p-5 rounded-2xl border transition-all ${loc.isActive
                     ? "bg-white border-slate-200 shadow-xs hover:border-emerald-300"
                     : "bg-slate-50/70 border-slate-200/60 opacity-75"
-                }`}
+                  }`}
               >
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div className="flex items-start gap-2.5">
-                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${
-                      loc.isActive ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-slate-100 text-slate-400"
-                    }`}>
+                    <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${loc.isActive ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-slate-100 text-slate-400"
+                      }`}>
                       <Building className="w-5 h-5" />
                     </div>
                     <div>
@@ -509,11 +503,10 @@ const Offices = () => {
                   <button
                     type="button"
                     onClick={() => handleToggleLocation(loc.id || loc._id)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
-                      loc.isActive
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${loc.isActive
                         ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
                         : "bg-slate-200 hover:bg-slate-300 text-slate-600"
-                    }`}
+                      }`}
                     title={loc.isActive ? "Click to disable office access for staff" : "Click to grant office access for staff"}
                   >
                     <Power className={`w-3.5 h-3.5 ${loc.isActive ? "text-emerald-600" : "text-slate-400"}`} />
@@ -606,8 +599,8 @@ const Offices = () => {
                     </span>
                   </div>
                 </div>
-                <button 
-                  onClick={() => handleDeleteOffice(office._id)} 
+                <button
+                  onClick={() => handleDeleteOffice(office._id)}
                   className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                   title="Delete Office"
                 >
@@ -636,9 +629,9 @@ const Offices = () => {
                       <span className="text-xs font-bold text-gray-700">Booking Receipts</span>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
-                      <input 
-                        type="checkbox" 
-                        className="sr-only peer" 
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
                         checked={office.enableMailService !== false}
                         onChange={() => handleToggleMailService(office._id, office.enableMailService !== false)}
                       />
@@ -657,9 +650,9 @@ const Offices = () => {
                       <span className="text-xs font-bold text-gray-700">Delivery Emails</span>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
-                      <input 
-                        type="checkbox" 
-                        className="sr-only peer" 
+                      <input
+                        type="checkbox"
+                        className="sr-only peer"
                         checked={office.enableDeliveryEmail !== false}
                         onChange={() => handleToggleDeliveryEmail(office._id, office.enableDeliveryEmail !== false)}
                       />
@@ -669,13 +662,13 @@ const Offices = () => {
                 </div>
 
                 <div className="flex flex-col gap-2 pt-4 border-t border-gray-100">
-                  <button 
+                  <button
                     onClick={() => openPermissionsModal(office)}
                     className="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-2"
                   >
                     Edit Feature Access
                   </button>
-                  <button 
+                  <button
                     onClick={() => handleSwitchToOffice(office)}
                     disabled={switchingTo === office._id}
                     className="w-full py-2.5 bg-gray-900 hover:bg-black text-white text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-70"
@@ -841,30 +834,30 @@ const Offices = () => {
               <h2 className="text-xl font-black text-gray-900">Create New Office</h2>
               <button onClick={() => setShowModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-6 h-6" /></button>
             </div>
-            
+
             <form onSubmit={handleCreateOffice} className="p-6 space-y-6 max-h-[70vh] overflow-y-auto custom-scrollbar">
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Office Name</label>
-                  <input type="text" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-sm" placeholder="e.g. South Branch" />
+                  <input type="text" required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-sm" placeholder="e.g. South Branch" />
                 </div>
                 <div>
                   <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Office Code</label>
-                  <input type="text" required value={formData.code} onChange={e => setFormData({...formData, code: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-sm" placeholder="e.g. SB-01" />
+                  <input type="text" required value={formData.code} onChange={e => setFormData({ ...formData, code: e.target.value })} className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-sm" placeholder="e.g. SB-01" />
                 </div>
                 <div>
                   <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Booking Prefix</label>
-                  <input type="text" required value={formData.bookingPrefix} onChange={e => setFormData({...formData, bookingPrefix: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-sm" placeholder="e.g. EP" />
+                  <input type="text" required value={formData.bookingPrefix} onChange={e => setFormData({ ...formData, bookingPrefix: e.target.value })} className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-sm" placeholder="e.g. EP" />
                 </div>
                 <div>
                   <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Start Sequence</label>
-                  <input type="number" required value={formData.bookingIdStart} onChange={e => setFormData({...formData, bookingIdStart: Number(e.target.value)})} className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-sm" placeholder="e.g. 4600" />
+                  <input type="number" required value={formData.bookingIdStart} onChange={e => setFormData({ ...formData, bookingIdStart: Number(e.target.value) })} className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-sm" placeholder="e.g. 4600" />
                 </div>
               </div>
-              
+
               <div>
                 <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Full Address</label>
-                <textarea rows="2" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-sm resize-none"></textarea>
+                <textarea rows="2" value={formData.address} onChange={e => setFormData({ ...formData, address: e.target.value })} className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-medium text-sm resize-none"></textarea>
               </div>
 
               <div className="pt-4 border-t border-gray-100">
@@ -872,11 +865,11 @@ const Offices = () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Admin Username</label>
-                    <input type="text" required value={formData.username} onChange={e => setFormData({...formData, username: e.target.value})} className="w-full bg-blue-50 border border-blue-100 p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-mono font-bold text-sm text-blue-900" placeholder="office_admin_1" />
+                    <input type="text" required value={formData.username} onChange={e => setFormData({ ...formData, username: e.target.value })} className="w-full bg-blue-50 border border-blue-100 p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-mono font-bold text-sm text-blue-900" placeholder="office_admin_1" />
                   </div>
                   <div>
                     <label className="block text-xs font-black text-gray-500 uppercase tracking-widest mb-2">Password</label>
-                    <input type="text" required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} className="w-full bg-blue-50 border border-blue-100 p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-mono font-bold text-sm text-blue-900" placeholder="Secret123" />
+                    <input type="text" required value={formData.password} onChange={e => setFormData({ ...formData, password: e.target.value })} className="w-full bg-blue-50 border border-blue-100 p-3 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-mono font-bold text-sm text-blue-900" placeholder="Secret123" />
                   </div>
                 </div>
                 <p className="text-[10px] font-medium text-gray-500 mt-2">These credentials will be used by the office manager to log in and add their own staff.</p>
@@ -887,8 +880,8 @@ const Offices = () => {
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   {availableFeatures.map(feature => (
                     <label key={feature} className="flex items-center gap-2 cursor-pointer p-2 rounded hover:bg-gray-50 border border-transparent hover:border-gray-200 transition-colors">
-                      <input 
-                        type="checkbox" 
+                      <input
+                        type="checkbox"
                         checked={formData.permissions.includes(feature)}
                         onChange={() => togglePermission(feature, true)}
                         className="rounded text-blue-600 focus:ring-blue-500"
@@ -918,13 +911,13 @@ const Offices = () => {
               </div>
               <button onClick={() => setShowPermissionsModal(false)} className="text-gray-400 hover:text-gray-600"><X className="w-6 h-6" /></button>
             </div>
-            
+
             <div className="p-6 max-h-[60vh] overflow-y-auto custom-scrollbar">
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {availableFeatures.map(feature => (
                   <label key={feature} className={`flex items-center gap-2 cursor-pointer p-3 rounded-xl border-2 transition-all ${editingPermissions.includes(feature) ? 'border-blue-500 bg-blue-50/50' : 'border-gray-100 hover:border-gray-300'}`}>
-                    <input 
-                      type="checkbox" 
+                    <input
+                      type="checkbox"
                       checked={editingPermissions.includes(feature)}
                       onChange={() => togglePermission(feature, false)}
                       className="rounded text-blue-600 focus:ring-blue-500 w-4 h-4"
@@ -936,13 +929,13 @@ const Offices = () => {
             </div>
 
             <div className="p-6 border-t border-gray-100 bg-gray-50/50 flex justify-end gap-3">
-              <button 
+              <button
                 onClick={() => setShowPermissionsModal(false)}
                 className="px-6 py-2.5 rounded-xl font-bold text-gray-600 hover:bg-gray-200 transition-colors"
               >
                 Cancel
               </button>
-              <button 
+              <button
                 onClick={handleUpdatePermissions}
                 className="px-6 py-2.5 rounded-xl font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-100 transition-colors"
               >
