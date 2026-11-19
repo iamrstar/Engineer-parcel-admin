@@ -16,6 +16,7 @@ import {
 export default function GeofenceGuard({ children }) {
   const {
     status,
+    isInsideGeofence,
     distanceMeters,
     geofenceConfig,
     verifiedLocationName,
@@ -82,7 +83,7 @@ export default function GeofenceGuard({ children }) {
 
   // 5. Staff with "offices_only" under active Enforcement Gate:
   // Must be physically verified inside an authorized office branch perimeter (<= 500m)
-  if (status === "allowed" && isInsideGeofence) {
+  if (status === "allowed" || (status === "allowed" && isInsideGeofence)) {
     return <>{children}</>;
   }
 
